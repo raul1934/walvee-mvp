@@ -59,7 +59,10 @@ export default function Home({ user, userLoading, openLoginModal }) {
     queryFn: async () => {
       console.log("[Home] ⬇️ Fetching trips...");
       try {
-        const allTrips = await Trip.list({ sortBy: "created_at", order: "desc" });
+        const allTrips = await Trip.list({
+          sortBy: "created_at",
+          order: "desc",
+        });
         console.log("[Home] ✅ Trips fetched:", allTrips.length);
 
         // Fisher-Yates shuffle algorithm to randomize order

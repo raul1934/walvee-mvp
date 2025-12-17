@@ -1,6 +1,4 @@
-const TripLikeModel = require("../models/TripLike");
-const TripModel = require("../models/Trip");
-const UserModel = require("../models/User");
+const { TripLike, Trip, User } = require("../models/sequelize");
 const {
   paginate,
   buildPaginationMeta,
@@ -8,32 +6,33 @@ const {
   buildErrorResponse,
 } = require("../utils/helpers");
 
-const getUserFavorites = async (req, res) => {
+const getUserFavorites = async (req, res, next) => {
   try {
     const userId = req.user.id;
     const { page, limit } = req.query;
     const { page: pageNum, limit: limitNum, offset } = paginate(page, limit);
 
-    const likes = await TripLikeModel.findByLiker(userId, offset, limitNum);
-    const total = await TripLikeModel.countByLiker(userId);
+    const { count: total, rows: likes } = await TripLike.findAndCountAll({
+      where: { liker_id: userId },
+      include: [{ model: Trip, attributes: ["id", "title", "cover_image", "destination"] }],
+      offset,
+      limit: limitNum,
+      order: [["created_at", "DESC"]],
+    });
     const pagination = buildPaginationMeta(pageNum, limitNum, total);
 
     res.json(buildSuccessResponse(likes, pagination));
   } catch (error) {
-    res
-      .status(500)
-      .json(
-        buildErrorResponse("INTERNAL_SERVER_ERROR", "Failed to fetch favorites")
-      );
+    next(error);
   }
 };
 
-const likeTrip = async (req, res) => {
+const likeTrip = async (req, res, next) => {
   try {
     const userId = req.user.id;
     const { tripId } = req.body;
 
-    const trip = await TripModel.findById(tripId);
+    const trip = await Trip.findByPk(tripId);
 
     if (!trip) {
       return res
@@ -41,7 +40,9 @@ const likeTrip = async (req, res) => {
         .json(buildErrorResponse("RESOURCE_NOT_FOUND", "Trip not found"));
     }
 
-    const existingLike = await TripLikeModel.findByTripAndLiker(tripId, userId);
+    const existingLike = await TripLike.findOne({
+      where: { trip_id: tripId, liker_id: userId },
+    });
 
     if (existingLike) {
       return res
@@ -49,33 +50,32 @@ const likeTrip = async (req, res) => {
         .json(buildErrorResponse("VALIDATION_ERROR", "Trip already liked"));
     }
 
-    const like = await TripLikeModel.create(tripId, userId);
+    const like = await TripLike.create({
+      trip_id: tripId,
+      liker_id: userId,
+    });
 
     // Update trip likes count
-    await TripModel.incrementLikes(tripId);
+    await trip.increment("likes_count");
 
     // Update trip author's likes received metric
-    const author = await UserModel.findById(trip.created_by);
+    const author = await User.findByPk(trip.author_id);
     if (author) {
-      await UserModel.updateMetrics(author.id, {
-        likesReceived: author.metrics_likes_received + 1,
-      });
+      await author.increment("metrics_likes_received");
     }
 
     res.status(201).json(buildSuccessResponse(like));
   } catch (error) {
-    res
-      .status(500)
-      .json(buildErrorResponse("INTERNAL_SERVER_ERROR", "Failed to like trip"));
+    next(error);
   }
 };
 
-const unlikeTrip = async (req, res) => {
+const unlikeTrip = async (req, res, next) => {
   try {
     const userId = req.user.id;
     const { id } = req.params;
 
-    const like = await TripLikeModel.findById(id);
+    const like = await TripLike.findByPk(id);
 
     if (!like) {
       return res
@@ -94,39 +94,37 @@ const unlikeTrip = async (req, res) => {
         );
     }
 
-    const trip = await TripModel.findById(like.trip_id);
+    const trip = await Trip.findByPk(like.trip_id);
 
-    await TripLikeModel.delete(id);
+    await like.destroy();
 
     // Update trip likes count
-    await TripModel.decrementLikes(like.trip_id);
+    if (trip && trip.likes_count > 0) {
+      await trip.decrement("likes_count");
+    }
 
     // Update trip author's likes received metric
     if (trip) {
-      const author = await UserModel.findById(trip.created_by);
-      if (author) {
-        await UserModel.updateMetrics(author.id, {
-          likesReceived: Math.max(0, author.metrics_likes_received - 1),
-        });
+      const author = await User.findByPk(trip.author_id);
+      if (author && author.metrics_likes_received > 0) {
+        await author.decrement("metrics_likes_received");
       }
     }
 
     res.json(buildSuccessResponse({ message: "Trip unliked successfully" }));
   } catch (error) {
-    res
-      .status(500)
-      .json(
-        buildErrorResponse("INTERNAL_SERVER_ERROR", "Failed to unlike trip")
-      );
+    next(error);
   }
 };
 
-const checkLikeStatus = async (req, res) => {
+const checkLikeStatus = async (req, res, next) => {
   try {
     const userId = req.user.id;
     const { tripId } = req.params;
 
-    const like = await TripLikeModel.findByTripAndLiker(tripId, userId);
+    const like = await TripLike.findOne({
+      where: { trip_id: tripId, liker_id: userId },
+    });
 
     res.json(
       buildSuccessResponse({
@@ -135,14 +133,7 @@ const checkLikeStatus = async (req, res) => {
       })
     );
   } catch (error) {
-    res
-      .status(500)
-      .json(
-        buildErrorResponse(
-          "INTERNAL_SERVER_ERROR",
-          "Failed to check like status"
-        )
-      );
+    next(error);
   }
 };
 

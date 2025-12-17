@@ -22,36 +22,36 @@ export default function DestinationCarousel() {
 
   // Fetch real cities from trips in database
   const { data: cities = [], isLoading } = useQuery({
-    queryKey: ['homeCities'],
+    queryKey: ["homeCities"],
     queryFn: async () => {
       try {
         // First try to get cities from cache
-        const cachedCities = sessionStorage.getItem('walvee_cities_cache');
+        const cachedCities = sessionStorage.getItem("walvee_cities_cache");
         if (cachedCities) {
           const cache = JSON.parse(cachedCities);
           // Check if cache is less than 10 minutes old
           if (Date.now() - cache.timestamp < 10 * 60 * 1000) {
-            console.log('[DestinationCarousel] Using cached cities');
+            console.log("[DestinationCarousel] Using cached cities");
             return shuffleArray(cache.data);
           }
         }
 
-        console.log('[DestinationCarousel] Fetching cities from API');
+        console.log("[DestinationCarousel] Fetching cities from API");
         const allTrips = await Trip.list();
-        
+
         // Extract and count cities from trip destinations
         const cityCount = {};
         const cityImages = {};
-        
-        allTrips.forEach(trip => {
+
+        allTrips.forEach((trip) => {
           if (!trip.destination) return;
-          
+
           // Parse city name (format: "City, Country")
           const cityName = trip.destination.trim();
-          
+
           // Count occurrences
           cityCount[cityName] = (cityCount[cityName] || 0) + 1;
-          
+
           // Store first valid image for each city
           if (!cityImages[cityName] && trip.images && trip.images.length > 0) {
             cityImages[cityName] = trip.images[0];
@@ -59,36 +59,41 @@ export default function DestinationCarousel() {
             cityImages[cityName] = trip.image_url;
           }
         });
-        
+
         // Convert to array and sort by trip count
         const citiesArray = Object.entries(cityCount)
           .map(([name, count]) => ({
             name,
             tripsCount: count,
-            image: cityImages[name] || `https://images.unsplash.com/photo-1514565131-fce0801e5785?w=400&h=400&fit=crop`
+            image:
+              cityImages[name] ||
+              `https://images.unsplash.com/photo-1514565131-fce0801e5785?w=400&h=400&fit=crop`,
           }))
           .sort((a, b) => b.tripsCount - a.tripsCount)
           .slice(0, 12);
-        
+
         // Cache the results
-        sessionStorage.setItem('walvee_cities_cache', JSON.stringify({
-          data: citiesArray,
-          timestamp: Date.now()
-        }));
-        
+        sessionStorage.setItem(
+          "walvee_cities_cache",
+          JSON.stringify({
+            data: citiesArray,
+            timestamp: Date.now(),
+          })
+        );
+
         // Randomize order on each load
         return shuffleArray(citiesArray);
       } catch (error) {
-        console.error('[DestinationCarousel] Error loading cities:', error);
-        
+        console.error("[DestinationCarousel] Error loading cities:", error);
+
         // Try to return cached data even if expired
-        const cachedCities = sessionStorage.getItem('walvee_cities_cache');
+        const cachedCities = sessionStorage.getItem("walvee_cities_cache");
         if (cachedCities) {
           const cache = JSON.parse(cachedCities);
-          console.log('[DestinationCarousel] Using stale cache due to error');
+          console.log("[DestinationCarousel] Using stale cache due to error");
           return shuffleArray(cache.data);
         }
-        
+
         return [];
       }
     },
@@ -108,8 +113,8 @@ export default function DestinationCarousel() {
     };
 
     checkOverflow();
-    window.addEventListener('resize', checkOverflow);
-    return () => window.removeEventListener('resize', checkOverflow);
+    window.addEventListener("resize", checkOverflow);
+    return () => window.removeEventListener("resize", checkOverflow);
   }, [cities]);
 
   const scroll = (direction) => {
@@ -146,15 +151,17 @@ export default function DestinationCarousel() {
           </Button>
         )}
 
-        <div 
+        <div
           ref={scrollRef}
           className="flex gap-3 overflow-x-auto scrollbar-hide scroll-smooth max-w-xl"
-          style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+          style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
         >
           {cities.map((city) => (
             <Link
               key={city.name}
-              to={`${createPageUrl("City")}?name=${encodeURIComponent(city.name)}`}
+              to={`${createPageUrl("City")}?name=${encodeURIComponent(
+                city.name
+              )}`}
               className="flex-shrink-0 group cursor-pointer"
             >
               <div className="relative w-14 h-14 md:w-16 md:h-16 rounded-full overflow-hidden border-2 border-gray-700 group-hover:border-blue-500 transition-all duration-300 group-hover:scale-110">
@@ -163,12 +170,13 @@ export default function DestinationCarousel() {
                   alt={city.name}
                   className="w-full h-full object-cover"
                   onError={(e) => {
-                    e.target.src = 'https://images.unsplash.com/photo-1514565131-fce0801e5785?w=400&h=400&fit=crop';
+                    e.target.src =
+                      "https://images.unsplash.com/photo-1514565131-fce0801e5785?w=400&h=400&fit=crop";
                   }}
                 />
               </div>
               <p className="text-xs text-center mt-1 text-gray-300 group-hover:text-white transition-colors max-w-[64px] truncate">
-                {city.name.split(',')[0]}
+                {city.name.split(",")[0]}
               </p>
             </Link>
           ))}

@@ -1,5 +1,4 @@
-const ReviewModel = require("../models/Review");
-const TripModel = require("../models/Trip");
+const { Review, Trip, User } = require("../models/sequelize");
 const {
   paginate,
   buildPaginationMeta,
@@ -7,35 +6,36 @@ const {
   buildErrorResponse,
 } = require("../utils/helpers");
 
-const getReviews = async (req, res) => {
+const getReviews = async (req, res, next) => {
   try {
     const { tripId, placeId, page, limit } = req.query;
     const { page: pageNum, limit: limitNum, offset } = paginate(page, limit);
 
-    const reviews = await ReviewModel.findAll({
-      tripId,
-      placeId,
+    const where = {};
+    if (tripId) where.trip_id = tripId;
+    if (placeId) where.place_id = placeId;
+
+    const { count: total, rows: reviews } = await Review.findAndCountAll({
+      where,
+      include: [{ model: User, as: "reviewer", attributes: ["id", "full_name", "preferred_name", "photo_url"] }],
       offset,
       limit: limitNum,
+      order: [["created_at", "DESC"]],
     });
-
-    const total = await ReviewModel.count({ tripId, placeId });
     const pagination = buildPaginationMeta(pageNum, limitNum, total);
 
     res.json(buildSuccessResponse(reviews, pagination));
   } catch (error) {
-    res
-      .status(500)
-      .json(
-        buildErrorResponse("INTERNAL_SERVER_ERROR", "Failed to fetch reviews")
-      );
+    next(error);
   }
 };
 
-const getReviewById = async (req, res) => {
+const getReviewById = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const review = await ReviewModel.findById(id);
+    const review = await Review.findByPk(id, {
+      include: [{ model: User, as: "reviewer", attributes: ["id", "full_name", "preferred_name", "photo_url"] }],
+    });
 
     if (!review) {
       return res
@@ -45,21 +45,17 @@ const getReviewById = async (req, res) => {
 
     res.json(buildSuccessResponse(review));
   } catch (error) {
-    res
-      .status(500)
-      .json(
-        buildErrorResponse("INTERNAL_SERVER_ERROR", "Failed to fetch review")
-      );
+    next(error);
   }
 };
 
-const createReview = async (req, res) => {
+const createReview = async (req, res, next) => {
   try {
     const reviewerId = req.user.id;
     const { tripId, placeId, rating, comment } = req.body;
 
     if (tripId) {
-      const trip = await TripModel.findById(tripId);
+      const trip = await Trip.findByPk(tripId);
       if (!trip) {
         return res
           .status(404)
@@ -67,30 +63,26 @@ const createReview = async (req, res) => {
       }
     }
 
-    const review = await ReviewModel.create({
-      tripId,
-      placeId,
-      reviewerId,
+    const review = await Review.create({
+      trip_id: tripId,
+      place_id: placeId,
+      reviewer_id: reviewerId,
       rating,
       comment,
     });
 
     res.status(201).json(buildSuccessResponse(review));
   } catch (error) {
-    res
-      .status(500)
-      .json(
-        buildErrorResponse("INTERNAL_SERVER_ERROR", "Failed to create review")
-      );
+    next(error);
   }
 };
 
-const updateReview = async (req, res) => {
+const updateReview = async (req, res, next) => {
   try {
     const { id } = req.params;
     const userId = req.user.id;
 
-    const review = await ReviewModel.findById(id);
+    const review = await Review.findByPk(id);
 
     if (!review) {
       return res
@@ -109,24 +101,24 @@ const updateReview = async (req, res) => {
         );
     }
 
-    const updatedReview = await ReviewModel.update(id, req.body);
+    await review.update(req.body);
+
+    const updatedReview = await Review.findByPk(id, {
+      include: [{ model: User, as: "reviewer", attributes: ["id", "full_name", "preferred_name", "photo_url"] }],
+    });
 
     res.json(buildSuccessResponse(updatedReview));
   } catch (error) {
-    res
-      .status(500)
-      .json(
-        buildErrorResponse("INTERNAL_SERVER_ERROR", "Failed to update review")
-      );
+    next(error);
   }
 };
 
-const deleteReview = async (req, res) => {
+const deleteReview = async (req, res, next) => {
   try {
     const { id } = req.params;
     const userId = req.user.id;
 
-    const review = await ReviewModel.findById(id);
+    const review = await Review.findByPk(id);
 
     if (!review) {
       return res
@@ -145,15 +137,11 @@ const deleteReview = async (req, res) => {
         );
     }
 
-    await ReviewModel.delete(id);
+    await review.destroy();
 
     res.json(buildSuccessResponse({ message: "Review deleted successfully" }));
   } catch (error) {
-    res
-      .status(500)
-      .json(
-        buildErrorResponse("INTERNAL_SERVER_ERROR", "Failed to delete review")
-      );
+    next(error);
   }
 };
 

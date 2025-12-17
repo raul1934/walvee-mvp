@@ -7,6 +7,8 @@ const TripItineraryDay = require("./TripItineraryDay");
 const TripItineraryActivity = require("./TripItineraryActivity");
 const TripLike = require("./TripLike");
 const Follow = require("./Follow");
+const TripSteal = require("./TripSteal");
+const Review = require("./Review");
 
 // Define associations
 User.hasMany(Trip, { foreignKey: "author_id", as: "trips" });
@@ -40,6 +42,27 @@ User.hasMany(Follow, { foreignKey: "followee_id", as: "followers" });
 Follow.belongsTo(User, { foreignKey: "follower_id", as: "follower" });
 Follow.belongsTo(User, { foreignKey: "followee_id", as: "followee" });
 
+Trip.hasMany(TripSteal, { foreignKey: "original_trip_id", as: "steals" });
+TripSteal.belongsTo(Trip, {
+  foreignKey: "original_trip_id",
+  as: "originalTrip",
+});
+TripSteal.belongsTo(Trip, { foreignKey: "new_trip_id", as: "newTrip" });
+
+User.hasMany(TripSteal, { foreignKey: "original_user_id", as: "tripsStolen" });
+User.hasMany(TripSteal, { foreignKey: "new_user_id", as: "stolenTrips" });
+TripSteal.belongsTo(User, {
+  foreignKey: "original_user_id",
+  as: "originalUser",
+});
+TripSteal.belongsTo(User, { foreignKey: "new_user_id", as: "newUser" });
+
+Trip.hasMany(Review, { foreignKey: "trip_id", as: "reviews" });
+Review.belongsTo(Trip, { foreignKey: "trip_id" });
+
+User.hasMany(Review, { foreignKey: "reviewer_id", as: "reviews" });
+Review.belongsTo(User, { foreignKey: "reviewer_id", as: "reviewer" });
+
 module.exports = {
   sequelize,
   User,
@@ -50,4 +73,6 @@ module.exports = {
   TripItineraryActivity,
   TripLike,
   Follow,
+  TripSteal,
+  Review,
 };

@@ -1,7 +1,7 @@
 const passport = require("passport");
 const GoogleStrategy = require("passport-google-oauth20").Strategy;
 const config = require("../config/config");
-const UserModel = require("../models/User");
+const { User } = require("../models/sequelize");
 const {
   generateToken,
   generateRefreshToken,
@@ -28,23 +28,23 @@ if (config.google.clientID && config.google.clientSecret) {
           const fullName = profile.displayName;
           const photoUrl = profile.photos[0]?.value || null;
 
-          let user = await UserModel.findByGoogleId(googleId);
+          let user = await User.findOne({ where: { google_id: googleId } });
 
           if (!user) {
-            user = await UserModel.findByEmail(email);
+            user = await User.findOne({ where: { email } });
 
             if (user) {
-              user = await UserModel.update(user.id, { googleId });
+              await user.update({ google_id: googleId });
             } else {
-              user = await UserModel.create({
+              user = await User.create({
                 email,
-                googleId,
-                fullName,
-                photoUrl,
+                google_id: googleId,
+                full_name: fullName,
+                photo_url: photoUrl,
               });
             }
           } else {
-            user = await UserModel.update(user.id, { fullName, photoUrl });
+            await user.update({ full_name: fullName, photo_url: photoUrl });
           }
 
           return done(null, user);
@@ -62,7 +62,7 @@ passport.serializeUser((user, done) => {
 
 passport.deserializeUser(async (id, done) => {
   try {
-    const user = await UserModel.findById(id);
+    const user = await User.findByPk(id);
     done(null, user);
   } catch (error) {
     done(error, null);
@@ -93,7 +93,7 @@ const googleCallback = (req, res, next) => {
   })(req, res, next);
 };
 
-const refresh = async (req, res) => {
+const refresh = async (req, res, next) => {
   try {
     const refreshToken = req.cookies.refreshToken;
 
@@ -113,7 +113,7 @@ const refresh = async (req, res) => {
         );
     }
 
-    const user = await UserModel.findById(decoded.id);
+    const user = await User.findByPk(decoded.id);
 
     if (!user) {
       return res
@@ -130,11 +130,7 @@ const refresh = async (req, res) => {
       })
     );
   } catch (error) {
-    res
-      .status(500)
-      .json(
-        buildErrorResponse("INTERNAL_SERVER_ERROR", "Failed to refresh token")
-      );
+    next(error);
   }
 };
 
@@ -143,9 +139,9 @@ const logout = (req, res) => {
   res.json(buildSuccessResponse({ message: "Logged out successfully" }));
 };
 
-const getCurrentUser = async (req, res) => {
+const getCurrentUser = async (req, res, next) => {
   try {
-    const user = await UserModel.findById(req.user.id);
+    const user = await User.findByPk(req.user.id);
 
     if (!user) {
       return res
@@ -155,11 +151,7 @@ const getCurrentUser = async (req, res) => {
 
     res.json(buildSuccessResponse(user));
   } catch (error) {
-    res
-      .status(500)
-      .json(
-        buildErrorResponse("INTERNAL_SERVER_ERROR", "Failed to fetch user")
-      );
+    next(error);
   }
 };
 

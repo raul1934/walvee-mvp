@@ -199,20 +199,24 @@ const migrations = [
     `,
   },
   {
-    name: "create_trip_derivations_table",
+    name: "create_trip_steals_table",
     up: `
-      CREATE TABLE IF NOT EXISTS trip_derivations (
+      CREATE TABLE IF NOT EXISTS trip_steals (
         id CHAR(36) PRIMARY KEY,
         original_trip_id CHAR(36) NOT NULL,
-        derived_trip_id CHAR(36),
-        creator_id CHAR(36) NOT NULL,
+        new_trip_id CHAR(36) NOT NULL,
+        original_user_id CHAR(36) NOT NULL,
+        new_user_id CHAR(36) NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         FOREIGN KEY (original_trip_id) REFERENCES trips(id) ON DELETE CASCADE,
-        FOREIGN KEY (derived_trip_id) REFERENCES trips(id) ON DELETE SET NULL,
-        FOREIGN KEY (creator_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (new_trip_id) REFERENCES trips(id) ON DELETE CASCADE,
+        FOREIGN KEY (original_user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (new_user_id) REFERENCES users(id) ON DELETE CASCADE,
         INDEX idx_original_trip_id (original_trip_id),
-        INDEX idx_derived_trip_id (derived_trip_id),
-        INDEX idx_creator_id (creator_id)
+        INDEX idx_new_trip_id (new_trip_id),
+        INDEX idx_original_user_id (original_user_id),
+        INDEX idx_new_user_id (new_user_id)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     `,
   },

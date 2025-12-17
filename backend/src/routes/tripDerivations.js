@@ -9,11 +9,11 @@ const router = express.Router();
 // List derivations
 router.get("/", tripDerivationController.getDerivations);
 
-// Create derivation
+// Create derivation (clones the trip for the current user)
 router.post(
   "/",
   authenticate,
-  [body("originalTripId").isUUID(), body("derivedTripId").optional().isUUID()],
+  [body("originalTripId").isUUID()],
   validate,
   tripDerivationController.createDerivation
 );

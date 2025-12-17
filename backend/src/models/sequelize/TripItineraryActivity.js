@@ -39,10 +39,7 @@ const TripItineraryActivity = sequelize.define(
     tableName: "trip_itinerary_activities",
     timestamps: true,
     updatedAt: false,
-    indexes: [
-      { fields: ["itinerary_day_id"] },
-      { fields: ["activity_order"] },
-    ],
+    indexes: [{ fields: ["itinerary_day_id"] }, { fields: ["activity_order"] }],
   }
 );
 

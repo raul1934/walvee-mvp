@@ -215,7 +215,7 @@ class TripModel {
     if (tripData.itinerary) {
       // Delete existing itinerary (cascades to activities)
       await query("DELETE FROM trip_itinerary_days WHERE trip_id = ?", [id]);
-      
+
       for (const day of tripData.itinerary) {
         const dayId = generateUUID();
         await query(
@@ -276,7 +276,9 @@ class TripModel {
       "duration",
       "budget",
     ];
-    const safeSortBy = validSortColumns.includes(sortBy) ? sortBy : "created_at";
+    const safeSortBy = validSortColumns.includes(sortBy)
+      ? sortBy
+      : "created_at";
 
     // Validate order to prevent SQL injection
     const safeOrder = order.toLowerCase() === "asc" ? "ASC" : "DESC";

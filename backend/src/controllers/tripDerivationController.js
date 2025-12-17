@@ -1,5 +1,11 @@
-const TripDerivationModel = require("../models/TripDerivation");
-const TripModel = require("../models/Trip");
+const {
+  Trip,
+  TripTag,
+  TripPlace,
+  TripItineraryDay,
+  TripItineraryActivity,
+  TripSteal,
+} = require("../models/sequelize");
 const {
   paginate,
   buildPaginationMeta,
@@ -7,43 +13,40 @@ const {
   buildErrorResponse,
 } = require("../utils/helpers");
 
-const getDerivations = async (req, res) => {
+const getDerivations = async (req, res, next) => {
   try {
     const { originalTripId, creatorId, page, limit } = req.query;
     const { page: pageNum, limit: limitNum, offset } = paginate(page, limit);
 
-    const derivations = await TripDerivationModel.findAll({
-      originalTripId,
-      creatorId,
+    const where = {};
+    if (originalTripId) where.original_trip_id = originalTripId;
+    if (creatorId) where.new_user_id = creatorId;
+
+    const { count: total, rows: derivations } = await TripSteal.findAndCountAll({
+      where,
+      include: [
+        { model: Trip, as: "originalTrip", attributes: ["id", "title", "destination", "cover_image"] },
+        { model: Trip, as: "newTrip", attributes: ["id", "title", "destination", "cover_image"] },
+      ],
       offset,
       limit: limitNum,
+      order: [["created_at", "DESC"]],
     });
 
-    const total = await TripDerivationModel.count({
-      originalTripId,
-      creatorId,
-    });
     const pagination = buildPaginationMeta(pageNum, limitNum, total);
 
     res.json(buildSuccessResponse(derivations, pagination));
   } catch (error) {
-    res
-      .status(500)
-      .json(
-        buildErrorResponse(
-          "INTERNAL_SERVER_ERROR",
-          "Failed to fetch derivations"
-        )
-      );
+    next(error);
   }
 };
 
-const createDerivation = async (req, res) => {
+const createDerivation = async (req, res, next) => {
   try {
     const creatorId = req.user.id;
-    const { originalTripId, derivedTripId } = req.body;
+    const { originalTripId } = req.body;
 
-    const originalTrip = await TripModel.findById(originalTripId);
+    const originalTrip = await Trip.findByPk(originalTripId);
 
     if (!originalTrip) {
       return res
@@ -53,7 +56,7 @@ const createDerivation = async (req, res) => {
         );
     }
 
-    if (originalTrip.created_by === creatorId) {
+    if (originalTrip.author_id === creatorId) {
       return res
         .status(400)
         .json(
@@ -64,45 +67,132 @@ const createDerivation = async (req, res) => {
         );
     }
 
-    if (derivedTripId) {
-      const derivedTrip = await TripModel.findById(derivedTripId);
-      if (!derivedTrip) {
-        return res
-          .status(404)
-          .json(
-            buildErrorResponse("RESOURCE_NOT_FOUND", "Derived trip not found")
+    // Fetch the original trip with all relationships using Sequelize
+    const originalTripFull = await Trip.findByPk(originalTripId, {
+      include: [
+        { model: TripTag, as: "tags" },
+        { model: TripPlace, as: "places" },
+        {
+          model: TripItineraryDay,
+          as: "itineraryDays",
+          include: [{ model: TripItineraryActivity, as: "activities" }],
+        },
+      ],
+    });
+
+    if (!originalTripFull) {
+      return res
+        .status(404)
+        .json(
+          buildErrorResponse("RESOURCE_NOT_FOUND", "Original trip not found")
+        );
+    }
+
+    // Clone the trip for the new user
+    const clonedTrip = await Trip.create({
+      title: `${originalTripFull.title} (Copy)`,
+      destination: originalTripFull.destination,
+      description: originalTripFull.description,
+      duration: originalTripFull.duration,
+      budget: originalTripFull.budget,
+      transportation: originalTripFull.transportation,
+      accommodation: originalTripFull.accommodation,
+      best_time_to_visit: originalTripFull.best_time_to_visit,
+      difficulty_level: originalTripFull.difficulty_level,
+      trip_type: originalTripFull.trip_type,
+      cover_image: originalTripFull.cover_image,
+      destination_lat: originalTripFull.destination_lat,
+      destination_lng: originalTripFull.destination_lng,
+      is_public: false, // New trip is private by default
+      author_id: creatorId,
+    });
+
+    const clonedTripId = clonedTrip.id;
+
+    // Clone tags
+    if (originalTripFull.tags && originalTripFull.tags.length > 0) {
+      await TripTag.bulkCreate(
+        originalTripFull.tags.map((tag) => ({
+          trip_id: clonedTripId,
+          tag: tag.tag,
+        }))
+      );
+    }
+
+    // Clone places
+    if (originalTripFull.places && originalTripFull.places.length > 0) {
+      await TripPlace.bulkCreate(
+        originalTripFull.places.map((place) => ({
+          trip_id: clonedTripId,
+          name: place.name,
+          address: place.address,
+          rating: place.rating,
+          price_level: place.price_level,
+          types: place.types,
+          description: place.description,
+        }))
+      );
+    }
+
+    // Clone itinerary with activities
+    if (
+      originalTripFull.itineraryDays &&
+      originalTripFull.itineraryDays.length > 0
+    ) {
+      for (const day of originalTripFull.itineraryDays) {
+        const clonedDay = await TripItineraryDay.create({
+          trip_id: clonedTripId,
+          day_number: day.day_number,
+          title: day.title,
+        });
+
+        if (day.activities && day.activities.length > 0) {
+          await TripItineraryActivity.bulkCreate(
+            day.activities.map((activity) => ({
+              itinerary_day_id: clonedDay.id,
+              time: activity.time,
+              name: activity.name,
+              location: activity.location,
+              description: activity.description,
+              activity_order: activity.activity_order,
+            }))
           );
+        }
       }
     }
 
-    const derivation = await TripDerivationModel.create(
-      originalTripId,
-      creatorId,
-      derivedTripId
+    // Create trip steal record
+    const tripSteal = await TripSteal.create({
+      original_trip_id: originalTripId,
+      new_trip_id: clonedTripId,
+      original_user_id: originalTrip.author_id,
+      new_user_id: creatorId,
+    });
+
+    res.status(201).json(
+      buildSuccessResponse({
+        steal: {
+          id: tripSteal.id,
+          original_trip_id: tripSteal.original_trip_id,
+          new_trip_id: tripSteal.new_trip_id,
+        },
+        clonedTrip: {
+          id: clonedTripId,
+          title: clonedTrip.title,
+        },
+      })
     );
-
-    // Increment steals count on original trip
-    await TripModel.incrementSteals(originalTripId);
-
-    res.status(201).json(buildSuccessResponse(derivation));
   } catch (error) {
-    res
-      .status(500)
-      .json(
-        buildErrorResponse(
-          "INTERNAL_SERVER_ERROR",
-          "Failed to create derivation"
-        )
-      );
+    next(error);
   }
 };
 
-const deleteDerivation = async (req, res) => {
+const deleteDerivation = async (req, res, next) => {
   try {
     const { id } = req.params;
     const userId = req.user.id;
 
-    const derivation = await TripDerivationModel.findById(id);
+    const derivation = await TripSteal.findByPk(id);
 
     if (!derivation) {
       return res
@@ -110,7 +200,7 @@ const deleteDerivation = async (req, res) => {
         .json(buildErrorResponse("RESOURCE_NOT_FOUND", "Derivation not found"));
     }
 
-    if (derivation.creator_id !== userId) {
+    if (derivation.new_user_id !== userId) {
       return res
         .status(403)
         .json(
@@ -121,20 +211,13 @@ const deleteDerivation = async (req, res) => {
         );
     }
 
-    await TripDerivationModel.delete(id);
+    await derivation.destroy();
 
     res.json(
       buildSuccessResponse({ message: "Derivation deleted successfully" })
     );
   } catch (error) {
-    res
-      .status(500)
-      .json(
-        buildErrorResponse(
-          "INTERNAL_SERVER_ERROR",
-          "Failed to delete derivation"
-        )
-      );
+    next(error);
   }
 };
 

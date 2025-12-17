@@ -165,10 +165,9 @@ export const Review = {
  * Trip Derivation Service (Trip Steals)
  */
 export const TripDerivation = {
-  async create(originalTripId, derivedTripId = null) {
+  async create(originalTripId) {
     const response = await apiClient.post(endpoints.derivations.create, {
       originalTripId,
-      derivedTripId,
     });
     return response.data;
   },

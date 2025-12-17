@@ -1,6 +1,5 @@
-const UserModel = require("../models/User");
-const TripModel = require("../models/Trip");
-const FollowModel = require("../models/Follow");
+const { User, Trip, Follow } = require("../models/sequelize");
+const { Op } = require("sequelize");
 const {
   paginate,
   buildPaginationMeta,
@@ -8,7 +7,7 @@ const {
   buildErrorResponse,
 } = require("../utils/helpers");
 
-const getUsers = async (req, res) => {
+const getUsers = async (req, res, next) => {
   try {
     const {
       page,
@@ -19,28 +18,30 @@ const getUsers = async (req, res) => {
     } = req.query;
     const { page: pageNum, limit: limitNum, offset } = paginate(page, limit);
 
-    const users = await UserModel.findAll({
+    const where = {};
+    if (search) {
+      where[Op.or] = [
+        { full_name: { [Op.like]: `%${search}%` } },
+        { preferred_name: { [Op.like]: `%${search}%` } },
+        { email: { [Op.like]: `%${search}%` } },
+      ];
+    }
+
+    const { count: total, rows: users } = await User.findAndCountAll({
+      where,
       offset,
       limit: limitNum,
-      sortBy,
-      order,
-      search,
+      order: [[sortBy, order.toUpperCase()]],
     });
-
-    const total = await UserModel.count(search);
     const pagination = buildPaginationMeta(pageNum, limitNum, total);
 
     res.json(buildSuccessResponse(users, pagination));
   } catch (error) {
-    res
-      .status(500)
-      .json(
-        buildErrorResponse("INTERNAL_SERVER_ERROR", "Failed to fetch users")
-      );
+    next(error);
   }
 };
 
-const getUserById = async (req, res) => {
+const getUserById = async (req, res, next) => {
   try {
     const { id } = req.params;
     const user = await UserModel.findById(id);
@@ -53,60 +54,52 @@ const getUserById = async (req, res) => {
 
     res.json(buildSuccessResponse(user));
   } catch (error) {
-    res
-      .status(500)
-      .json(
-        buildErrorResponse("INTERNAL_SERVER_ERROR", "Failed to fetch user")
-      );
+    next(error);
   }
 };
 
-const updateCurrentUser = async (req, res) => {
+const updateCurrentUser = async (req, res, next) => {
   try {
     const userId = req.user.id;
     const updateData = req.body;
 
-    const user = await UserModel.update(userId, updateData);
+    const user = await User.findByPk(userId);
+    if (!user) {
+      return res
+        .status(404)
+        .json(buildErrorResponse("RESOURCE_NOT_FOUND", "User not found"));
+    }
+    await user.update(updateData);
 
     res.json(buildSuccessResponse(user));
   } catch (error) {
-    res
-      .status(500)
-      .json(
-        buildErrorResponse("INTERNAL_SERVER_ERROR", "Failed to update user")
-      );
+    next(error);
   }
 };
 
-const getUserTrips = async (req, res) => {
+const getUserTrips = async (req, res, next) => {
   try {
     const { id } = req.params;
     const { page, limit } = req.query;
     const { page: pageNum, limit: limitNum, offset } = paginate(page, limit);
 
-    const trips = await TripModel.findAll({
+    const { count: total, rows: trips } = await Trip.findAndCountAll({
+      where: { author_id: id },
       offset,
       limit: limitNum,
-      createdBy: id,
+      include: [
+        { model: User, as: "author", attributes: ["id", "full_name", "preferred_name", "photo_url"] },
+      ],
     });
-
-    const total = await TripModel.count({ createdBy: id });
     const pagination = buildPaginationMeta(pageNum, limitNum, total);
 
     res.json(buildSuccessResponse(trips, pagination));
   } catch (error) {
-    res
-      .status(500)
-      .json(
-        buildErrorResponse(
-          "INTERNAL_SERVER_ERROR",
-          "Failed to fetch user trips"
-        )
-      );
+    next(error);
   }
 };
 
-const getUserStats = async (req, res) => {
+const getUserStats = async (req, res, next) => {
   try {
     const { id } = req.params;
     const user = await UserModel.findById(id);
@@ -126,14 +119,7 @@ const getUserStats = async (req, res) => {
 
     res.json(buildSuccessResponse(stats));
   } catch (error) {
-    res
-      .status(500)
-      .json(
-        buildErrorResponse(
-          "INTERNAL_SERVER_ERROR",
-          "Failed to fetch user stats"
-        )
-      );
+    next(error);
   }
 };
 

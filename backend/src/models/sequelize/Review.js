@@ -1,8 +1,8 @@
 const { DataTypes } = require("sequelize");
 const { sequelize } = require("../../database/sequelize");
 
-const TripPlace = sequelize.define(
-  "TripPlace",
+const Review = sequelize.define(
+  "Review",
   {
     id: {
       type: DataTypes.UUID,
@@ -11,38 +11,42 @@ const TripPlace = sequelize.define(
     },
     trip_id: {
       type: DataTypes.UUID,
-      allowNull: false,
       references: {
         model: "trips",
         key: "id",
       },
     },
-    name: {
+    place_id: {
       type: DataTypes.STRING(255),
-      allowNull: false,
     },
-    address: {
-      type: DataTypes.TEXT,
+    reviewer_id: {
+      type: DataTypes.UUID,
+      allowNull: false,
+      references: {
+        model: "users",
+        key: "id",
+      },
     },
     rating: {
-      type: DataTypes.DECIMAL(2, 1),
-    },
-    price_level: {
       type: DataTypes.INTEGER,
+      allowNull: false,
+      validate: {
+        min: 1,
+        max: 5,
+      },
     },
-    types: {
-      type: DataTypes.JSON,
-    },
-    description: {
+    comment: {
       type: DataTypes.TEXT,
     },
   },
   {
-    tableName: "trip_places",
-    timestamps: true,
-    updatedAt: false,
-    indexes: [{ fields: ["trip_id"] }],
+    tableName: "reviews",
+    indexes: [
+      { fields: ["trip_id"] },
+      { fields: ["place_id"] },
+      { fields: ["reviewer_id"] },
+    ],
   }
 );
 
-module.exports = TripPlace;
+module.exports = Review;

@@ -1,5 +1,4 @@
-const FollowModel = require("../models/Follow");
-const UserModel = require("../models/User");
+const { Follow, User } = require("../models/sequelize");
 const {
   paginate,
   buildPaginationMeta,
@@ -7,47 +6,53 @@ const {
   buildErrorResponse,
 } = require("../utils/helpers");
 
-const getFollowers = async (req, res) => {
+const getFollowers = async (req, res, next) => {
   try {
     const { userId } = req.params;
     const { page, limit } = req.query;
     const { page: pageNum, limit: limitNum, offset } = paginate(page, limit);
 
-    const followers = await FollowModel.findFollowers(userId, offset, limitNum);
-    const total = await FollowModel.countFollowers(userId);
+    const { count: total, rows: follows } = await Follow.findAndCountAll({
+      where: { followee_id: userId },
+      include: [{ model: User, as: "follower", attributes: ["id", "full_name", "preferred_name", "photo_url"] }],
+      offset,
+      limit: limitNum,
+      order: [["created_at", "DESC"]],
+    });
+
+    const followers = follows.map(f => f.follower);
     const pagination = buildPaginationMeta(pageNum, limitNum, total);
 
     res.json(buildSuccessResponse(followers, pagination));
   } catch (error) {
-    res
-      .status(500)
-      .json(
-        buildErrorResponse("INTERNAL_SERVER_ERROR", "Failed to fetch followers")
-      );
+    next(error);
   }
 };
 
-const getFollowing = async (req, res) => {
+const getFollowing = async (req, res, next) => {
   try {
     const { userId } = req.params;
     const { page, limit } = req.query;
     const { page: pageNum, limit: limitNum, offset } = paginate(page, limit);
 
-    const following = await FollowModel.findFollowing(userId, offset, limitNum);
-    const total = await FollowModel.countFollowing(userId);
+    const { count: total, rows: follows } = await Follow.findAndCountAll({
+      where: { follower_id: userId },
+      include: [{ model: User, as: "followee", attributes: ["id", "full_name", "preferred_name", "photo_url"] }],
+      offset,
+      limit: limitNum,
+      order: [["created_at", "DESC"]],
+    });
+
+    const following = follows.map(f => f.followee);
     const pagination = buildPaginationMeta(pageNum, limitNum, total);
 
     res.json(buildSuccessResponse(following, pagination));
   } catch (error) {
-    res
-      .status(500)
-      .json(
-        buildErrorResponse("INTERNAL_SERVER_ERROR", "Failed to fetch following")
-      );
+    next(error);
   }
 };
 
-const followUser = async (req, res) => {
+const followUser = async (req, res, next) => {
   try {
     const followerId = req.user.id;
     const { followeeId } = req.body;
@@ -60,7 +65,7 @@ const followUser = async (req, res) => {
         );
     }
 
-    const followee = await UserModel.findById(followeeId);
+    const followee = await User.findByPk(followeeId);
 
     if (!followee) {
       return res
@@ -68,10 +73,9 @@ const followUser = async (req, res) => {
         .json(buildErrorResponse("RESOURCE_NOT_FOUND", "User not found"));
     }
 
-    const existingFollow = await FollowModel.findByFollowerAndFollowee(
-      followerId,
-      followeeId
-    );
+    const existingFollow = await Follow.findOne({
+      where: { follower_id: followerId, followee_id: followeeId },
+    });
 
     if (existingFollow) {
       return res
@@ -81,37 +85,29 @@ const followUser = async (req, res) => {
         );
     }
 
-    const follow = await FollowModel.create(
-      followerId,
-      followeeId,
-      followee.email
-    );
+    const follow = await Follow.create({
+      follower_id: followerId,
+      followee_id: followeeId,
+      followee_email: followee.email,
+    });
 
     // Update metrics
-    const follower = await UserModel.findById(followerId);
-    await UserModel.updateMetrics(followerId, {
-      following: follower.metrics_following + 1,
-    });
-    await UserModel.updateMetrics(followeeId, {
-      followers: followee.metrics_followers + 1,
-    });
+    const follower = await User.findByPk(followerId);
+    await follower.increment("metrics_following");
+    await followee.increment("metrics_followers");
 
     res.status(201).json(buildSuccessResponse(follow));
   } catch (error) {
-    res
-      .status(500)
-      .json(
-        buildErrorResponse("INTERNAL_SERVER_ERROR", "Failed to follow user")
-      );
+    next(error);
   }
 };
 
-const unfollowUser = async (req, res) => {
+const unfollowUser = async (req, res, next) => {
   try {
     const followerId = req.user.id;
     const { id } = req.params;
 
-    const follow = await FollowModel.findById(id);
+    const follow = await Follow.findByPk(id);
 
     if (!follow) {
       return res
@@ -135,43 +131,34 @@ const unfollowUser = async (req, res) => {
         );
     }
 
-    await FollowModel.delete(id);
+    await follow.destroy();
 
     // Update metrics
-    const follower = await UserModel.findById(followerId);
-    const followee = await UserModel.findById(follow.followee_id);
+    const follower = await User.findByPk(followerId);
+    const followee = await User.findByPk(follow.followee_id);
 
-    if (follower) {
-      await UserModel.updateMetrics(followerId, {
-        following: Math.max(0, follower.metrics_following - 1),
-      });
+    if (follower && follower.metrics_following > 0) {
+      await follower.decrement("metrics_following");
     }
 
-    if (followee) {
-      await UserModel.updateMetrics(follow.followee_id, {
-        followers: Math.max(0, followee.metrics_followers - 1),
-      });
+    if (followee && followee.metrics_followers > 0) {
+      await followee.decrement("metrics_followers");
     }
 
     res.json(buildSuccessResponse({ message: "User unfollowed successfully" }));
   } catch (error) {
-    res
-      .status(500)
-      .json(
-        buildErrorResponse("INTERNAL_SERVER_ERROR", "Failed to unfollow user")
-      );
+    next(error);
   }
 };
 
-const checkFollowStatus = async (req, res) => {
+const checkFollowStatus = async (req, res, next) => {
   try {
     const followerId = req.user.id;
     const { userId } = req.params;
 
-    const follow = await FollowModel.findByFollowerAndFollowee(
-      followerId,
-      userId
-    );
+    const follow = await Follow.findOne({
+      where: { follower_id: followerId, followee_id: userId },
+    });
 
     res.json(
       buildSuccessResponse({
@@ -180,14 +167,7 @@ const checkFollowStatus = async (req, res) => {
       })
     );
   } catch (error) {
-    res
-      .status(500)
-      .json(
-        buildErrorResponse(
-          "INTERNAL_SERVER_ERROR",
-          "Failed to check follow status"
-        )
-      );
+    next(error);
   }
 };
 

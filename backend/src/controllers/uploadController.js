@@ -47,7 +47,7 @@ const upload = multer({
   fileFilter,
 });
 
-const uploadImage = async (req, res) => {
+const uploadImage = async (req, res, next) => {
   try {
     if (!req.file) {
       return res
@@ -63,15 +63,11 @@ const uploadImage = async (req, res) => {
       })
     );
   } catch (error) {
-    res
-      .status(500)
-      .json(
-        buildErrorResponse("INTERNAL_SERVER_ERROR", "Failed to upload image")
-      );
+    next(error);
   }
 };
 
-const uploadFile = async (req, res) => {
+const uploadFile = async (req, res, next) => {
   try {
     if (!req.file) {
       return res
@@ -87,15 +83,11 @@ const uploadFile = async (req, res) => {
       })
     );
   } catch (error) {
-    res
-      .status(500)
-      .json(
-        buildErrorResponse("INTERNAL_SERVER_ERROR", "Failed to upload file")
-      );
+    next(error);
   }
 };
 
-const deleteFile = async (req, res) => {
+const deleteFile = async (req, res, next) => {
   try {
     const { filename } = req.params;
     const userId = req.user.id;
@@ -126,11 +118,7 @@ const deleteFile = async (req, res) => {
 
     res.json(buildSuccessResponse({ message: "File deleted successfully" }));
   } catch (error) {
-    res
-      .status(500)
-      .json(
-        buildErrorResponse("INTERNAL_SERVER_ERROR", "Failed to delete file")
-      );
+    next(error);
   }
 };
 

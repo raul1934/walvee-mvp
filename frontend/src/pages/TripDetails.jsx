@@ -17,7 +17,7 @@ import {
   MessageSquare,
   Edit,
 } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import UserAvatar from "../components/common/UserAvatar";
 import { useDragScroll } from "../components/hooks/useDragScroll";
@@ -26,7 +26,6 @@ import ImagePlaceholder from "../components/common/ImagePlaceholder";
 import StealModal from "../components/trip/StealModal";
 import TravelerTips from "../components/trip/TravelerTips";
 import { findPlaceInTrip } from "../components/utils/placeId";
-import { normalizeTripItinerary } from "../components/utils/tripDataSelector";
 import { updateUserKPIs, updateTripKPIs } from "../components/utils/kpiManager";
 import { formatNumber } from "../components/utils/numberFormatter";
 import { getPriceRangeInfo } from "../components/utils/priceFormatter";
@@ -80,6 +79,7 @@ export default function TripDetails({ user, openLoginModal }) {
   const scrollRef = useRef(null);
 
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
 
   // Memoize URL params to prevent recreating on every render
   const urlParams = React.useMemo(
@@ -91,37 +91,16 @@ export default function TripDetails({ user, openLoginModal }) {
   const urlPlaceId = urlParams.get("placeId");
   const urlGpid = urlParams.get("gpid");
 
-  const { data: tripData, isLoading, error } = useQuery({
+  const {
+    data: tripData,
+    isLoading,
+    error,
+  } = useQuery({
     queryKey: ["trip", tripId],
     queryFn: async () => {
       const trip = await Trip.get(tripId);
-      console.log('[TripDetails] Raw trip from API:', trip);
-      
-      if (!trip) {
-        throw new Error("Trip not found");
-      }
-      
-      // Transform new Sequelize response to match frontend expectations
-      const transformed = {
-        ...trip,
-        created_by: trip.author?.id || null,
-        author_name: trip.author?.preferredName || trip.author?.name || 'Unknown',
-        author_photo: trip.author?.photo || null,
-        author_email: trip.author?.email || null,
-        author_bio: trip.author?.bio || null,
-        likes: trip.likesCount || 0,
-        views: trip.viewsCount || 0,
-        // Transform itinerary structure: move places array to each day
-        itinerary: trip.itinerary?.map(day => ({
-          ...day,
-          places: trip.places || [],
-          // Keep activities for display if needed
-          activities: day.activities || []
-        })) || []
-      };
-      
-      console.log('[TripDetails] Transformed trip:', transformed);
-      return normalizeTripItinerary(transformed);
+      console.log("[TripDetails] Trip from API:", trip);
+      return trip;
     },
     enabled: !!tripId,
     retry: 1,
@@ -1296,12 +1275,10 @@ export default function TripDetails({ user, openLoginModal }) {
   };
 
   const handleStealClick = async () => {
-    const isAuthenticated = await User.isAuthenticated();
-
-    if (!isAuthenticated) {
-      const currentUrl =
-        window.location.pathname + window.location.search + "#steal";
-      User.redirectToLogin(currentUrl);
+    if (!currentUser) {
+      if (openLoginModal) {
+        openLoginModal();
+      }
       return;
     }
 
@@ -1312,27 +1289,19 @@ export default function TripDetails({ user, openLoginModal }) {
     setIsStealLoading(true);
 
     try {
-      await TripSteal.create({
-        source_trip_id: tripId,
-        source_owner_id: tripData.created_by,
-        status: "preview",
-        return_to_url: window.location.href,
-        metadata: {
-          locale: navigator.language,
-          device: /Mobile|Android|iPhone/i.test(navigator.userAgent)
-            ? "mobile"
-            : "desktop",
-          entry_point: "steal_tab",
-          source_visibility: tripData.visibility || "public",
-        },
-      });
+      const response = await TripSteal.create(tripId);
 
       setIsStealModalOpen(false);
       setIsStealLoading(false);
 
-      alert("Feature coming soon! Your interest has been recorded.");
+      // Redirect to the newly cloned trip
+      if (response?.data?.clonedTrip?.id) {
+        navigate(`/trip?id=${response.data.clonedTrip.id}`);
+      } else {
+        alert("Trip cloned successfully!");
+      }
     } catch (error) {
-      console.error("Error creating derivation preview:", error);
+      console.error("Error creating derivation:", error);
       setIsStealLoading(false);
       alert("Something went wrong. Please try again.");
     }

@@ -25,18 +25,21 @@ const corsOptions = {
   origin: function (origin, callback) {
     // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
-    
+
     // In development, allow localhost on any port
-    if (config.env === 'development' && origin.startsWith('http://localhost:')) {
+    if (
+      config.env === "development" &&
+      origin.startsWith("http://localhost:")
+    ) {
       return callback(null, true);
     }
-    
+
     // In production, only allow configured frontend URL
     if (origin === config.frontendUrl) {
       return callback(null, true);
     }
-    
-    callback(new Error('Not allowed by CORS'));
+
+    callback(new Error("Not allowed by CORS"));
   },
   credentials: true,
 };

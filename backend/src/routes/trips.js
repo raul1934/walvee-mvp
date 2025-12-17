@@ -1,6 +1,6 @@
 const express = require("express");
 const { body } = require("express-validator");
-const tripController = require("../controllers/tripControllerSequelize");
+const tripController = require("../controllers/tripController");
 const { authenticate, optionalAuth } = require("../middleware/auth");
 const { validate } = require("../middleware/validator");
 
