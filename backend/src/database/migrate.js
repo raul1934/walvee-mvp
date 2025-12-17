@@ -2,6 +2,47 @@ const { getConnection } = require("./connection");
 
 const migrations = [
   {
+    name: "create_countries_table",
+    up: `
+      CREATE TABLE IF NOT EXISTS countries (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(100) NOT NULL UNIQUE,
+        code VARCHAR(2) NOT NULL UNIQUE COMMENT 'ISO 3166-1 alpha-2 country code',
+        google_maps_id VARCHAR(255) UNIQUE COMMENT 'Google Maps Place ID for the country',
+        continent VARCHAR(50),
+        flag_emoji VARCHAR(10),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_code (code),
+        INDEX idx_name (name),
+        INDEX idx_google_maps_id (google_maps_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `,
+  },
+  {
+    name: "create_cities_table",
+    up: `
+      CREATE TABLE IF NOT EXISTS cities (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(100) NOT NULL,
+        country_id INT NOT NULL,
+        google_maps_id VARCHAR(255) UNIQUE COMMENT 'Google Maps Place ID for the city',
+        state VARCHAR(100) COMMENT 'State/Province/Region',
+        latitude DOUBLE,
+        longitude DOUBLE,
+        timezone VARCHAR(50),
+        population INT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (country_id) REFERENCES countries(id) ON DELETE CASCADE,
+        INDEX idx_country_id (country_id),
+        INDEX idx_name (name),
+        INDEX idx_google_maps_id (google_maps_id),
+        UNIQUE KEY unique_city_country (name, country_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `,
+  },
+  {
     name: "create_users_table",
     up: `
       CREATE TABLE IF NOT EXISTS users (
@@ -12,8 +53,9 @@ const migrations = [
         preferred_name VARCHAR(100),
         photo_url TEXT,
         bio TEXT,
-        city VARCHAR(100),
-        country VARCHAR(100),
+        city_id INT,
+        city VARCHAR(100) COMMENT 'Deprecated - use city_id instead',
+        country VARCHAR(100) COMMENT 'Deprecated - use city_id->country instead',
         instagram_username VARCHAR(50),
         metrics_followers INT DEFAULT 0,
         metrics_following INT DEFAULT 0,
@@ -22,8 +64,10 @@ const migrations = [
         onboarding_completed BOOLEAN DEFAULT FALSE,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (city_id) REFERENCES cities(id) ON DELETE SET NULL,
         INDEX idx_email (email),
-        INDEX idx_google_id (google_id)
+        INDEX idx_google_id (google_id),
+        INDEX idx_city_id (city_id)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     `,
   },
@@ -33,7 +77,8 @@ const migrations = [
       CREATE TABLE IF NOT EXISTS trips (
         id CHAR(36) PRIMARY KEY,
         title VARCHAR(200) NOT NULL,
-        destination VARCHAR(255) NOT NULL,
+        destination VARCHAR(255) NOT NULL COMMENT 'Deprecated - use destination_city_id instead',
+        destination_city_id INT,
         description TEXT,
         duration VARCHAR(50),
         budget VARCHAR(50),
@@ -53,8 +98,10 @@ const migrations = [
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         FOREIGN KEY (author_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (destination_city_id) REFERENCES cities(id) ON DELETE SET NULL,
         INDEX idx_author_id (author_id),
         INDEX idx_destination (destination),
+        INDEX idx_destination_city_id (destination_city_id),
         INDEX idx_is_public (is_public),
         INDEX idx_is_featured (is_featured),
         INDEX idx_created_at (created_at),

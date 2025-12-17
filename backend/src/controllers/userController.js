@@ -1,4 +1,4 @@
-const { User, Trip, Follow } = require("../models/sequelize");
+const { User, Trip, Follow, City } = require("../models/sequelize");
 const { Op } = require("sequelize");
 const {
   paginate,
@@ -44,7 +44,7 @@ const getUsers = async (req, res, next) => {
 const getUserById = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const user = await UserModel.findById(id);
+    const user = await User.findByPk(id);
 
     if (!user) {
       return res
@@ -102,7 +102,7 @@ const getUserTrips = async (req, res, next) => {
 const getUserStats = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const user = await UserModel.findById(id);
+    const user = await User.findByPk(id);
 
     if (!user) {
       return res
@@ -123,10 +123,59 @@ const getUserStats = async (req, res, next) => {
   }
 };
 
+const completeOnboarding = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const { city_id, preferred_name, bio, instagram_username } = req.body;
+
+    const user = await User.findByPk(userId);
+    if (!user) {
+      return res
+        .status(404)
+        .json(buildErrorResponse("RESOURCE_NOT_FOUND", "User not found"));
+    }
+
+    // Verify city exists if provided
+    if (city_id) {
+      const city = await City.findByPk(city_id);
+      if (!city) {
+        return res
+          .status(404)
+          .json(buildErrorResponse("RESOURCE_NOT_FOUND", "City not found"));
+      }
+    }
+
+    // Update user with onboarding data
+    await user.update({
+      city_id,
+      preferred_name: preferred_name || user.preferred_name,
+      bio: bio || user.bio,
+      instagram_username: instagram_username || user.instagram_username,
+      onboarding_completed: true,
+    });
+
+    // Fetch updated user with city data
+    const updatedUser = await User.findByPk(userId, {
+      include: [
+        {
+          model: City,
+          as: "cityData",
+          include: [{ model: require("../models/sequelize").Country, as: "country" }],
+        },
+      ],
+    });
+
+    res.json(buildSuccessResponse(updatedUser));
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getUsers,
   getUserById,
   updateCurrentUser,
   getUserTrips,
   getUserStats,
+  completeOnboarding,
 };

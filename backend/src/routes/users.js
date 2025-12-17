@@ -36,4 +36,18 @@ router.get("/:id/trips", userController.getUserTrips);
 // Get user stats
 router.get("/:id/stats", userController.getUserStats);
 
+// Complete onboarding
+router.post(
+  "/me/onboarding",
+  authenticate,
+  [
+    body("city_id").optional().isInt(),
+    body("preferred_name").optional().isString().trim(),
+    body("bio").optional().isString().trim(),
+    body("instagram_username").optional().isString().trim(),
+  ],
+  validate,
+  userController.completeOnboarding
+);
+
 module.exports = router;

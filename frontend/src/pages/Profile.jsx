@@ -109,7 +109,7 @@ export default function Profile() {
 
           // Find trips by this user
           const userTripsByEmail = allTrips.filter(
-            (t) => t.created_by === targetUserEmail
+            (t) => t.author_email === targetUserEmail
           );
 
           if (userTripsByEmail.length > 0) {
@@ -210,7 +210,7 @@ export default function Profile() {
 
       const allTrips = await Trip.list({ sortBy: "created_at", order: "desc" }); // Trips are public
       const userTrips = allTrips.filter(
-        (trip) => trip.created_by === profileUser.email
+        (trip) => trip.author_email === profileUser.email
       );
 
       return userTrips;

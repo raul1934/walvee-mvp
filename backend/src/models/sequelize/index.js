@@ -9,8 +9,18 @@ const TripLike = require("./TripLike");
 const Follow = require("./Follow");
 const TripSteal = require("./TripSteal");
 const Review = require("./Review");
+const Country = require("./Country");
+const City = require("./City");
 
 // Define associations
+Country.hasMany(City, { foreignKey: "country_id", as: "cities" });
+City.belongsTo(Country, { foreignKey: "country_id", as: "country" });
+
+User.belongsTo(City, { foreignKey: "city_id", as: "cityData" });
+City.hasMany(User, { foreignKey: "city_id", as: "users" });
+
+Trip.belongsTo(City, { foreignKey: "destination_city_id", as: "destinationCity" });
+City.hasMany(Trip, { foreignKey: "destination_city_id", as: "trips" });
 User.hasMany(Trip, { foreignKey: "author_id", as: "trips" });
 Trip.belongsTo(User, { foreignKey: "author_id", as: "author" });
 
@@ -75,4 +85,6 @@ module.exports = {
   Follow,
   TripSteal,
   Review,
+  Country,
+  City,
 };

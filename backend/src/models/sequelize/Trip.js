@@ -16,6 +16,15 @@ const Trip = sequelize.define(
     destination: {
       type: DataTypes.STRING(255),
       allowNull: false,
+      comment: "Deprecated - use destination_city_id instead",
+    },
+    destination_city_id: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      references: {
+        model: "cities",
+        key: "id",
+      },
     },
     description: {
       type: DataTypes.TEXT,
@@ -80,6 +89,7 @@ const Trip = sequelize.define(
     indexes: [
       { fields: ["author_id"] },
       { fields: ["destination"] },
+      { fields: ["destination_city_id"] },
       { fields: ["is_public"] },
       { fields: ["is_featured"] },
       { fields: ["created_at"] },

@@ -195,7 +195,9 @@ const getTripById = async (req, res, next) => {
     // Increment views
     await trip.increment("views_count");
 
-    res.json(buildSuccessResponse(formatTripResponse(trip)));
+    // formatTripResponse is async — await its result before sending
+    const formatted = await formatTripResponse(trip);
+    res.json(buildSuccessResponse(formatted));
   } catch (error) {
     next(error);
   }
@@ -410,6 +412,23 @@ async function formatTripResponse(trip) {
     where: { original_trip_id: tripData.id },
   });
 
+  // If no cover_image, try to use the first place's image or generate from destination
+  let coverImage = tripData.cover_image;
+  if (!coverImage && tripData.places && tripData.places.length > 0) {
+    // Try to find a place with an image (you might have a photo_url or image field)
+    const placeWithImage = tripData.places.find((p) => p.photo_url || p.image);
+    if (placeWithImage) {
+      coverImage = placeWithImage.photo_url || placeWithImage.image;
+    }
+  }
+
+  // Fallback to a placeholder image based on destination if still no image
+  if (!coverImage && tripData.destination) {
+    // Use Unsplash as a fallback with the destination as the query
+    const destination = tripData.destination.split(',')[0].trim();
+    coverImage = `https://source.unsplash.com/1200x800/?${encodeURIComponent(destination)},travel`;
+  }
+
   return {
     id: tripData.id,
     title: tripData.title,
@@ -422,7 +441,7 @@ async function formatTripResponse(trip) {
     best_time_to_visit: tripData.best_time_to_visit,
     difficulty_level: tripData.difficulty_level,
     trip_type: tripData.trip_type,
-    cover_image: tripData.cover_image,
+    cover_image: coverImage,
     destination_lat: tripData.destination_lat,
     destination_lng: tripData.destination_lng,
     is_public: tripData.is_public,

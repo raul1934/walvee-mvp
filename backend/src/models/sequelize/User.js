@@ -34,11 +34,21 @@ const User = sequelize.define(
     bio: {
       type: DataTypes.TEXT,
     },
+    city_id: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      references: {
+        model: "cities",
+        key: "id",
+      },
+    },
     city: {
       type: DataTypes.STRING(100),
+      comment: "Deprecated - use city_id instead",
     },
     country: {
       type: DataTypes.STRING(100),
+      comment: "Deprecated - use city_id->country instead",
     },
     instagram_username: {
       type: DataTypes.STRING(50),
