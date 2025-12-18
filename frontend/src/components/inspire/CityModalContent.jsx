@@ -19,7 +19,7 @@ const tabs = [
   { id: "favorites", label: "Favorites", icon: Heart }
 ];
 
-export default function CityModalContent({ cityName, user, openLoginModal, onAddToTrip }) {
+export default function CityModalContent({ cityName, user, onAddToTrip }) {
   const [activeTab, setActiveTab] = useState("all");
   const [placeCategory, setPlaceCategory] = useState("all");
   const [selectedPlace, setSelectedPlace] = useState(null);
@@ -376,7 +376,6 @@ export default function CityModalContent({ cityName, user, openLoginModal, onAdd
           isOpen={isPlaceModalOpen}
           onClose={handleClosePlaceModal}
           user={user}
-          openLoginModal={openLoginModal}
         />
       )}
     </div>

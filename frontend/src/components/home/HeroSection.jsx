@@ -2,15 +2,14 @@ import React from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Sparkles } from "lucide-react";
-import { requireAuth, createPageUrl } from "@/utils";
+import { createPageUrl } from "@/utils";
 
-export default function HeroSection({ user, openLoginModal }) {
+export default function HeroSection({ user }) {
   const navigate = useNavigate();
 
   const handleCreateTrip = () => {
-    requireAuth(user, openLoginModal, () => {
-      navigate(createPageUrl("InspirePrompt"));
-    });
+    // Always navigate - if not authenticated, the API call will trigger 401 and show login modal
+    navigate(createPageUrl("InspirePrompt"));
   };
 
   const userName =

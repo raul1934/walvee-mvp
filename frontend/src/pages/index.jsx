@@ -23,8 +23,6 @@ import EditProfile from "./EditProfile";
 
 import InspirePrompt from "./InspirePrompt";
 
-import ApiDashboard from "./ApiDashboard";
-
 import AuthCallback from "./AuthCallback";
 
 import {
@@ -56,8 +54,6 @@ const PAGES = {
   EditProfile: EditProfile,
 
   InspirePrompt: InspirePrompt,
-
-  ApiDashboard: ApiDashboard,
 };
 
 function _getCurrentPage(url) {
@@ -109,8 +105,6 @@ function PagesContent() {
           <Route path="/EditProfile" element={<EditProfile />} />
 
           <Route path="/InspirePrompt" element={<InspirePrompt />} />
-
-          <Route path="/ApiDashboard" element={<ApiDashboard />} />
 
           <Route path="/auth/callback" element={<AuthCallback />} />
         </Routes>

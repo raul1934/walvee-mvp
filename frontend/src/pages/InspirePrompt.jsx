@@ -2141,7 +2141,6 @@ Provide 9-15 recommendations. Respond in ${userLanguageForAI === 'pt' ? 'Portugu
               }}
               recommendation={selectedRecommendation}
               user={user}
-              openLoginModal={openLoginModal}
               onAddToTrip={() => handleAddCityToTrip(
                 selectedRecommendation.country
                   ? `${selectedRecommendation.name}, ${selectedRecommendation.country}`
@@ -2166,7 +2165,6 @@ Provide 9-15 recommendations. Respond in ${userLanguageForAI === 'pt' ? 'Portugu
                     setSelectedRecommendation(null);
                   }}
                   user={user}
-                  openLoginModal={openLoginModal}
                   onAddToTrip={handleAddPlaceFromModal}
                 />
               </div>

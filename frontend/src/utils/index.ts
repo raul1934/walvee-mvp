@@ -14,12 +14,10 @@ export function createProfileUrl(userId?: string) {
 
 export function requireAuth(
     user: any,
-    openLoginModal: (() => void) | undefined,
     onAuthenticated: () => void
 ) {
-    if (!user && openLoginModal) {
-        openLoginModal();
-    } else if (user) {
+    if (user) {
         onAuthenticated();
     }
+    // If not authenticated, the 401 interceptor will handle showing login modal
 }

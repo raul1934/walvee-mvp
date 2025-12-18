@@ -3,7 +3,7 @@ import { X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import PlaceDetails from "../trip/PlaceDetails";
 
-export default function PlaceModal({ place, trip, isOpen, onClose, user, openLoginModal }) {
+export default function PlaceModal({ place, trip, isOpen, onClose, user }) {
   // Log on every render
   console.log('[PlaceModal] ===== RENDER =====');
   console.log('[PlaceModal] Props:', {
@@ -12,9 +12,7 @@ export default function PlaceModal({ place, trip, isOpen, onClose, user, openLog
     placeName: place?.name,
     hasUser: !!user,
     userId: user?.id,
-    userEmail: user?.email,
-    hasOpenLoginModal: !!openLoginModal,
-    openLoginModalType: typeof openLoginModal
+    userEmail: user?.email
   });
 
   if (!isOpen || !place) {
@@ -64,7 +62,6 @@ export default function PlaceModal({ place, trip, isOpen, onClose, user, openLog
               trip={tripData}
               onClose={onClose}
               user={user}
-              openLoginModal={openLoginModal}
             />
           </div>
         </motion.div>

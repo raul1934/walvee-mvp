@@ -3,15 +3,14 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { MapPin } from "lucide-react";
 import { motion } from "framer-motion";
-import { requireAuth, createPageUrl } from "@/utils";
+import { createPageUrl } from "@/utils";
 
-export default function CityHeader({ cityName, user, openLoginModal }) {
+export default function CityHeader({ cityName, user }) {
   const navigate = useNavigate();
 
   const handleCreateTrip = () => {
-    requireAuth(user, openLoginModal, () => {
-      navigate(createPageUrl("InspirePrompt"));
-    });
+    // Always navigate - if not authenticated, the API call will trigger 401 and show login modal
+    navigate(createPageUrl("InspirePrompt"));
   };
   return (
     <div className="relative overflow-hidden min-h-[280px] flex items-center justify-center">

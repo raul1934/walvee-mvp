@@ -9,6 +9,7 @@ const tripDerivationRoutes = require("./tripDerivations");
 const uploadRoutes = require("./upload");
 const cityRoutes = require("./cities");
 const placeRoutes = require("./places");
+const llmRoutes = require("./llm");
 
 const router = express.Router();
 
@@ -23,5 +24,6 @@ router.use("/trip-derivations", tripDerivationRoutes);
 router.use("/upload", uploadRoutes);
 router.use("/cities", cityRoutes);
 router.use("/places", placeRoutes);
+router.use("/llm", llmRoutes);
 
 module.exports = router;

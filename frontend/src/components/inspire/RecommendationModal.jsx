@@ -3,7 +3,7 @@ import { X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import CityModalContent from './CityModalContent';
 
-export default function RecommendationModal({ isOpen, onClose, recommendation, user, openLoginModal, onAddToTrip }) {
+export default function RecommendationModal({ isOpen, onClose, recommendation, user, onAddToTrip }) {
   if (!isOpen || !recommendation) return null;
 
   console.log('[RecommendationModal] Rendering city modal for:', recommendation.name);
@@ -48,7 +48,6 @@ export default function RecommendationModal({ isOpen, onClose, recommendation, u
             <CityModalContent
               cityName={cityName}
               user={user}
-              openLoginModal={openLoginModal}
               onAddToTrip={onAddToTrip}
             />
           </div>

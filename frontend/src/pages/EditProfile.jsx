@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { User, Upload } from "@/api/entities";
+import { useAuth } from "@/contexts/AuthContext";
 import { createPageUrl, createProfileUrl } from "@/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,7 +12,8 @@ import UserAvatar from "../components/common/UserAvatar";
 const GOOGLE_MAPS_API_KEY = "AIzaSyBYLf9H7ZYfGU5fZa2Fr6XfA9ZkBmJHTb4";
 const MAX_BIO_LENGTH = 200;
 
-export default function EditProfile({ user, userLoading }) {
+export default function EditProfile() {
+  const { user, userLoading } = useAuth();
   const autocompleteService = useRef(null);
   const fileInputRef = useRef(null);
 

@@ -14,6 +14,7 @@ class ApiClient {
   constructor() {
     this.baseURL = API_BASE_URL;
     this.token = localStorage.getItem("authToken");
+    this.onUnauthenticated = null; // Callback for 401 errors
   }
 
   setToken(token) {
@@ -27,6 +28,10 @@ class ApiClient {
 
   getToken() {
     return this.token || localStorage.getItem("authToken");
+  }
+
+  setUnauthenticatedCallback(callback) {
+    this.onUnauthenticated = callback;
   }
 
   getHeaders() {
@@ -57,10 +62,20 @@ class ApiClient {
       const data = await response.json();
 
       if (!response.ok) {
-        throw {
+        const error = {
           status: response.status,
           ...data,
         };
+
+        // Handle 401 Unauthorized - trigger login modal
+        if (response.status === 401) {
+          this.setToken(null); // Clear invalid token
+          if (this.onUnauthenticated) {
+            this.onUnauthenticated(); // Trigger login modal
+          }
+        }
+
+        throw error;
       }
 
       return data;
@@ -114,10 +129,20 @@ class ApiClient {
       const data = await response.json();
 
       if (!response.ok) {
-        throw {
+        const error = {
           status: response.status,
           ...data,
         };
+
+        // Handle 401 Unauthorized - trigger login modal
+        if (response.status === 401) {
+          this.setToken(null); // Clear invalid token
+          if (this.onUnauthenticated) {
+            this.onUnauthenticated(); // Trigger login modal
+          }
+        }
+
+        throw error;
       }
 
       return data;
@@ -211,6 +236,11 @@ export const endpoints = {
   places: {
     search: "/places/search",
     getById: (id) => `/places/${id}`,
+  },
+
+  // LLM
+  llm: {
+    chat: "/llm/chat",
   },
 };
 

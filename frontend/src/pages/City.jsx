@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { Trip } from "@/api/entities";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { createPageUrl, requireAuth } from "@/utils";
+import { createPageUrl } from "@/utils";
 import { MapPin } from "lucide-react";
 import CityHeader from "../components/city/CityHeader";
 import CityNavigation from "../components/city/CityNavigation";
@@ -26,7 +26,6 @@ console.log("[City Page] ===== MODULE LOADED =====");
 
 export default function City({
   user,
-  openLoginModal,
   cityNameOverride,
   isModal = false,
 }) {
@@ -36,8 +35,6 @@ export default function City({
     userId: user?.id,
     userEmail: user?.email,
     userName: user?.preferred_name || user?.full_name,
-    hasOpenLoginModal: !!openLoginModal,
-    openLoginModalType: typeof openLoginModal,
     cityNameOverride: cityNameOverride,
     isModal: isModal,
   });
@@ -753,9 +750,8 @@ export default function City({
   }, [trips]);
 
   const handleCreateTrip = () => {
-    requireAuth(user, openLoginModal, () => {
-      navigate(createPageUrl("InspirePrompt"));
-    });
+    // Always navigate - if not authenticated, the API call will trigger 401 and show login modal
+    navigate(createPageUrl("InspirePrompt"));
   };
 
   const handlePlaceClick = (place) => {
@@ -816,7 +812,6 @@ export default function City({
       <CityHeader
         cityName={cityName}
         user={user}
-        openLoginModal={openLoginModal}
       />
 
       <CityNavigation
@@ -824,7 +819,6 @@ export default function City({
         onTabChange={setActiveTab}
         cityName={cityName}
         user={user}
-        openLoginModal={openLoginModal}
         placeCategory={placeCategory}
         onCategoryChange={setPlaceCategory}
       />
@@ -962,7 +956,6 @@ export default function City({
         isOpen={isPlaceModalOpen}
         onClose={handleClosePlaceModal}
         user={user}
-        openLoginModal={openLoginModal}
       />
     </div>
   );

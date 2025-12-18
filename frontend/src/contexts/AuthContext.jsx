@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { authService } from "@/api/authService";
+import { apiClient } from "@/api/apiClient";
 import { createPageUrl } from "@/utils";
 import { useNavigate } from "react-router-dom";
 
@@ -20,48 +21,51 @@ export const AuthProvider = ({ children, currentPageName }) => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const unsubscribe = authService.onAuthStateChanged(async (backendUser) => {
-      if (!backendUser) {
-        setUser(null);
-        setLoading(false);
-        return;
-      }
-
-      try {
-        const currentUser = backendUser;
-        setUser(currentUser);
-
-        // Update photo if needed
-        if (currentUser.picture && !currentUser.photo_url) {
-          try {
-            await authService.updateMe({
-              photoUrl: currentUser.picture,
-            });
-          } catch (error) {
-            console.error("Error updating photo:", error);
-          }
-        }
-
-        // Redirect to onboarding if not completed
-        if (
-          currentUser &&
-          !currentUser.onboarding_completed &&
-          currentPageName !== "Onboarding"
-        ) {
-          navigate(createPageUrl("Onboarding"));
-        }
-      } catch (error) {
-        console.error("Error loading user data:", error);
-        setUser(null);
-      } finally {
-        setLoading(false);
-      }
+    // Register callback to show login modal on 401 errors
+    apiClient.setUnauthenticatedCallback(() => {
+      setUser(null);
+      setIsLoginModalOpen(true);
     });
 
-    return () => {
-      if (unsubscribe) {
-        unsubscribe();
+    // Load user once on initial mount
+    const loadUser = async () => {
+      if (authService.isAuthenticated()) {
+        try {
+          const backendUser = await authService.me();
+          setUser(backendUser);
+
+          // Update photo if needed
+          if (backendUser.picture && !backendUser.photo_url) {
+            try {
+              await authService.updateMe({
+                photoUrl: backendUser.picture,
+              });
+            } catch (error) {
+              console.error("Error updating photo:", error);
+            }
+          }
+
+          // Redirect to onboarding if not completed
+          if (
+            backendUser &&
+            !backendUser.onboarding_completed &&
+            currentPageName !== "Onboarding"
+          ) {
+            navigate(createPageUrl("Onboarding"));
+          }
+        } catch (error) {
+          console.error("Error loading user data:", error);
+          setUser(null);
+        }
       }
+      setLoading(false);
+    };
+
+    loadUser();
+
+    // Cleanup callback on unmount
+    return () => {
+      apiClient.setUnauthenticatedCallback(null);
     };
   }, [currentPageName, navigate]);
 
@@ -73,12 +77,29 @@ export const AuthProvider = ({ children, currentPageName }) => {
     setIsLoginModalOpen(false);
   };
 
+  const refreshUser = async () => {
+    if (authService.isAuthenticated()) {
+      try {
+        const backendUser = await authService.me();
+        setUser(backendUser);
+        return backendUser;
+      } catch (error) {
+        console.error("Error refreshing user:", error);
+        setUser(null);
+        return null;
+      }
+    }
+    setUser(null);
+    return null;
+  };
+
   const value = {
     user,
     userLoading: loading,
     openLoginModal,
     closeLoginModal,
     isLoginModalOpen,
+    refreshUser,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

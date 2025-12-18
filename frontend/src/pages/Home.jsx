@@ -10,7 +10,7 @@ import TravelerCarousel from "../components/home/TravelerCarousel";
 import TripCard from "../components/home/TripCard";
 import { useDragScroll } from "../components/hooks/useDragScroll";
 
-export default function Home({ user, userLoading, openLoginModal }) {
+export default function Home({ user, userLoading }) {
   console.log("[Home] 🏠 Component rendered", {
     hasUser: !!user,
     userEmail: user?.email,
@@ -198,10 +198,8 @@ export default function Home({ user, userLoading, openLoginModal }) {
   }, [dragScrollRef]);
 
   const handleRestrictedAction = React.useCallback(() => {
-    if (openLoginModal) {
-      openLoginModal();
-    }
-  }, [openLoginModal]);
+    // No-op: 401 interceptor will handle showing login modal
+  }, []);
 
   return (
     <div className="h-screen overflow-hidden pt-16">
@@ -285,7 +283,7 @@ export default function Home({ user, userLoading, openLoginModal }) {
 
             <div className="flex-1 flex items-start justify-center overflow-hidden pt-12">
               <div className="w-full max-w-3xl space-y-4">
-                <HeroSection user={user} openLoginModal={openLoginModal} />
+                <HeroSection user={user} />
 
                 <div className="pt-[103px]">
                   <h2 className="text-base md:text-lg text-center mb-3 text-gray-300">

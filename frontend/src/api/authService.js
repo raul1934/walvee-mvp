@@ -16,15 +16,8 @@ export const authService = {
    * Get current authenticated user
    */
   me: async () => {
-    try {
-      const response = await apiClient.get(endpoints.auth.me);
-      return response.data;
-    } catch (error) {
-      if (error.status === 401) {
-        authService.signOut();
-      }
-      throw error;
-    }
+    const response = await apiClient.get(endpoints.auth.me);
+    return response.data;
   },
 
   /**
@@ -101,38 +94,28 @@ export const authService = {
   },
 
   /**
-   * Listen to auth state changes (polling-based since no WebSocket)
-   * Returns cleanup function
+   * Check auth state once (no polling - use 401 interceptor instead)
+   * Kept for backward compatibility but simplified
    */
   onAuthStateChanged: (callback) => {
-    let isMounted = true;
-
     const checkAuth = async () => {
-      if (!isMounted) return;
-
       if (authService.isAuthenticated()) {
         try {
           const user = await authService.me();
-          if (isMounted) callback(user);
+          callback(user);
         } catch (error) {
-          if (isMounted) callback(null);
+          callback(null);
         }
       } else {
-        if (isMounted) callback(null);
+        callback(null);
       }
     };
 
-    // Check immediately
+    // Check immediately, no polling
     checkAuth();
 
-    // Optional: Set up periodic checks (every 5 minutes)
-    const interval = setInterval(checkAuth, 5 * 60 * 1000);
-
-    // Return cleanup function
-    return () => {
-      isMounted = false;
-      clearInterval(interval);
-    };
+    // Return no-op cleanup function
+    return () => {};
   },
 };
 

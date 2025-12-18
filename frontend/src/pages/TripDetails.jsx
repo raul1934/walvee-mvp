@@ -1155,14 +1155,8 @@ export default function TripDetails({ user, openLoginModal }) {
   };
 
   const handleStealClick = async () => {
-    if (!currentUser) {
-      if (openLoginModal) {
-        openLoginModal();
-      }
-      return;
-    }
-
     setIsStealModalOpen(true);
+    // If not authenticated, the API call in handleStealConfirm will trigger 401 and show login modal
   };
 
   const handleStealConfirm = async () => {
@@ -2191,7 +2185,6 @@ export default function TripDetails({ user, openLoginModal }) {
               trip={tripData}
               onClose={handleClosePlaceDetails}
               user={user}
-              openLoginModal={openLoginModal}
             />
           )}
         </section>

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
 import CitySearch from "./CitySearch";
 import PlaceCategoryFilter from "./PlaceCategoryFilter";
-import { requireAuth, createPageUrl } from "@/utils";
+import { createPageUrl } from "@/utils";
 
 const tabs = [
   { id: "all", label: "All Trips", icon: Map },
@@ -19,16 +19,14 @@ export default function CityNavigation({
   onTabChange,
   cityName,
   user,
-  openLoginModal,
   placeCategory,
   onCategoryChange,
 }) {
   const navigate = useNavigate();
 
   const handleCreateTrip = () => {
-    requireAuth(user, openLoginModal, () => {
-      navigate(createPageUrl("InspirePrompt"));
-    });
+    // Always navigate - if not authenticated, the API call will trigger 401 and show login modal
+    navigate(createPageUrl("InspirePrompt"));
   };
   const [isSticky, setIsSticky] = useState(false);
 

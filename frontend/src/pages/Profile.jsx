@@ -667,10 +667,6 @@ export default function Profile() {
   });
 
   const handleFollowClick = () => {
-    if (!currentUser) {
-      if (openLoginModal) openLoginModal();
-      return;
-    }
     // Cannot follow a user if their ID is not known (i.e., profile was built only from public trip data)
     if (!profileUser?.id) {
       alert(
@@ -692,12 +688,11 @@ export default function Profile() {
       followActionRef.current = true;
       followMutation.mutate();
     }
+    // If not authenticated, the API call will trigger 401 and show login modal
   };
 
   const handleRestrictedAction = () => {
-    if (openLoginModal) {
-      openLoginModal();
-    }
+    // No-op: 401 interceptor will handle showing login modal
   };
 
   const scrollToTrips = () => {
@@ -705,27 +700,18 @@ export default function Profile() {
   };
 
   const showFavorites = () => {
-    if (!currentUser) {
-      if (openLoginModal) openLoginModal();
-      return;
-    }
     setActiveView("favorites");
+    // If not authenticated, subsequent API calls will trigger 401 and show login modal
   };
 
   const showFollowers = () => {
-    if (!currentUser) {
-      if (openLoginModal) openLoginModal();
-      return;
-    }
     setActiveView("followers");
+    // If not authenticated, subsequent API calls will trigger 401 and show login modal
   };
 
   const showFollowing = () => {
-    if (!currentUser) {
-      if (openLoginModal) openLoginModal();
-      return;
-    }
     setActiveView("following");
+    // If not authenticated, subsequent API calls will trigger 401 and show login modal
   };
 
   const handlePlaceClick = (placeData) => {

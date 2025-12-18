@@ -161,7 +161,6 @@ export default function PlaceDetails({
   onClose,
   onPhotoClick,
   user,
-  openLoginModal,
   onAddToTrip,
 }) {
   console.log("[PlaceDetails] ===== RENDER =====");
@@ -240,17 +239,8 @@ export default function PlaceDetails({
   });
 
   const handleFavoriteToggle = async () => {
-    if (!user) {
-      if (openLoginModal && typeof openLoginModal === "function") {
-        openLoginModal();
-        return;
-      }
-      window.location.href =
-        "/api/auth/login?next=" + encodeURIComponent(window.location.href);
-      return;
-    }
-
     try {
+      // If not authenticated, the API call will trigger 401 and show login modal
       const placeDataForToggle = {
         ...enrichedPlace,
         city: enrichedPlace.city || trip?.destination?.split(",")[0],

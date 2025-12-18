@@ -1,9 +1,11 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { authService } from "@/api/authService";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function AuthCallback() {
   const navigate = useNavigate();
+  const { refreshUser, closeLoginModal } = useAuth();
 
   useEffect(() => {
     const handleCallback = async () => {
@@ -12,9 +14,12 @@ export default function AuthCallback() {
         const success = authService.handleAuthCallback();
 
         if (success) {
-          // Get user data to check onboarding status
+          // Close login modal if open
+          closeLoginModal();
+
+          // Refresh user data to check onboarding status
           try {
-            const user = await authService.me();
+            const user = await refreshUser();
 
             if (user && !user.onboarding_completed) {
               navigate("/onboarding");
@@ -36,7 +41,7 @@ export default function AuthCallback() {
     };
 
     handleCallback();
-  }, [navigate]);
+  }, [navigate, refreshUser, closeLoginModal]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-900">

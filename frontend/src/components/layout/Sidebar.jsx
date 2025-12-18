@@ -39,7 +39,7 @@ export default function Sidebar({ isOpen, onClose, user, openLoginModal }) {
                 className="w-full h-12 bg-gradient-to-r from-[#3B82F6] to-[#EC4899] text-white font-bold rounded-lg hover:opacity-90 transition-opacity mb-4"
                 onClick={() => {
                   onClose();
-                  // Navigate to create trip
+                  navigate(createPageUrl("InspirePrompt"));
                 }}
               >
                 Create my personalized trip
@@ -61,14 +61,6 @@ export default function Sidebar({ isOpen, onClose, user, openLoginModal }) {
                   onClick={onClose}
                 >
                   Edit profile
-                </Link>
-
-                <Link
-                  to={createPageUrl("ApiDashboard")}
-                  className="text-white text-base py-[7px] hover:opacity-85 transition-opacity focus:outline-none focus:ring-2 focus:ring-[#1E66FF] focus:ring-offset-2 focus:ring-offset-[#0D0D0D] rounded"
-                  onClick={onClose}
-                >
-                  API Monitoring
                 </Link>
 
                 <Link
