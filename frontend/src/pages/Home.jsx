@@ -162,30 +162,31 @@ export default function Home({ user, userLoading }) {
     };
   }, [trips, dragScrollRef]);
 
-  useEffect(() => {
-    const scrollElement = dragScrollRef.current || scrollRef.current;
-    if (!scrollElement || trips.length === 0) return;
+  // Auto-scroll disabled
+  // useEffect(() => {
+  //   const scrollElement = dragScrollRef.current || scrollRef.current;
+  //   if (!scrollElement || trips.length === 0) return;
 
-    const autoScroll = setInterval(() => {
-      if (scrollElement && !isHoveringCards) {
-        const { scrollTop, scrollHeight, clientHeight } = scrollElement;
+  //   const autoScroll = setInterval(() => {
+  //     if (scrollElement && !isHoveringCards) {
+  //       const { scrollTop, scrollHeight, clientHeight } = scrollElement;
 
-        // Calculate the height of one set of trips (original array)
-        const singleSetHeight = scrollHeight / 3; // Since we're tripling the content
+  //       // Calculate the height of one set of trips (original array)
+  //       const singleSetHeight = scrollHeight / 3; // Since we're tripling the content
 
-        // Reset position when reaching the end of the second set to create endless loop
-        if (scrollTop >= singleSetHeight * 2) {
-          scrollElement.scrollTop = singleSetHeight;
-        } else if (scrollTop <= 0) {
-          scrollElement.scrollTop = singleSetHeight;
-        } else {
-          scrollElement.scrollBy({ top: 2, behavior: "auto" });
-        }
-      }
-    }, 30);
+  //       // Reset position when reaching the end of the second set to create endless loop
+  //       if (scrollTop >= singleSetHeight * 2) {
+  //         scrollElement.scrollTop = singleSetHeight;
+  //       } else if (scrollTop <= 0) {
+  //         scrollElement.scrollTop = singleSetHeight;
+  //       } else {
+  //         scrollElement.scrollBy({ top: 2, behavior: "auto" });
+  //       }
+  //     }
+  //   }, 30);
 
-    return () => clearInterval(autoScroll);
-  }, [trips, isHoveringCards, dragScrollRef]);
+  //   return () => clearInterval(autoScroll);
+  // }, [trips, isHoveringCards, dragScrollRef]);
 
   const scrollToNextCard = React.useCallback(() => {
     const element = dragScrollRef.current || scrollRef.current;
@@ -244,7 +245,7 @@ export default function Home({ user, userLoading }) {
                 className="h-full overflow-y-auto scrollbar-hide pr-2"
                 style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
               >
-                <div className="space-y-6 pb-20">
+                <div className="space-y-8 pb-20">
                   {error && (
                     <div className="text-red-500 p-4 bg-red-50 rounded-lg">
                       <p className="font-bold">Error loading trips:</p>

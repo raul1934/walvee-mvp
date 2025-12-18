@@ -257,7 +257,7 @@ export default React.memo(
 
     return (
       <>
-        <Link to={createPageUrl("TripDetails") + `?id=${trip.id}`}>
+        <Link to={`${createPageUrl("TripDetails")}/${trip.id}`} className="block mb-8">
           <div className="bg-[#1A1B23] rounded-3xl overflow-hidden border border-[#2A2B35] hover:border-blue-500/30 transition-all duration-300">
             {/* User Info Header */}
             <div className="flex items-center justify-between p-4 border-b border-[#2A2B35]">

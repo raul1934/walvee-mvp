@@ -177,6 +177,19 @@ export default function TripMap({
         .leaflet-control-attribution a {
           color: rgba(147, 197, 253, 0.8) !important;
         }
+        .leaflet-container {
+          z-index: 1 !important;
+        }
+        .leaflet-pane {
+          z-index: 1 !important;
+        }
+        .leaflet-control-container {
+          z-index: 2 !important;
+        }
+        .leaflet-top,
+        .leaflet-bottom {
+          z-index: 2 !important;
+        }
       `}</style>
       <MapContainer
         center={[center.lat, center.lng]}

@@ -15,8 +15,6 @@ import ResetLikes from "./ResetLikes";
 
 import City from "./City";
 
-import EnrichTripImages from "./EnrichTripImages";
-
 import Profile from "./Profile";
 
 import EditProfile from "./EditProfile";
@@ -46,8 +44,6 @@ const PAGES = {
   ResetLikes: ResetLikes,
 
   City: City,
-
-  EnrichTripImages: EnrichTripImages,
 
   Profile: Profile,
 
@@ -84,7 +80,8 @@ function PagesContent() {
 
           <Route path="/Home" element={<Home />} />
 
-          <Route path="/TripDetails" element={<TripDetails />} />
+          <Route path="/TripDetails/:tripId" element={<TripDetails />} />
+          <Route path="/tripdetails/:tripId" element={<TripDetails />} />
 
           <Route path="/Onboarding" element={<Onboarding />} />
 
@@ -95,8 +92,6 @@ function PagesContent() {
           <Route path="/ResetLikes" element={<ResetLikes />} />
 
           <Route path="/City" element={<City />} />
-
-          <Route path="/EnrichTripImages" element={<EnrichTripImages />} />
 
           <Route path="/Profile" element={<Profile />} />
           <Route path="/profile" element={<Profile />} />

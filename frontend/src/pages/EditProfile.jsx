@@ -9,18 +9,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { Camera, MapPin, Search, ArrowLeft } from "lucide-react";
 import UserAvatar from "../components/common/UserAvatar";
 
-const GOOGLE_MAPS_API_KEY = "AIzaSyBYLf9H7ZYfGU5fZa2Fr6XfA9ZkBmJHTb4";
 const MAX_BIO_LENGTH = 200;
 
 export default function EditProfile() {
   const { user, userLoading } = useAuth();
-  const autocompleteService = useRef(null);
   const fileInputRef = useRef(null);
 
   const [loading, setLoading] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [locationQuery, setLocationQuery] = useState("");
-  const [locationSuggestions, setLocationSuggestions] = useState([]);
 
   const [formData, setFormData] = useState({
     full_name: "",
@@ -54,63 +51,13 @@ export default function EditProfile() {
     }
   }, [user]);
 
-  useEffect(() => {
-    if (window.google) return;
-
-    const script = document.createElement("script");
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=places`;
-    script.async = true;
-    script.defer = true;
-    document.head.appendChild(script);
-
-    return () => {
-      if (document.head.contains(script)) {
-        document.head.removeChild(script);
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    if (window.google?.maps?.places && !autocompleteService.current) {
-      autocompleteService.current =
-        new window.google.maps.places.AutocompleteService();
-    }
-  }, []);
-
-  const handleLocationSearch = (query) => {
-    setLocationQuery(query);
-
-    if (!query || !autocompleteService.current) {
-      setLocationSuggestions([]);
-      return;
-    }
-
-    autocompleteService.current.getPlacePredictions(
-      {
-        input: query,
-        types: ["(cities)"],
-      },
-      (predictions, status) => {
-        if (
-          status === window.google.maps.places.PlacesServiceStatus.OK &&
-          predictions
-        ) {
-          setLocationSuggestions(predictions);
-        } else {
-          setLocationSuggestions([]);
-        }
-      }
-    );
-  };
-
-  const handleLocationSelect = (prediction) => {
-    const terms = prediction.terms;
-    const city = terms.length > 0 ? terms[0].value : "";
-    const country = terms.length > 1 ? terms[terms.length - 1].value : "";
-
+  const handleLocationChange = (value) => {
+    setLocationQuery(value);
+    // Simple parsing: assume format is "City, Country"
+    const parts = value.split(',').map(p => p.trim());
+    const city = parts[0] || "";
+    const country = parts.length > 1 ? parts[parts.length - 1] : "";
     setFormData((prev) => ({ ...prev, city, country }));
-    setLocationQuery(prediction.description);
-    setLocationSuggestions([]);
   };
 
   const handlePhotoUpload = async (e) => {
@@ -321,34 +268,14 @@ export default function EditProfile() {
             <div className="relative">
               <Label className="text-gray-300 mb-2 block">City & Country</Label>
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-blue-500" />
+                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-blue-500" />
                 <Input
                   value={locationQuery}
-                  onChange={(e) => handleLocationSearch(e.target.value)}
-                  placeholder="Search for your city..."
+                  onChange={(e) => handleLocationChange(e.target.value)}
+                  placeholder="e.g., Paris, France"
                   className="bg-[#0D0D0D] border-gray-700 text-white pl-10 h-12"
                 />
               </div>
-
-              {locationSuggestions.length > 0 && (
-                <div className="absolute z-10 w-full mt-2 bg-[#1F1F1F] border border-[#2E2E2E] rounded-lg shadow-xl max-h-64 overflow-y-auto">
-                  {locationSuggestions.map((prediction) => (
-                    <button
-                      key={prediction.place_id}
-                      type="button"
-                      onClick={() => handleLocationSelect(prediction)}
-                      className="w-full text-left px-4 py-3 hover:bg-[#2A2B35] transition-colors border-b border-[#2E2E2E] last:border-b-0"
-                    >
-                      <div className="flex items-center gap-3">
-                        <MapPin className="w-4 h-4 text-blue-400 shrink-0" />
-                        <span className="text-white text-sm">
-                          {prediction.description}
-                        </span>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
             </div>
           </div>
 

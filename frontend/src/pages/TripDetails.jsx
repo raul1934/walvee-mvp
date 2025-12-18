@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { Trip, TripLike, TripSteal, Follow, User } from "@/api/entities";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   ArrowLeft,
   ThumbsUp,
@@ -17,7 +18,7 @@ import {
   MessageSquare,
   Edit,
 } from "lucide-react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import UserAvatar from "../components/common/UserAvatar";
 import { useDragScroll } from "../components/hooks/useDragScroll";
@@ -33,11 +34,13 @@ import CitiesScroller from "../components/common/CitiesScroller";
 import { getTripCities } from "../components/utils/cityFormatter";
 import TripMap from "../components/map/TripMap";
 
-export default function TripDetails({ user, openLoginModal }) {
+export default function TripDetails() {
+  const { user: currentUser, openLoginModal } = useAuth();
+
   console.log("[TripDetails] ===== RENDER =====");
   console.log("[TripDetails] Props:", {
-    hasUser: !!user,
-    userId: user?.id,
+    hasUser: !!currentUser,
+    userId: currentUser?.id,
     hasOpenLoginModal: !!openLoginModal,
   });
 
@@ -78,16 +81,13 @@ export default function TripDetails({ user, openLoginModal }) {
 
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const { tripId } = useParams();
+  const [searchParams] = useSearchParams();
 
-  // Memoize URL params to prevent recreating on every render
-  const urlParams = React.useMemo(
-    () => new URLSearchParams(window.location.search),
-    []
-  );
-  const tripId = urlParams.get("id");
-  const urlDay = urlParams.get("day");
-  const urlPlaceId = urlParams.get("placeId");
-  const urlGpid = urlParams.get("gpid");
+  // Get optional query params
+  const urlDay = searchParams.get("day");
+  const urlPlaceId = searchParams.get("placeId");
+  const urlGpid = searchParams.get("gpid");
 
   const {
     data: tripData,
@@ -144,27 +144,6 @@ export default function TripDetails({ user, openLoginModal }) {
       refetchComments();
       queryClient.invalidateQueries(["trip", tripId]);
     },
-  });
-
-  const { data: currentUser } = useQuery({
-    queryKey: ["currentUser"],
-    queryFn: async () => {
-      try {
-        return await User.me();
-      } catch (error) {
-        console.warn(
-          "[TripDetails] Error fetching current user:",
-          error.message
-        );
-        return null;
-      }
-    },
-    retry: false,
-    staleTime: 30 * 60 * 1000,
-    cacheTime: 60 * 60 * 1000,
-    refetchOnWindowFocus: false,
-    refetchOnMount: false,
-    refetchOnReconnect: false,
   });
 
   const { data: derivations = [] } = useQuery({
@@ -2184,7 +2163,7 @@ export default function TripDetails({ user, openLoginModal }) {
               place={selectedPlaceDetails}
               trip={tripData}
               onClose={handleClosePlaceDetails}
-              user={user}
+              user={currentUser}
             />
           )}
         </section>

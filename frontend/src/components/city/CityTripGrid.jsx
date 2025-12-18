@@ -47,7 +47,7 @@ export default function CityTripGrid({ trips, isLoading, currentUserId }) {
           return (
             <Link
               key={trip.id}
-              to={`${createPageUrl("TripDetails")}?id=${trip.id}`}
+              to={`${createPageUrl("TripDetails")}/${trip.id}`}
               className="bg-[#1A1B23] rounded-2xl overflow-hidden border border-[#2A2B35] hover:border-blue-500/30 transition-all group"
             >
               {/* Image */}

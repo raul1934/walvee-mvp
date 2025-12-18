@@ -12,15 +12,6 @@ import CityExplore from "../components/city/CityExplore";
 import CityLocals from "../components/city/CityLocals";
 import CityFavorites from "../components/city/CityFavorites";
 import PlaceModal from "../components/city/PlaceModal";
-import {
-  shouldUseGooglePlaces,
-  getGooglePlacesService,
-  cache,
-  getMockPlaces,
-  CACHE_CONFIG,
-} from "../components/utils/googlePlacesConfig";
-
-const GOOGLE_MAPS_API_KEY = "AIzaSyBYLf9H7ZYfGU5fZa2Fr6XfA9ZkBmJHTb4";
 
 console.log("[City Page] ===== MODULE LOADED =====");
 
@@ -59,7 +50,6 @@ export default function City({
   const [isEnrichingTripPlaces, setIsEnrichingTripPlaces] = useState(false);
 
   const [imageErrors, setImageErrors] = useState(new Set());
-  const [googleMapsLoaded, setGoogleMapsLoaded] = useState(false);
 
   const navigate = useNavigate();
   const observerRef = useRef();
@@ -67,7 +57,6 @@ export default function City({
   const placesObserverRef = useRef();
   const placesLoadingRef = useRef(false);
   const contentRef = useRef(null);
-  const scriptLoadedRef = useRef(false);
 
   const LIMIT = 6;
   const PLACES_LIMIT = 6;
@@ -99,53 +88,6 @@ export default function City({
       });
     }
   }, [activeTab]);
-
-  // Load Google Maps API
-  useEffect(() => {
-    if (scriptLoadedRef.current) return;
-
-    const checkAndLoad = () => {
-      if (window.google?.maps?.places?.PlacesService) {
-        console.log("[City] Google Maps API already loaded");
-        setGoogleMapsLoaded(true);
-        scriptLoadedRef.current = true;
-        return;
-      }
-
-      const existingScript = document.querySelector(
-        'script[src*="maps.googleapis.com"]'
-      );
-      if (existingScript) {
-        console.log("[City] Google Maps script exists, waiting for load...");
-        existingScript.addEventListener("load", () => {
-          console.log("[City] Google Maps loaded via existing script");
-          setGoogleMapsLoaded(true);
-          scriptLoadedRef.current = true;
-        });
-        return;
-      }
-
-      console.log("[City] Loading Google Maps API...");
-      const script = document.createElement("script");
-      script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=places`;
-      script.async = true;
-      script.defer = true;
-
-      script.onload = () => {
-        console.log("[City] Google Maps API loaded successfully");
-        setGoogleMapsLoaded(true);
-        scriptLoadedRef.current = true;
-      };
-
-      script.onerror = (error) => {
-        console.error("[City] Error loading Google Maps API:", error);
-      };
-
-      document.head.appendChild(script);
-    };
-
-    checkAndLoad();
-  }, []);
 
   const {
     data: trips = [],
@@ -286,338 +228,15 @@ export default function City({
   }, [trips]);
 
   useEffect(() => {
-    if (!topPlaces.length || !window.google?.maps?.places) {
-      setEnrichedTripPlaces(topPlaces);
-      return;
-    }
-
-    setIsEnrichingTripPlaces(true);
-    const service = new window.google.maps.places.PlacesService(
-      document.createElement("div")
-    );
-
-    Promise.all(
-      topPlaces.map(
-        (place) =>
-          new Promise((resolve) => {
-            if (place.photo && place.rating) {
-              resolve(place);
-              return;
-            }
-
-            if (place.place_id) {
-              service.getDetails(
-                {
-                  placeId: place.place_id,
-                  fields: [
-                    "name",
-                    "place_id",
-                    "rating",
-                    "user_ratings_total",
-                    "price_level",
-                    "photos",
-                    "formatted_address",
-                  ],
-                },
-                (result, status) => {
-                  if (
-                    status ===
-                      window.google.maps.places.PlacesServiceStatus.OK &&
-                    result
-                  ) {
-                    resolve({
-                      ...place,
-                      rating: result.rating || place.rating,
-                      user_ratings_total:
-                        result.user_ratings_total || place.user_ratings_total,
-                      price_level:
-                        result.price_level !== undefined
-                          ? result.price_level
-                          : place.price_level,
-                      photo:
-                        result.photos?.[0]?.getUrl({
-                          maxWidth: 400,
-                          maxHeight: 400,
-                        }) || place.photo,
-                      photos:
-                        result.photos?.map((p) =>
-                          p.getUrl({ maxWidth: 800, maxHeight: 800 })
-                        ) || place.photos,
-                      address: result.formatted_address || place.address,
-                    });
-                  } else {
-                    resolve(place);
-                  }
-                }
-              );
-            } else {
-              const request = {
-                query: `${place.name}, ${place.address || cityName}`,
-                fields: [
-                  "name",
-                  "place_id",
-                  "rating",
-                  "user_ratings_total",
-                  "price_level",
-                  "photos",
-                  "formatted_address",
-                ],
-              };
-
-              service.textSearch(request, (results, status) => {
-                if (
-                  status === window.google.maps.places.PlacesServiceStatus.OK &&
-                  results &&
-                  results[0]
-                ) {
-                  const result = results[0];
-
-                  const resultAddress =
-                    result.formatted_address?.toLowerCase() || "";
-                  const cityNameOnly = cityName
-                    .split(",")[0]
-                    .trim()
-                    .toLowerCase();
-
-                  if (resultAddress.includes(cityNameOnly)) {
-                    resolve({
-                      ...place,
-                      place_id: result.place_id || place.place_id,
-                      rating: result.rating || place.rating,
-                      user_ratings_total:
-                        result.user_ratings_total || place.user_ratings_total,
-                      price_level:
-                        result.price_level !== undefined
-                          ? result.price_level
-                          : place.price_level,
-                      photo:
-                        result.photos?.[0]?.getUrl({
-                          maxWidth: 400,
-                          maxHeight: 400,
-                        }) || place.photo,
-                      photos:
-                        result.photos?.map((p) =>
-                          p.getUrl({ maxWidth: 800, maxHeight: 800 })
-                        ) || place.photos,
-                      address: result.formatted_address || place.address,
-                    });
-                  } else {
-                    resolve(place);
-                  }
-                } else {
-                  resolve(place);
-                }
-              });
-            }
-          })
-      )
-    )
-      .then((enriched) => {
-        setEnrichedTripPlaces(enriched);
-        setIsEnrichingTripPlaces(false);
-      })
-      .catch((error) => {
-        console.error("Error enriching trip places:", error);
-        setEnrichedTripPlaces(topPlaces);
-        setIsEnrichingTripPlaces(false);
-      });
-  }, [topPlaces, cityName]);
-
-  // Updated Google Places query with feature flag
-  const { data: googlePlaces = [], isLoading: isLoadingGooglePlaces } =
-    useQuery({
-      queryKey: [
-        "googlePlaces",
-        cityName,
-        placeCategory,
-        activeTab,
-        googleMapsLoaded,
-      ],
-      queryFn: async () => {
-        // Check if Google Places is enabled via feature flag
-        if (!shouldUseGooglePlaces()) {
-          console.log(
-            "[City] Google Places API desabilitada - usando dados mock"
-          );
-          return getMockPlaces(cityName);
-        }
-
-        if (!cityName || !googleMapsLoaded) {
-          console.log("[City] Skipping Google Places search:", {
-            cityName,
-            googleMapsLoaded,
-          });
-          return [];
-        }
-
-        try {
-          // Check cache first
-          const cacheKey = `city_${cityName}_${placeCategory}`;
-          const cached = cache.get(cacheKey);
-
-          if (cached) {
-            console.log("[City] Usando cache do Google Places");
-            return cached;
-          }
-
-          console.log("[City] Fetching Google Places...");
-          const service = getGooglePlacesService();
-
-          if (!service) {
-            console.warn("[City] Service não disponível");
-            return [];
-          }
-
-          let query;
-          if (placeCategory === "all") {
-            query = `top places in ${cityName}`;
-          } else {
-            query = `${placeCategory.replace(/_/g, " ")} in ${cityName}`;
-          }
-
-          console.log("[City] Google Places query:", query);
-
-          return new Promise((resolve) => {
-            service.textSearch({ query: query }, async (results, status) => {
-              console.log("[City] Google Places response:", {
-                status,
-                count: results?.length,
-              });
-
-              if (
-                status === window.google.maps.places.PlacesServiceStatus.OK &&
-                results
-              ) {
-                const cityParts = cityName
-                  .split(",")
-                  .map((p) => p.trim().toLowerCase());
-                const cityOnly = cityParts[0];
-
-                const filteredResults = results.filter((place) => {
-                  const placeAddress =
-                    place.formatted_address?.toLowerCase() || "";
-                  return placeAddress.includes(cityOnly);
-                });
-
-                console.log(
-                  "[City] Filtered Google Places:",
-                  filteredResults.length
-                );
-
-                const detailedPlaces = await Promise.all(
-                  filteredResults.map(
-                    (place) =>
-                      new Promise((resolveDetail) => {
-                        setTimeout(() => {
-                          service.getDetails(
-                            {
-                              placeId: place.place_id,
-                              fields: [
-                                "name",
-                                "formatted_address",
-                                "place_id",
-                                "rating",
-                                "user_ratings_total",
-                                "price_level",
-                                "types",
-                                "photos",
-                                "opening_hours",
-                              ],
-                            },
-                            (detailResult, detailStatus) => {
-                              if (
-                                detailStatus ===
-                                  window.google.maps.places.PlacesServiceStatus
-                                    .OK &&
-                                detailResult
-                              ) {
-                                resolveDetail({
-                                  name: detailResult.name,
-                                  address: detailResult.formatted_address,
-                                  place_id: detailResult.place_id,
-                                  rating: detailResult.rating,
-                                  user_ratings_total:
-                                    detailResult.user_ratings_total,
-                                  price_level: detailResult.price_level,
-                                  types: detailResult.types,
-                                  photos:
-                                    detailResult.photos?.map((p) =>
-                                      p.getUrl({
-                                        maxWidth: 800,
-                                        maxHeight: 800,
-                                      })
-                                    ) || [],
-                                  photo:
-                                    detailResult.photos?.[0]?.getUrl({
-                                      maxWidth: 400,
-                                      maxHeight: 400,
-                                    }) || null,
-                                  opening_hours: detailResult.opening_hours,
-                                  mentions: 0,
-                                  source: "google",
-                                });
-                              } else {
-                                console.warn(
-                                  `[City] Failed to fetch details for place ID ${place.place_id}. Status: ${detailStatus}`
-                                );
-                                resolveDetail({
-                                  name: place.name,
-                                  address: place.formatted_address,
-                                  place_id: place.place_id,
-                                  rating: place.rating,
-                                  user_ratings_total: place.user_ratings_total,
-                                  price_level: place.price_level,
-                                  types: place.types,
-                                  photos: [],
-                                  photo: null,
-                                  mentions: 0,
-                                  source: "google",
-                                });
-                              }
-                            }
-                          );
-                        }, 50);
-                      })
-                  )
-                );
-
-                console.log(
-                  "[City] Detailed Google Places:",
-                  detailedPlaces.length
-                );
-
-                // Cache results
-                cache.set(cacheKey, detailedPlaces, CACHE_CONFIG.CITY_PLACES);
-
-                resolve(detailedPlaces);
-              } else {
-                console.warn(
-                  `[City] Text search failed for query "${query}". Status: ${status}`
-                );
-                resolve([]);
-              }
-            });
-          });
-        } catch (error) {
-          console.error("[City] Error fetching Google Places:", error);
-          return [];
-        }
-      },
-      enabled: !!cityName && activeTab === "places" && googleMapsLoaded,
-      staleTime: 24 * 60 * 60 * 1000,
-      retry: 1,
-    });
+    // Simply use topPlaces as-is without enrichment
+    setEnrichedTripPlaces(topPlaces);
+    setIsEnrichingTripPlaces(false);
+  }, [topPlaces]);
 
   const combinedPlacesAll = React.useMemo(() => {
     const tripsPlaces = enrichedTripPlaces.filter((p) => p.mentions > 0);
-    const googleOnly = googlePlaces.filter(
-      (gp) =>
-        !tripsPlaces.some(
-          (tp) => tp.place_id === gp.place_id || tp.name === gp.name
-        )
-    );
 
-    let combined = [...tripsPlaces, ...googleOnly];
+    let combined = [...tripsPlaces];
 
     const cityNameOnly = cityName?.split(",")[0].trim().toLowerCase() || "";
 
@@ -677,7 +296,6 @@ export default function City({
           entries[0].isIntersecting &&
           hasMorePlaces &&
           !placesLoadingRef.current &&
-          !isLoadingGooglePlaces &&
           !isEnrichingTripPlaces
         ) {
           placesLoadingRef.current = true;
@@ -699,7 +317,7 @@ export default function City({
         observer.disconnect();
       }
     };
-  }, [hasMorePlaces, isLoadingGooglePlaces, isEnrichingTripPlaces, activeTab]);
+  }, [hasMorePlaces, isEnrichingTripPlaces, activeTab]);
 
   const relatedCities = React.useMemo(() => {
     if (!trips.length) return [];
@@ -873,23 +491,18 @@ export default function City({
             <CityTopPlaces
               places={allPlaces}
               cityName={cityName}
-              isLoading={
-                (isLoadingGooglePlaces || isEnrichingTripPlaces) &&
-                placesOffset === 0
-              }
+              isLoading={isEnrichingTripPlaces && placesOffset === 0}
               onPlaceClick={handlePlaceClick}
             />
 
-            {hasMorePlaces &&
-              !isLoadingGooglePlaces &&
-              !isEnrichingTripPlaces && (
-                <div
-                  ref={placesObserverRef}
-                  className="py-12 flex justify-center"
-                >
-                  <div className="animate-spin rounded-full h-10 w-10 border-2 border-purple-500 border-t-transparent" />
-                </div>
-              )}
+            {hasMorePlaces && !isEnrichingTripPlaces && (
+              <div
+                ref={placesObserverRef}
+                className="py-12 flex justify-center"
+              >
+                <div className="animate-spin rounded-full h-10 w-10 border-2 border-purple-500 border-t-transparent" />
+              </div>
+            )}
 
             {!hasMorePlaces && allPlaces.length > 0 && (
               <p className="text-center text-gray-500 py-12">
@@ -897,8 +510,7 @@ export default function City({
               </p>
             )}
 
-            {!isLoadingGooglePlaces &&
-              !isEnrichingTripPlaces &&
+            {!isEnrichingTripPlaces &&
               allPlaces.length === 0 &&
               !hasMorePlaces &&
               combinedPlacesAll.length === 0 && (

@@ -109,7 +109,7 @@ export default function StealModal({ isOpen, onClose, onConfirm, trip, isLoading
           <Button
             onClick={onClose}
             variant="outline"
-            className="flex-1 h-12 border-gray-600 text-gray-300 hover:bg-gray-700"
+            className="flex-1 h-12 border-gray-600 text-gray-200 hover:bg-gray-700"
             disabled={isLoading}
           >
             Cancel

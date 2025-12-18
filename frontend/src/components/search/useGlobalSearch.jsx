@@ -1,6 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { Trip, User } from "@/api/entities";
-const GOOGLE_MAPS_API_KEY = "AIzaSyBYLf9H7ZYfGU5fZa2Fr6XfA9ZkBmJHTb4";
 
 export function useGlobalSearch(cityContext = null) {
   const [query, setQuery] = useState('');
@@ -12,11 +11,9 @@ export function useGlobalSearch(cityContext = null) {
   });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [googleMapsLoaded, setGoogleMapsLoaded] = useState(false);
-  
+
   const searchTimeoutRef = useRef(null);
   const abortControllerRef = useRef(null);
-  const scriptLoadedRef = useRef(false);
 
   const normalizeString = (str) => {
     if (!str) return '';
@@ -28,117 +25,6 @@ export function useGlobalSearch(cityContext = null) {
       .replace(/[^\w\s]/g, ' ')
       .replace(/\s+/g, ' ')
       .trim();
-  };
-
-  useEffect(() => {
-    if (scriptLoadedRef.current) return;
-
-    const checkAndLoad = () => {
-      if (window.google?.maps?.places?.PlacesService) {
-        console.log('[Search] Google Maps API already loaded');
-        setGoogleMapsLoaded(true);
-        scriptLoadedRef.current = true;
-        return;
-      }
-
-      const existingScript = document.querySelector('script[src*="maps.googleapis.com"]');
-      if (existingScript) {
-        console.log('[Search] Google Maps script exists, waiting for load...');
-        existingScript.addEventListener('load', () => {
-          console.log('[Search] Google Maps loaded via existing script');
-          setGoogleMapsLoaded(true);
-          scriptLoadedRef.current = true;
-        });
-        return;
-      }
-
-      console.log('[Search] Loading Google Maps API...');
-      const script = document.createElement('script');
-      script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=places`;
-      script.async = true;
-      script.defer = true;
-      
-      script.onload = () => {
-        console.log('[Search] Google Maps API loaded successfully');
-        setGoogleMapsLoaded(true);
-        scriptLoadedRef.current = true;
-      };
-      
-      script.onerror = (error) => {
-        console.error('[Search] Error loading Google Maps API:', error);
-      };
-      
-      document.head.appendChild(script);
-    };
-
-    checkAndLoad();
-  }, []);
-
-  const searchGooglePlaces = async (searchQuery) => {
-    if (!googleMapsLoaded || !window.google?.maps?.places?.PlacesService) {
-      console.warn('[Search] Google Places API not available');
-      return [];
-    }
-
-    const finalQuery = cityContext 
-      ? `${searchQuery} in ${cityContext}`
-      : searchQuery;
-
-    console.log('[Search] Searching Google Places for:', finalQuery);
-
-    return new Promise((resolve) => {
-      try {
-        const service = new window.google.maps.places.PlacesService(
-          document.createElement('div')
-        );
-
-        service.textSearch(
-          {
-            query: finalQuery,
-          },
-          (results, status) => {
-            console.log('[Search] Google Places response:', { status, resultsCount: results?.length });
-            
-            if (status === window.google.maps.places.PlacesServiceStatus.OK && results) {
-              console.log('[Search] Google Places found:', results.length);
-              
-              let filteredResults = results;
-              if (cityContext) {
-                const cityNameOnly = cityContext.split(',')[0].trim().toLowerCase();
-                filteredResults = results.filter(place => {
-                  const address = place.formatted_address?.toLowerCase() || '';
-                  return address.includes(cityNameOnly);
-                });
-                console.log('[Search] Filtered to city:', filteredResults.length);
-              }
-              
-              const places = filteredResults.slice(0, 10).map(place => ({
-                name: place.name,
-                address: place.formatted_address,
-                place_id: place.place_id,
-                rating: place.rating,
-                user_ratings_total: place.user_ratings_total,
-                price_level: place.price_level,
-                types: place.types,
-                photos: place.photos?.map(p => p.getUrl({ maxWidth: 800, maxHeight: 800 })) || [],
-                photo: place.photos?.[0]?.getUrl({ maxWidth: 400, maxHeight: 400 }),
-                mentions: 0,
-                source: 'google'
-              }));
-              
-              console.log('[Search] Formatted Google Places:', places.map(p => p.name));
-              resolve(places);
-            } else {
-              console.warn('[Search] Google Places search failed:', status);
-              resolve([]);
-            }
-          }
-        );
-      } catch (error) {
-        console.error('[Search] Error in searchGooglePlaces:', error);
-        resolve([]);
-      }
-    });
   };
 
   const search = useCallback(async (searchQuery) => {
@@ -167,24 +53,20 @@ export function useGlobalSearch(cityContext = null) {
       const isAuthenticated = await User.isAuthenticated();
       console.log('[Search] Authenticated:', isAuthenticated);
 
-      const [allTrips, allUsers, googlePlaces] = await Promise.all([
+      const [allTrips, allUsers] = await Promise.all([
         Trip.list().catch(err => {
           console.error('[Search] Error fetching trips:', err);
           return [];
         }),
-        isAuthenticated 
+        isAuthenticated
           ? User.list().catch(err => {
               console.error('[Search] Error fetching users:', err);
               return [];
             })
-          : Promise.resolve([]),
-        searchGooglePlaces(searchQuery).catch(err => {
-          console.error('[Search] Error fetching Google Places:', err);
-          return [];
-        })
+          : Promise.resolve([])
       ]);
 
-      console.log('[Search] Data fetched - Trips:', allTrips.length, 'Users:', allUsers.length, 'Google Places:', googlePlaces.length);
+      console.log('[Search] Data fetched - Trips:', allTrips.length, 'Users:', allUsers.length);
 
       const normalizedCityContext = cityContext ? normalizeString(cityContext) : null;
       const cityNameOnly = normalizedCityContext ? normalizedCityContext.split(',')[0].trim() : null;
@@ -376,15 +258,6 @@ export function useGlobalSearch(cityContext = null) {
         });
       });
 
-      console.log('[Search] Adding', googlePlaces.length, 'Google Places to results');
-      googlePlaces.forEach(place => {
-        const key = place.place_id || place.name;
-        if (!placeMap.has(key)) {
-          placeMap.set(key, place);
-          console.log('[Search] ✓ Place match (from Google):', place.name);
-        }
-      });
-
       const places = Array.from(placeMap.values())
         .sort((a, b) => {
           if (a.mentions && !b.mentions) return -1;
@@ -423,7 +296,7 @@ export function useGlobalSearch(cityContext = null) {
     } finally {
       setIsLoading(false);
     }
-  }, [googleMapsLoaded, cityContext]);
+  }, [cityContext]);
 
   const debouncedSearch = useCallback((searchQuery) => {
     if (searchTimeoutRef.current) {

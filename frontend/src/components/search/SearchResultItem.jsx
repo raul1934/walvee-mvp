@@ -63,16 +63,16 @@ export default function SearchResultItem({ result, onClose, onPlaceClick }) {
   if (result.type === "trip") {
     return (
       <Link
-        to={`${createPageUrl("TripDetails")}?id=${result.id}`}
+        to={`${createPageUrl("TripDetails")}/${result.id}`}
         onClick={handleClick}
         className="flex items-center gap-4 p-4 hover:bg-[#1A1B23] rounded-xl transition-colors group"
       >
         <div className="w-16 h-16 rounded-xl overflow-hidden bg-[#0D0D0D] shrink-0">
-          {!result.image || imageError ? (
+          {!result.cover_image || imageError ? (
             <ImagePlaceholder type="image" />
           ) : (
             <img
-              src={result.image}
+              src={result.cover_image}
               alt={result.title}
               className="w-full h-full object-cover group-hover:scale-110 transition-transform"
               onError={() => setImageError(true)}

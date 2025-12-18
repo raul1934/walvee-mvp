@@ -31,9 +31,6 @@ import ImagePlaceholder from "../common/ImagePlaceholder";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getPriceRangeInfo } from "../utils/priceFormatter";
 import { useFavorites } from "../hooks/useFavorites";
-import { shouldUseGooglePlaces } from "../utils/googlePlacesConfig"; // Only shouldUseGooglePlaces is relevant now
-
-const GOOGLE_MAPS_API_KEY = "AIzaSyBYLf9H2ZYfGU5fZa2Fr6XfA9ZkBJHTb4";
 
 const getPriceRangeText = (priceLevel) => {
   if (priceLevel === undefined || priceLevel === null || priceLevel === 0) {
@@ -193,8 +190,6 @@ export default function PlaceDetails({
     place.user_ratings_total || place.reviews_count || 0
   );
 
-  const fetchedPlaceId = useRef(null);
-
   const [expandedSections, setExpandedSections] = useState({
     google: false,
     walvee: false,
@@ -206,7 +201,6 @@ export default function PlaceDetails({
   const headerRef = useRef(null);
   const tabsRef = useRef(null);
   const scrollRef = useRef(null);
-  const scriptLoadedRef = useRef(false);
 
   const priceLevel = enrichedPlace.price_level || 0;
   const priceInfo = getPriceRangeInfo(enrichedPlace.price_level);
@@ -354,207 +348,8 @@ export default function PlaceDetails({
     };
   }, []);
 
-  const [googleMapsLoaded, setGoogleMapsLoaded] = useState(false);
-  useEffect(() => {
-    if (scriptLoadedRef.current) return;
-
-    const checkAndLoad = () => {
-      if (window.google?.maps?.Map) {
-        console.log("[GoogleMaps] Already loaded");
-        setGoogleMapsLoaded(true);
-        scriptLoadedRef.current = true;
-        return;
-      }
-
-      const existingScript = document.querySelector(
-        'script[src*="maps.googleapis.com"]'
-      );
-      if (existingScript) {
-        console.log("[GoogleMaps] Script tag exists, waiting for load...");
-        existingScript.addEventListener("load", () => {
-          setGoogleMapsLoaded(true);
-          scriptLoadedRef.current = true;
-        });
-        existingScript.addEventListener("error", (error) => {
-          console.error("[GoogleMaps] Error loading existing script:", error);
-        });
-        return;
-      }
-
-      console.log("[GoogleMaps] Loading script...");
-      const script = document.createElement("script");
-      script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=places`;
-      script.async = true;
-      script.defer = true;
-
-      script.onload = () => {
-        console.log("[GoogleMaps] Script loaded successfully");
-        setGoogleMapsLoaded(true);
-        scriptLoadedRef.current = true;
-      };
-
-      script.onerror = (error) => {
-        console.error("[GoogleMaps] Error loading script:", error);
-      };
-
-      document.head.appendChild(script);
-    };
-
-    checkAndLoad();
-  }, []);
-
-  useEffect(() => {
-    const enrichPlaceData = async () => {
-      if (
-        !shouldUseGooglePlaces() ||
-        !googleMapsLoaded ||
-        !window.google?.maps?.places ||
-        !place ||
-        fetchedPlaceId.current === place.place_id
-      ) {
-        return;
-      }
-
-      setIsEnriching(true);
-      fetchedPlaceId.current = place.place_id;
-
-      try {
-        const service = new window.google.maps.places.PlacesService(
-          document.createElement("div")
-        );
-
-        const fields = [
-          "name",
-          "formatted_address",
-          "place_id",
-          "rating",
-          "user_ratings_total",
-          "price_level",
-          "types",
-          "photos",
-          "opening_hours",
-          "geometry",
-          "website",
-          "formatted_phone_number",
-          "reviews",
-        ];
-
-        const processResult = (result) => {
-          if (result) {
-            const photoUrls =
-              result.photos?.map((p) =>
-                p.getUrl({ maxWidth: 1200, maxHeight: 1200 })
-              ) || [];
-
-            setEnrichedPlace((prev) => ({
-              ...prev,
-              ...result,
-              photos: photoUrls,
-              photo: photoUrls[0] || prev.photo || null,
-              reviews: result.reviews || [],
-            }));
-            setGoogleRatingsTotal(
-              result.user_ratings_total !== undefined
-                ? result.user_ratings_total
-                : result.reviews?.length || 0
-            );
-          }
-        };
-
-        const performTextSearch = () => {
-          const query = `${place.name}, ${
-            place.address || trip?.destination || ""
-          }`;
-          console.log("[PlaceDetails] Performing text search:", query);
-
-          service.textSearch({ query }, (results, status) => {
-            if (
-              status === window.google.maps.places.PlacesServiceStatus.OK &&
-              results &&
-              results.length > 0
-            ) {
-              console.log(
-                "[PlaceDetails] ✅ Text search successful, fetching details for top result."
-              );
-              const topResultPlaceId = results[0].place_id;
-              service.getDetails(
-                { placeId: topResultPlaceId, fields },
-                (detailResult, detailStatus) => {
-                  if (
-                    detailStatus ===
-                      window.google.maps.places.PlacesServiceStatus.OK &&
-                    detailResult
-                  ) {
-                    console.log(
-                      "[PlaceDetails] ✅ Detailed info fetched from text search."
-                    );
-                    processResult(detailResult);
-                  } else {
-                    console.warn(
-                      "[PlaceDetails] Failed to get details after text search:",
-                      detailStatus
-                    );
-                  }
-                  setIsEnriching(false);
-                }
-              );
-            } else {
-              console.warn(
-                "[PlaceDetails] Text search failed or no results:",
-                status
-              );
-              setIsEnriching(false);
-            }
-          });
-        };
-
-        if (place.place_id) {
-          console.log(
-            "[PlaceDetails] Fetching details by place_id:",
-            place.place_id
-          );
-          service.getDetails(
-            { placeId: place.place_id, fields },
-            (result, status) => {
-              if (
-                status === window.google.maps.places.PlacesServiceStatus.OK &&
-                result
-              ) {
-                console.log(
-                  "[PlaceDetails] ✅ Place details fetched successfully by place_id."
-                );
-                processResult(result);
-                setIsEnriching(false);
-              } else {
-                console.warn(
-                  `[PlaceDetails] Failed to fetch by place_id (${place.place_id}), status: ${status}. Trying text search.`
-                );
-                performTextSearch();
-              }
-            }
-          );
-        } else {
-          performTextSearch();
-        }
-      } catch (error) {
-        console.error("[PlaceDetails] Error enriching place:", error);
-        setIsEnriching(false);
-      }
-    };
-
-    enrichPlaceData();
-  }, [
-    place.place_id,
-    place.name,
-    place.address,
-    trip?.destination,
-    googleMapsLoaded,
-    shouldUseGooglePlaces,
-  ]);
-
   useEffect(() => {
     setEnrichedPlace(place);
-    fetchedPlaceId.current = null;
   }, [place]);
 
   const googleReviewsList = enrichedPlace.reviews
