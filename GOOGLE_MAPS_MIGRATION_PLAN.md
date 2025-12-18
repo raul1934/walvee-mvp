@@ -1,4 +1,5 @@
 # Google Maps API Migration Plan
+
 **Goal**: Move all direct Google Maps API calls from frontend to backend and cache data in database to reduce API costs and improve performance.
 
 ---
@@ -8,20 +9,22 @@
 ### ✅ **Working Example: City Search**
 
 **Frontend** (`Onboarding.jsx`):
+
 ```javascript
 // Makes request to backend API
 const response = await axios.get(`${API_BASE_URL}/cities/search`, {
-  params: { query: query.trim() }
+  params: { query: query.trim() },
 });
 ```
 
 **Backend** (`cityController.js`):
+
 ```javascript
 const searchCities = async (req, res) => {
   // 1. Search existing cities in database first
   let existingCities = await City.findAll({
     where: { name: { [Op.like]: `%${query}%` } },
-    limit: 5
+    limit: 5,
   });
 
   // 2. If we have 5+ results, return them (no API call)
@@ -40,7 +43,7 @@ const searchCities = async (req, res) => {
       google_maps_id: placeDetails.google_maps_id,
       latitude: placeDetails.latitude,
       longitude: placeDetails.longitude,
-      timezone: await getTimezone(lat, lng)
+      timezone: await getTimezone(lat, lng),
     });
   }
 
@@ -50,6 +53,7 @@ const searchCities = async (req, res) => {
 ```
 
 **Database Schema**:
+
 ```sql
 CREATE TABLE cities (
   id INT AUTO_INCREMENT PRIMARY KEY,
@@ -69,6 +73,7 @@ CREATE TABLE cities (
 ```
 
 **Benefits Achieved**:
+
 - ✅ API key hidden on backend
 - ✅ Database acts as cache (subsequent searches don't call Google)
 - ✅ Faster response times after initial fetch
@@ -82,6 +87,7 @@ CREATE TABLE cities (
 ### 1. **Place Photos Fetching** (`TripDetails.jsx:772-814`)
 
 **Current**: Direct frontend Google Places API calls
+
 ```javascript
 const service = new window.google.maps.places.PlacesService(
   document.createElement("div")
@@ -89,7 +95,7 @@ const service = new window.google.maps.places.PlacesService(
 
 service.textSearch(request, (results, status) => {
   if (status === window.google.maps.places.PlacesServiceStatus.OK) {
-    const photos = results[0].photos.map(photo => 
+    const photos = results[0].photos.map((photo) =>
       photo.getUrl({ maxWidth: 800 })
     );
   }
@@ -97,6 +103,7 @@ service.textSearch(request, (results, status) => {
 ```
 
 **Issues**:
+
 - Exposed API key in frontend
 - Repeated API calls for same places
 - No caching
@@ -105,6 +112,7 @@ service.textSearch(request, (results, status) => {
 **Migration Plan**:
 
 #### Database Schema
+
 ```sql
 CREATE TABLE places (
   id INT AUTO_INCREMENT PRIMARY KEY,
@@ -150,19 +158,20 @@ CREATE TABLE place_photos (
 #### Backend Implementation
 
 **New Endpoint**: `GET /api/v1/places/search`
+
 ```javascript
 // backend/src/controllers/placeController.js
 const searchPlaces = async (req, res, next) => {
   try {
     const { query, city_id, destination } = req.query;
-    
+
     // 1. Search existing places in database
     let existingPlace = await Place.findOne({
-      where: { 
+      where: {
         name: { [Op.like]: `%${query}%` },
-        ...(city_id && { city_id })
+        ...(city_id && { city_id }),
       },
-      include: [{ model: PlacePhoto, as: 'photos' }]
+      include: [{ model: PlacePhoto, as: "photos" }],
     });
 
     if (existingPlace) {
@@ -170,10 +179,15 @@ const searchPlaces = async (req, res, next) => {
     }
 
     // 2. Fetch from Google Places API
-    const googleResult = await googleMapsService.searchPlace(query, destination);
-    
+    const googleResult = await googleMapsService.searchPlace(
+      query,
+      destination
+    );
+
     if (!googleResult) {
-      return res.status(404).json(buildErrorResponse('NOT_FOUND', 'Place not found'));
+      return res
+        .status(404)
+        .json(buildErrorResponse("NOT_FOUND", "Place not found"));
     }
 
     // 3. Get detailed place information
@@ -194,12 +208,12 @@ const searchPlaces = async (req, res, next) => {
       types: placeDetails.types,
       phone_number: placeDetails.formatted_phone_number,
       website: placeDetails.website,
-      opening_hours: placeDetails.opening_hours?.weekday_text
+      opening_hours: placeDetails.opening_hours?.weekday_text,
     });
 
     // 5. Save photos
     if (placeDetails.photos) {
-      const photoPromises = placeDetails.photos.slice(0, 10).map((photo, idx) => 
+      const photoPromises = placeDetails.photos.slice(0, 10).map((photo, idx) =>
         PlacePhoto.create({
           place_id: newPlace.id,
           google_photo_reference: photo.photo_reference,
@@ -209,7 +223,7 @@ const searchPlaces = async (req, res, next) => {
           width: photo.width,
           height: photo.height,
           attribution: photo.html_attributions[0],
-          photo_order: idx
+          photo_order: idx,
         })
       );
       await Promise.all(photoPromises);
@@ -217,7 +231,9 @@ const searchPlaces = async (req, res, next) => {
 
     // 6. Return complete data
     const completePlace = await Place.findByPk(newPlace.id, {
-      include: [{ model: PlacePhoto, as: 'photos', order: [['photo_order', 'ASC']] }]
+      include: [
+        { model: PlacePhoto, as: "photos", order: [["photo_order", "ASC"]] },
+      ],
     });
 
     return res.json(buildSuccessResponse(completePlace));
@@ -228,26 +244,33 @@ const searchPlaces = async (req, res, next) => {
 ```
 
 **New Endpoint**: `GET /api/v1/trips/:id/places-enriched`
+
 ```javascript
 // Returns all places for a trip with cached photos
 const getTripPlacesEnriched = async (req, res, next) => {
   try {
     const { id } = req.params;
-    
+
     const trip = await Trip.findByPk(id, {
-      include: [{
-        model: TripPlace,
-        as: 'places',
-        include: [{
-          model: Place,
-          as: 'placeDetails',
-          include: [{ model: PlacePhoto, as: 'photos' }]
-        }]
-      }]
+      include: [
+        {
+          model: TripPlace,
+          as: "places",
+          include: [
+            {
+              model: Place,
+              as: "placeDetails",
+              include: [{ model: PlacePhoto, as: "photos" }],
+            },
+          ],
+        },
+      ],
     });
 
     if (!trip) {
-      return res.status(404).json(buildErrorResponse('NOT_FOUND', 'Trip not found'));
+      return res
+        .status(404)
+        .json(buildErrorResponse("NOT_FOUND", "Trip not found"));
     }
 
     // For places without cached data, fetch from Google
@@ -259,9 +282,9 @@ const getTripPlacesEnriched = async (req, res, next) => {
 
         // Fetch and cache
         const googlePlace = await searchPlaces({
-          query: { query: tripPlace.name, destination: trip.destination }
+          query: { query: tripPlace.name, destination: trip.destination },
         });
-        
+
         return { ...tripPlace.toJSON(), placeDetails: googlePlace };
       })
     );
@@ -274,23 +297,24 @@ const getTripPlacesEnriched = async (req, res, next) => {
 ```
 
 **Frontend Changes**:
+
 ```javascript
 // frontend/src/api/backendService.js
 export const Place = {
   async search(query, destination) {
     const response = await apiClient.get(endpoints.places.search, {
       query,
-      destination
+      destination,
     });
     return response.data;
   },
-  
+
   async getEnrichedForTrip(tripId) {
     const response = await apiClient.get(
       endpoints.trips.getPlacesEnriched(tripId)
     );
     return response.data;
-  }
+  },
 };
 
 // frontend/src/pages/TripDetails.jsx
@@ -303,13 +327,13 @@ useEffect(() => {
       const enrichedData = await Place.getEnrichedForTrip(tripId);
       setEnrichedPlaces(enrichedData);
     } catch (error) {
-      console.error('Error fetching enriched places:', error);
+      console.error("Error fetching enriched places:", error);
     } finally {
       setIsLoadingPhotos(false);
     }
   };
-  
-  if (tripData && activeTab === 'photos') {
+
+  if (tripData && activeTab === "photos") {
     fetchEnrichedPlaces();
   }
 }, [tripId, activeTab]);
@@ -320,22 +344,24 @@ useEffect(() => {
 ### 2. **Map Markers & Initialization** (`TripDetails.jsx:1018-1170`)
 
 **Current**: Direct Google Maps JavaScript API
+
 ```javascript
 const map = new window.google.maps.Map(mapContainerRef.current, {
   zoom: 12,
-  center: { lat, lng }
+  center: { lat, lng },
 });
 
 const marker = new window.google.maps.Marker({
   position: { lat, lng },
   map: map,
-  icon: customIcon
+  icon: customIcon,
 });
 ```
 
 **Migration Plan**:
 
 #### Option A: Static Maps API (Recommended for trip cards/previews)
+
 ```javascript
 // Backend endpoint
 GET /api/v1/trips/:id/map-image?width=600&height=400&markers=true
@@ -344,7 +370,7 @@ GET /api/v1/trips/:id/map-image?width=600&height=400&markers=true
 const generateTripMapImage = async (req, res) => {
   const { id } = req.params;
   const { width = 600, height = 400, markers = true } = req.query;
-  
+
   const trip = await Trip.findByPk(id, {
     include: [{ model: TripPlace, as: 'places' }]
   });
@@ -352,18 +378,18 @@ const generateTripMapImage = async (req, res) => {
   // Check if we have cached map image
   const cacheKey = `map_${id}_${width}x${height}`;
   let mapUrl = await redis.get(cacheKey);
-  
+
   if (!mapUrl) {
     // Generate static map URL
     const markersParam = trip.places
       .map(p => `markers=color:red|${p.latitude},${p.longitude}`)
       .join('&');
-      
+
     mapUrl = `https://maps.googleapis.com/maps/api/staticmap?` +
       `size=${width}x${height}&` +
       `${markersParam}&` +
       `key=${process.env.GOOGLE_MAPS_API_KEY}`;
-    
+
     // Cache for 30 days
     await redis.set(cacheKey, mapUrl, 'EX', 30 * 24 * 60 * 60);
   }
@@ -373,6 +399,7 @@ const generateTripMapImage = async (req, res) => {
 ```
 
 #### Option B: Keep Interactive Maps (for detailed view)
+
 ```javascript
 // Only load Google Maps SDK when user specifically opens map view
 // Use intersection observer to lazy load
@@ -386,7 +413,7 @@ const getMapConfig = async (req, res) => {
   });
 
   const bounds = calculateBounds(trip.places);
-  
+
   res.json(buildSuccessResponse({
     center: { lat: bounds.centerLat, lng: bounds.centerLng },
     zoom: bounds.suggestedZoom,
@@ -404,6 +431,7 @@ const getMapConfig = async (req, res) => {
 ### 3. **Place Details Enrichment** (`TripDetails.jsx:850-900`)
 
 **Current**: Repeated textSearch calls for each place
+
 ```javascript
 service.textSearch({ query: `${place.name}, ${address}` }, callback);
 ```
@@ -415,6 +443,7 @@ service.textSearch({ query: `${place.name}, ${address}` }, callback);
 ## 📊 Cost & Performance Impact Estimate
 
 ### Current State (Frontend Direct Calls)
+
 - City search: ~50 requests/day × $0.032 = **$1.60/day** = **$48/month**
 - Place search: ~200 requests/day × $0.032 = **$6.40/day** = **$192/month**
 - Place details: ~500 requests/day × $0.017 = **$8.50/day** = **$255/month**
@@ -424,6 +453,7 @@ service.textSearch({ query: `${place.name}, ${address}` }, callback);
 **Total: ~$711/month** (assuming 1000 active users)
 
 ### After Migration (Backend + Database Cache)
+
 - City search: 90% cache hit → **$4.80/month** (10% calls API)
 - Place search: 85% cache hit → **$28.80/month**
 - Place details: 80% cache hit → **$51/month**
@@ -433,6 +463,7 @@ service.textSearch({ query: `${place.name}, ${address}` }, callback);
 **Total: ~$127/month** = **82% cost reduction**
 
 **Additional Benefits**:
+
 - 70-90% faster response times (database vs API calls)
 - Works offline/when Google API has issues
 - Better user experience (instant results for cached data)
@@ -443,14 +474,17 @@ service.textSearch({ query: `${place.name}, ${address}` }, callback);
 ## Implementation Priority
 
 ### Phase 1: High Impact, Low Complexity ⭐
+
 1. **Place Photos** - Most frequent call, easy to cache
 2. **Place Search & Details** - Significant cost, straightforward migration
 
 ### Phase 2: Medium Impact
+
 3. **Static Maps** - Implement Redis caching for map images
 4. **Place Details Enrichment** - Consolidate into single backend call
 
 ### Phase 3: Optional (Keep current if needed)
+
 5. **Interactive Maps** - Can keep frontend SDK for detailed map view
    - Only lazy load when user opens map tab
    - Use backend-provided configuration to minimize API calls
@@ -465,13 +499,13 @@ CREATE TABLE places (
   -- schema above
 );
 
--- Migration 2: Create place_photos table  
+-- Migration 2: Create place_photos table
 CREATE TABLE place_photos (
   -- schema above
 );
 
 -- Migration 3: Link trip_places to places table
-ALTER TABLE trip_places 
+ALTER TABLE trip_places
 ADD COLUMN place_id INT,
 ADD FOREIGN KEY (place_id) REFERENCES places(id) ON DELETE SET NULL;
 
@@ -485,6 +519,7 @@ CREATE INDEX idx_place_coordinates ON places(latitude, longitude);
 ## Backend Files to Create/Modify
 
 ### New Files
+
 1. `backend/src/models/sequelize/Place.js`
 2. `backend/src/models/sequelize/PlacePhoto.js`
 3. `backend/src/controllers/placeController.js`
@@ -492,6 +527,7 @@ CREATE INDEX idx_place_coordinates ON places(latitude, longitude);
 5. `backend/src/database/add-places-tables.js` (migration)
 
 ### Modify
+
 1. `backend/src/services/googleMapsService.js` - Add place search methods
 2. `backend/src/models/sequelize/index.js` - Add Place associations
 3. `backend/src/routes/index.js` - Mount place routes

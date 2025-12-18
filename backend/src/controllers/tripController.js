@@ -7,6 +7,7 @@ const {
   TripItineraryActivity,
   TripLike,
   TripSteal,
+  Place,
 } = require("../models/sequelize");
 const { Op } = require("sequelize");
 const {
@@ -88,6 +89,20 @@ const getTrips = async (req, res, next) => {
             "types",
             "description",
           ],
+          include: [
+            {
+              model: Place,
+              as: "placeDetails",
+              attributes: [
+                "id",
+                "latitude",
+                "longitude",
+                "rating",
+                "user_ratings_total",
+                "google_place_id",
+              ],
+            },
+          ],
         },
         {
           model: TripItineraryDay,
@@ -103,6 +118,24 @@ const getTrips = async (req, res, next) => {
                 "location",
                 "description",
                 "activity_order",
+                "place_id",
+              ],
+              include: [
+                {
+                  model: Place,
+                  as: "placeDetails",
+                  attributes: [
+                    "id",
+                    "latitude",
+                    "longitude",
+                    "rating",
+                    "user_ratings_total",
+                    "google_place_id",
+                    "name",
+                    "address",
+                    "price_level",
+                  ],
+                },
               ],
               order: [["activity_order", "ASC"]],
             },
@@ -163,6 +196,20 @@ const getTripById = async (req, res, next) => {
             "types",
             "description",
           ],
+          include: [
+            {
+              model: Place,
+              as: "placeDetails",
+              attributes: [
+                "id",
+                "latitude",
+                "longitude",
+                "rating",
+                "user_ratings_total",
+                "google_place_id",
+              ],
+            },
+          ],
         },
         {
           model: TripItineraryDay,
@@ -178,6 +225,24 @@ const getTripById = async (req, res, next) => {
                 "location",
                 "description",
                 "activity_order",
+                "place_id",
+              ],
+              include: [
+                {
+                  model: Place,
+                  as: "placeDetails",
+                  attributes: [
+                    "id",
+                    "latitude",
+                    "longitude",
+                    "rating",
+                    "user_ratings_total",
+                    "google_place_id",
+                    "name",
+                    "address",
+                    "price_level",
+                  ],
+                },
               ],
             },
           ],
@@ -276,11 +341,50 @@ const createTrip = async (req, res, next) => {
       include: [
         { model: User, as: "author" },
         { model: TripTag, as: "tags" },
-        { model: TripPlace, as: "places" },
+        {
+          model: TripPlace,
+          as: "places",
+          include: [
+            {
+              model: Place,
+              as: "placeDetails",
+              attributes: [
+                "id",
+                "latitude",
+                "longitude",
+                "rating",
+                "user_ratings_total",
+                "google_place_id",
+              ],
+            },
+          ],
+        },
         {
           model: TripItineraryDay,
           as: "itineraryDays",
-          include: [{ model: TripItineraryActivity, as: "activities" }],
+          include: [
+            {
+              model: TripItineraryActivity,
+              as: "activities",
+              include: [
+                {
+                  model: Place,
+                  as: "placeDetails",
+                  attributes: [
+                    "id",
+                    "latitude",
+                    "longitude",
+                    "rating",
+                    "user_ratings_total",
+                    "google_place_id",
+                    "name",
+                    "address",
+                    "price_level",
+                  ],
+                },
+              ],
+            },
+          ],
         },
       ],
     });
@@ -363,11 +467,50 @@ const updateTrip = async (req, res, next) => {
       include: [
         { model: User, as: "author" },
         { model: TripTag, as: "tags" },
-        { model: TripPlace, as: "places" },
+        {
+          model: TripPlace,
+          as: "places",
+          include: [
+            {
+              model: Place,
+              as: "placeDetails",
+              attributes: [
+                "id",
+                "latitude",
+                "longitude",
+                "rating",
+                "user_ratings_total",
+                "google_place_id",
+              ],
+            },
+          ],
+        },
         {
           model: TripItineraryDay,
           as: "itineraryDays",
-          include: [{ model: TripItineraryActivity, as: "activities" }],
+          include: [
+            {
+              model: TripItineraryActivity,
+              as: "activities",
+              include: [
+                {
+                  model: Place,
+                  as: "placeDetails",
+                  attributes: [
+                    "id",
+                    "latitude",
+                    "longitude",
+                    "rating",
+                    "user_ratings_total",
+                    "google_place_id",
+                    "name",
+                    "address",
+                    "price_level",
+                  ],
+                },
+              ],
+            },
+          ],
         },
       ],
     });
@@ -496,9 +639,27 @@ async function formatTripResponse(trip) {
             ? day.activities.map((a) => ({
                 time: a.time,
                 name: a.name,
+                latitude: a.latitude,
+                longitude: a.longitude,
                 location: a.location,
                 description: a.description,
                 activity_order: a.activity_order,
+                place_id: a.place_id,
+                placeDetails: a.placeDetails
+                  ? {
+                      id: a.placeDetails.id,
+                      google_place_id: a.placeDetails.google_place_id,
+                      name: a.placeDetails.name,
+                      address: a.placeDetails.address,
+                      latitude: a.placeDetails.latitude,
+                      longitude: a.placeDetails.longitude,
+                      rating: a.placeDetails.rating
+                        ? parseFloat(a.placeDetails.rating)
+                        : null,
+                      user_ratings_total: a.placeDetails.user_ratings_total,
+                      price_level: a.placeDetails.price_level,
+                    }
+                  : null,
               }))
             : [],
         }))

@@ -86,6 +86,13 @@ export const Trip = {
     );
     return response.data;
   },
+
+  async getPlacesEnriched(tripId) {
+    const response = await apiClient.get(
+      endpoints.trips.getPlacesEnriched(tripId)
+    );
+    return response.data;
+  },
 };
 
 /**
@@ -306,6 +313,25 @@ export const Upload = {
   },
 };
 
+/**
+ * Place Service
+ */
+export const Place = {
+  async search(query, destination = null, cityId = null) {
+    const response = await apiClient.get(endpoints.places.search, {
+      query,
+      destination,
+      city_id: cityId,
+    });
+    return response.data;
+  },
+
+  async get(id) {
+    const response = await apiClient.get(endpoints.places.getById(id));
+    return response.data;
+  },
+};
+
 // Export all services
 export default {
   Trip,
@@ -317,4 +343,5 @@ export default {
   TripSteal,
   User,
   Upload,
+  Place,
 };

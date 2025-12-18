@@ -3,6 +3,7 @@ const { body } = require("express-validator");
 const tripController = require("../controllers/tripController");
 const { authenticate, optionalAuth } = require("../middleware/auth");
 const tripCommentController = require("../controllers/tripCommentController");
+const placeController = require("../controllers/placeController");
 const { validate } = require("../middleware/validator");
 
 const router = express.Router();
@@ -78,5 +79,8 @@ router.post("/:id/comments", authenticate, tripCommentController.createComment);
 
 // Get trip derivations
 router.get("/:id/derivations", tripController.getTripDerivations);
+
+// Get enriched places for trip (with cached Google Maps data)
+router.get("/:id/places-enriched", placeController.getTripPlacesEnriched);
 
 module.exports = router;

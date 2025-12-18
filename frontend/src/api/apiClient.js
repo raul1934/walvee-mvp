@@ -162,6 +162,7 @@ export const endpoints = {
     getDerivations: (id) => `/trips/${id}/derivations`,
     getComments: (id) => `/trips/${id}/comments`,
     postComment: (id) => `/trips/${id}/comments`,
+    getPlacesEnriched: (id) => `/trips/${id}/places-enriched`,
   },
 
   // Trip Likes
@@ -204,6 +205,12 @@ export const endpoints = {
     image: "/upload/image",
     file: "/upload/file",
     delete: (filename) => `/upload/${filename}`,
+  },
+
+  // Places
+  places: {
+    search: "/places/search",
+    getById: (id) => `/places/${id}`,
   },
 };
 

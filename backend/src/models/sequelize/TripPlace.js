@@ -36,6 +36,15 @@ const TripPlace = sequelize.define(
     description: {
       type: DataTypes.TEXT,
     },
+    place_id: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      references: {
+        model: "places",
+        key: "id",
+      },
+      comment: "Link to cached Google Maps place data",
+    },
   },
   {
     tableName: "trip_places",

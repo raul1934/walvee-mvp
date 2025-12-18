@@ -12,6 +12,8 @@ const Review = require("./Review");
 const TripComment = require("./TripComment");
 const Country = require("./Country");
 const City = require("./City");
+const Place = require("./Place");
+const PlacePhoto = require("./PlacePhoto");
 
 // Define associations
 Country.hasMany(City, { foreignKey: "country_id", as: "cities" });
@@ -84,6 +86,19 @@ Review.belongsTo(User, { foreignKey: "reviewer_id", as: "reviewer" });
 User.hasMany(TripComment, { foreignKey: "user_id", as: "comments" });
 TripComment.belongsTo(User, { foreignKey: "user_id", as: "commenter" });
 
+// Place associations
+City.hasMany(Place, { foreignKey: "city_id", as: "places" });
+Place.belongsTo(City, { foreignKey: "city_id", as: "city" });
+
+Place.hasMany(PlacePhoto, { foreignKey: "place_id", as: "photos" });
+PlacePhoto.belongsTo(Place, { foreignKey: "place_id", as: "place" });
+
+TripPlace.belongsTo(Place, { foreignKey: "place_id", as: "placeDetails" });
+Place.hasMany(TripPlace, { foreignKey: "place_id", as: "tripPlaces" });
+
+TripItineraryActivity.belongsTo(Place, { foreignKey: "place_id", as: "placeDetails" });
+Place.hasMany(TripItineraryActivity, { foreignKey: "place_id", as: "itineraryActivities" });
+
 module.exports = {
   sequelize,
   User,
@@ -99,4 +114,6 @@ module.exports = {
   TripComment,
   Country,
   City,
+  Place,
+  PlacePhoto,
 };

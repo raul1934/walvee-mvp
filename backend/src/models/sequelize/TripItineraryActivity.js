@@ -34,12 +34,21 @@ const TripItineraryActivity = sequelize.define(
       type: DataTypes.INTEGER,
       defaultValue: 0,
     },
+    place_id: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      references: {
+        model: "places",
+        key: "id",
+      },
+      comment: "Link to cached Google Maps place data",
+    },
   },
   {
     tableName: "trip_itinerary_activities",
     timestamps: true,
     updatedAt: false,
-    indexes: [{ fields: ["itinerary_day_id"] }, { fields: ["activity_order"] }],
+    indexes: [{ fields: ["itinerary_day_id"] }, { fields: ["activity_order"] }, { fields: ["place_id"] }],
   }
 );
 

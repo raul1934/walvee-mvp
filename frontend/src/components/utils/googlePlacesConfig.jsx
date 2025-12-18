@@ -1,24 +1,20 @@
 /**
- * ⚠️ GOOGLE PLACES API - DISABLED ⚠️
- * 
- * Configuration for Google Places API usage across the app.
- * Currently: DISABLED - Using mock data only
+ * ⚠️ GOOGLE PLACES API - MIGRATED TO BACKEND ⚠️
+ *
+ * Google Maps API calls have been moved to the backend for:
+ * - Security (API key not exposed to frontend)
+ * - Caching (database caching reduces API costs)
+ * - Performance (faster response times for cached data)
+ *
+ * Use the backend API through backendService.js instead.
  */
 
-const GOOGLE_MAPS_API_KEY = "AIzaSyBYLf9H7ZYfGU5fZa2Fr6XfA9ZkBmJHTb4";
-
 /**
- * Feature flag - Google Places API
- * ⚠️ SET TO FALSE TO DISABLE API AND AVOID CHARGES
- */
-const ENABLE_GOOGLE_PLACES = false;
-
-/**
- * Configuration object - MUST BE EXPORTED
+ * Configuration object (DEPRECATED)
+ * Google Maps API is now managed by the backend
  */
 export const GOOGLE_PLACES_CONFIG = {
-  ENABLED: ENABLE_GOOGLE_PLACES,
-  API_KEY: GOOGLE_MAPS_API_KEY,
+  ENABLED: false, // Always false - API calls moved to backend
   CACHE_ENABLED: true,
   CACHE_TTL: {
     PLACE_DETAILS: 3600000,      // 1 hour

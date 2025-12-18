@@ -31,9 +31,7 @@ import { formatNumber } from "../components/utils/numberFormatter";
 import { getPriceRangeInfo } from "../components/utils/priceFormatter";
 import CitiesScroller from "../components/common/CitiesScroller";
 import { getTripCities } from "../components/utils/cityFormatter";
-import { shouldUseGooglePlaces } from "../components/utils/googlePlacesConfig";
-
-const GOOGLE_MAPS_API_KEY = "AIzaSyBYLf9H7ZYfGU5fZa2Fr6XfA9ZkBmJHTb4";
+import TripMap from "../components/map/TripMap";
 
 export default function TripDetails({ user, openLoginModal }) {
   console.log("[TripDetails] ===== RENDER =====");
@@ -66,13 +64,13 @@ export default function TripDetails({ user, openLoginModal }) {
 
   const [isScrolling, setIsScrolling] = useState(false);
 
+  // Leaflet map state
+  const [mapMarkers, setMapMarkers] = useState([]);
+  const [cityMarkers, setCityMarkers] = useState([]);
+  const [mapCenter, setMapCenter] = useState({ lat: -23.5505, lng: -46.6333 });
+
   const dragScrollRef = useDragScroll();
   const itineraryScrollRef = useRef(null);
-  const mapContainerRef = useRef(null);
-  const mapInstanceRef = useRef(null);
-  const mapInitialized = useRef(false);
-  const markersRef = useRef([]);
-  const scriptLoaded = useRef(false);
 
   const headerRef = useRef(null);
   const tabsRef = useRef(null);
@@ -691,28 +689,7 @@ export default function TripDetails({ user, openLoginModal }) {
     },
   });
 
-  useEffect(() => {
-    if (scriptLoaded.current) return;
-
-    const existing = document.querySelector(
-      'script[src*="maps.googleapis.com"]'
-    );
-    if (existing) {
-      scriptLoaded.current = true;
-      return;
-    }
-
-    const script = document.createElement("script");
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=places`;
-    script.async = true;
-    script.defer = true;
-
-    script.onload = () => {
-      scriptLoaded.current = true;
-    };
-
-    document.head.appendChild(script);
-  }, []);
+  // Google Maps script loading removed - now using Leaflet/OpenStreetMap
 
   // Handle deep linking only once when tripData loads
   const deepLinkHandled = useRef(false);
@@ -759,84 +736,49 @@ export default function TripDetails({ user, openLoginModal }) {
 
   useEffect(() => {
     if (!tripData || activeTab !== "photos") return;
-    if (!shouldUseGooglePlaces()) {
-      console.log("[TripDetails] Google Places API desabilitada para fotos");
-      setPlacePhotos([]);
-      setIsLoadingPhotos(false);
-      return;
-    }
-    if (!window.google?.maps?.places?.PlacesService) return;
 
-    setIsLoadingPhotos(true);
-    setImageErrors(new Set());
-    const service = new window.google.maps.places.PlacesService(
-      document.createElement("div")
-    );
-    const allPhotos = [];
+    const fetchPlacePhotos = async () => {
+      setIsLoadingPhotos(true);
+      setImageErrors(new Set());
 
-    const allPlaces =
-      tripData.itinerary?.flatMap((day) => day.places || []) || [];
+      try {
+        // Use backend API to get enriched places with cached photos
+        const response = await Trip.getPlacesEnriched(tripData.id);
 
-    if (allPlaces.length === 0) {
-      setPlacePhotos([]);
-      setIsLoadingPhotos(false);
-      return;
-    }
+        if (response.success && response.data) {
+          const allPhotos = [];
 
-    const placesToFetch = allPlaces.slice(0, 20);
-
-    Promise.all(
-      placesToFetch.map((place) => {
-        return new Promise((resolve) => {
-          const request = {
-            query: `${place.name}, ${tripData.destination}`,
-            type: "establishment",
-          };
-
-          service.textSearch(request, (results, status) => {
-            if (
-              status === window.google.maps.places.PlacesServiceStatus.OK &&
-              results &&
-              results[0]?.photos
-            ) {
-              const photos = results[0].photos.slice(0, 3).map((photo) => ({
-                url: photo.getUrl({ maxWidth: 800, maxHeight: 600 }),
-                placeName: place.name,
-              }));
+          // Extract photos from enriched places
+          response.data.forEach((tripPlace) => {
+            if (tripPlace.placeDetails?.photos) {
+              const photos = tripPlace.placeDetails.photos
+                .slice(0, 3)
+                .map((photo) => ({
+                  url: photo.url_medium || photo.url_large || photo.url_small,
+                  placeName: tripPlace.name,
+                }));
               allPhotos.push(...photos);
             }
-            resolve();
           });
-        });
-      })
-    )
-      .then(() => {
-        setPlacePhotos(allPhotos);
-        setIsLoadingPhotos(false);
-        setCurrentImageIndex(0);
-      })
-      .catch((error) => {
+
+          setPlacePhotos(allPhotos);
+          setCurrentImageIndex(0);
+        } else {
+          setPlacePhotos([]);
+        }
+      } catch (error) {
         console.error("Error fetching place photos:", error);
+        setPlacePhotos([]);
+      } finally {
         setIsLoadingPhotos(false);
-      });
+      }
+    };
+
+    fetchPlacePhotos();
   }, [tripData, activeTab]);
 
   useEffect(() => {
     if (!tripData || !tripData.itinerary) return;
-    if (!shouldUseGooglePlaces()) {
-      console.log(
-        "[TripDetails] Google Places API desabilitada para enriquecimento de lugares"
-      );
-      setLoadingDayPlaces(false);
-      setEnrichedDays((prev) => {
-        const currentSet = prev instanceof Set ? prev : new Set();
-        const dayKey = `day-${selectedDay}`;
-        if (currentSet.has(dayKey)) return prev; // Don't create new set if already enriched
-        return new Set([...currentSet, dayKey]);
-      });
-      return;
-    }
-    if (!window.google?.maps?.places?.PlacesService) return;
 
     const currentDay = tripData.itinerary[selectedDay];
     if (!currentDay?.places || currentDay.places.length === 0) return;
@@ -848,76 +790,209 @@ export default function TripDetails({ user, openLoginModal }) {
     // Check if already enriched - don't re-run
     if (enrichedDaysSet.has(dayKey)) return;
 
-    setLoadingDayPlaces(true);
-    const service = new window.google.maps.places.PlacesService(
-      document.createElement("div")
-    );
+    const enrichDayPlaces = async () => {
+      setLoadingDayPlaces(true);
 
-    const newEnrichedPlaces = {};
+      try {
+        // Use backend API to get enriched places
+        const response = await Trip.getPlacesEnriched(tripData.id);
 
-    Promise.all(
-      currentDay.places.map((place, idx) => {
-        return new Promise((resolve) => {
-          const placeKey = `${selectedDay}-${idx}`;
+        if (response.success && response.data) {
+          const newEnrichedPlaces = {};
 
-          // Check if already enriched in current state
-          if (enrichedPlaces[placeKey]) {
-            resolve();
-            return;
+          // Map enriched data to place keys
+          response.data.forEach((tripPlace) => {
+            // Find the place index in the current day
+            const placeIndex = currentDay.places.findIndex(
+              (p) => p.name === tripPlace.name
+            );
+
+            if (placeIndex !== -1) {
+              const placeKey = `${selectedDay}-${placeIndex}`;
+
+              if (!enrichedPlaces[placeKey] && tripPlace.placeDetails) {
+                newEnrichedPlaces[placeKey] = {
+                  ...currentDay.places[placeIndex],
+                  rating:
+                    tripPlace.placeDetails.rating ||
+                    currentDay.places[placeIndex].rating,
+                  reviews_count:
+                    tripPlace.placeDetails.user_ratings_total ||
+                    currentDay.places[placeIndex].reviews_count,
+                  user_ratings_total:
+                    tripPlace.placeDetails.user_ratings_total ||
+                    currentDay.places[placeIndex].user_ratings_total,
+                  photos:
+                    tripPlace.placeDetails.photos
+                      ?.slice(0, 5)
+                      .map(
+                        (photo) =>
+                          photo.url_medium || photo.url_large || photo.url_small
+                      ) || [],
+                  latitude: tripPlace.placeDetails.latitude,
+                  longitude: tripPlace.placeDetails.longitude,
+                  price_level:
+                    tripPlace.placeDetails.price_level !== undefined
+                      ? tripPlace.placeDetails.price_level
+                      : currentDay.places[placeIndex].price_level,
+                  place_id:
+                    tripPlace.placeDetails.google_place_id ||
+                    currentDay.places[placeIndex].place_id,
+                };
+              }
+            }
+          });
+
+          // Batch update all enriched places at once
+          if (Object.keys(newEnrichedPlaces).length > 0) {
+            setEnrichedPlaces((prev) => ({ ...prev, ...newEnrichedPlaces }));
           }
 
-          const request = {
-            query: `${place.name}, ${place.address || tripData.destination}`,
-            type: "establishment",
-          };
-
-          service.textSearch(request, (results, status) => {
-            if (
-              status === window.google.maps.places.PlacesServiceStatus.OK &&
-              results &&
-              results[0]
-            ) {
-              const result = results[0];
-              newEnrichedPlaces[placeKey] = {
-                ...place,
-                rating: result.rating || place.rating,
-                reviews_count: result.user_ratings_total || place.reviews_count,
-                user_ratings_total:
-                  result.user_ratings_total || place.user_ratings_total,
-                photos:
-                  result.photos
-                    ?.slice(0, 5)
-                    .map((p) => p.getUrl({ maxWidth: 800 })) || [],
-                geometry: result.geometry,
-                price_level:
-                  result.price_level !== undefined
-                    ? result.price_level
-                    : place.price_level,
-                place_id: result.place_id || place.place_id,
-              };
-            }
-            resolve();
+          setEnrichedDays((prev) => {
+            const currentSet = prev instanceof Set ? prev : new Set();
+            return new Set([...currentSet, dayKey]);
           });
-        });
-      })
-    )
-      .then(() => {
-        // Batch update all enriched places at once
-        if (Object.keys(newEnrichedPlaces).length > 0) {
-          setEnrichedPlaces((prev) => ({ ...prev, ...newEnrichedPlaces }));
         }
-
-        setEnrichedDays((prev) => {
-          const currentSet = prev instanceof Set ? prev : new Set();
-          return new Set([...currentSet, dayKey]);
-        });
-        setLoadingDayPlaces(false);
-      })
-      .catch((error) => {
+      } catch (error) {
         console.error("Error enriching day places:", error);
+      } finally {
         setLoadingDayPlaces(false);
+      }
+    };
+
+    enrichDayPlaces();
+  }, [tripData, selectedDay]);
+
+  // Prepare markers data for Leaflet map
+  useEffect(() => {
+    if (!tripData) return;
+
+    const currentDay = tripData.itinerary?.[selectedDay];
+    if (!currentDay) {
+      setMapMarkers([]);
+      return;
+    }
+
+    const markers = [];
+
+    // First, add markers from activities with placeDetails
+    if (currentDay.activities && currentDay.activities.length > 0) {
+      currentDay.activities.forEach((activity, idx) => {
+        if (
+          activity.placeDetails?.latitude &&
+          activity.placeDetails?.longitude
+        ) {
+          markers.push({
+            id: `activity-${selectedDay}-${idx}`,
+            lat: activity.placeDetails.latitude,
+            lng: activity.placeDetails.longitude,
+            title: activity.name,
+            address: activity.placeDetails.address || activity.location,
+            number: idx + 1,
+          });
+        } else if (activity.latitude && activity.longitude) {
+          // Fallback to activity's own coordinates if available
+          markers.push({
+            id: `activity-${selectedDay}-${idx}`,
+            lat: activity.latitude,
+            lng: activity.longitude,
+            title: activity.name,
+            address: activity.location,
+            number: idx + 1,
+          });
+        }
       });
-  }, [tripData, selectedDay]); // Remove enrichedPlaces and enrichedDays from dependencies
+    }
+
+    // If no activity markers, fallback to places (backward compatibility)
+    if (markers.length === 0 && currentDay.places) {
+      currentDay.places.forEach((place, idx) => {
+        const placeKey = `${selectedDay}-${idx}`;
+        const enrichedPlace = enrichedPlaces[placeKey];
+
+        if (enrichedPlace?.latitude && enrichedPlace?.longitude) {
+          markers.push({
+            id: placeKey,
+            lat: enrichedPlace.latitude,
+            lng: enrichedPlace.longitude,
+            title: place.name,
+            address: place.address,
+            number: idx + 1,
+          });
+        }
+      });
+    }
+
+    console.log(
+      "[TripDetails] Map markers prepared:",
+      markers.length,
+      "markers"
+    );
+    setMapMarkers(markers);
+  }, [tripData, selectedDay, enrichedPlaces]);
+
+  // Prepare city markers for the map
+  useEffect(() => {
+    if (!tripData) {
+      setCityMarkers([]);
+      return;
+    }
+
+    const cities = [];
+
+    // Add destination city if it has coordinates
+    if (tripData.destination_lat && tripData.destination_lng) {
+      cities.push({
+        id: "destination",
+        lat: tripData.destination_lat,
+        lng: tripData.destination_lng,
+        title: tripData.destination || "Destination",
+        subtitle: "Trip destination",
+      });
+    }
+
+    setCityMarkers(cities);
+  }, [tripData]);
+
+  // Update map center to show all markers
+  useEffect(() => {
+    if (!tripData) return;
+
+    // Combine all markers (city + places)
+    const allMarkers = [...cityMarkers, ...mapMarkers];
+
+    if (allMarkers.length > 0) {
+      // Calculate center as average of all marker positions
+      const avgLat =
+        allMarkers.reduce((sum, m) => sum + m.lat, 0) / allMarkers.length;
+      const avgLng =
+        allMarkers.reduce((sum, m) => sum + m.lng, 0) / allMarkers.length;
+
+      setMapCenter({ lat: avgLat, lng: avgLng });
+    } else if (tripData.destination_lat && tripData.destination_lng) {
+      // Fallback to destination
+      setMapCenter({
+        lat: tripData.destination_lat,
+        lng: tripData.destination_lng,
+      });
+    }
+  }, [tripData, cityMarkers, mapMarkers]);
+
+  // Global function for deep linking to places
+  useEffect(() => {
+    window.openPlaceDetails = (dayIndex, placeIndex) => {
+      if (dayIndex === selectedDay) {
+        handlePlaceClick(placeIndex);
+      } else {
+        setSelectedDay(dayIndex);
+        setTimeout(() => handlePlaceClick(placeIndex), 100);
+      }
+    };
+
+    return () => {
+      delete window.openPlaceDetails;
+    };
+  }, [selectedDay]);
 
   useEffect(() => {
     const headerEl = headerRef.current;
@@ -989,235 +1064,6 @@ export default function TripDetails({ user, openLoginModal }) {
   }, [selectedDay, tripData?.itinerary, activeTab]);
 
   useEffect(() => {
-    if (!shouldUseGooglePlaces()) {
-      console.log("[TripDetails] Google Maps API desabilitada");
-      return;
-    }
-
-    const initMap = () => {
-      if (!mapContainerRef.current || !tripData) return false;
-      if (mapInitialized.current) return true;
-      if (!window.google?.maps?.Map) return false;
-
-      try {
-        const firstPlace = tripData.itinerary?.[0]?.places?.[0];
-        let center = { lat: -23.5505, lng: -46.6333 };
-
-        if (firstPlace?.geometry?.location) {
-          center = {
-            lat: firstPlace.geometry.location.lat(),
-            lng: firstPlace.geometry.location.lng(),
-          };
-        } else if (tripData.destination_lat && tripData.destination_lng) {
-          center = {
-            lat: tripData.destination_lat,
-            lng: tripData.destination_lng,
-          };
-        }
-
-        const map = new window.google.maps.Map(mapContainerRef.current, {
-          center: center,
-          zoom: 13,
-          disableDefaultUI: true,
-          zoomControl: true,
-          styles: [
-            { elementType: "geometry", stylers: [{ color: "#242f3e" }] },
-            {
-              elementType: "labels.text.stroke",
-              stylers: [{ color: "#242f3e" }],
-            },
-            {
-              elementType: "labels.text.fill",
-              stylers: [{ color: "#746855" }],
-            },
-            {
-              featureType: "administrative.locality",
-              elementType: "labels.text.fill",
-              stylers: [{ color: "#d59563" }],
-            },
-            {
-              featureType: "poi",
-              elementType: "labels.text.fill",
-              stylers: [{ color: "#d59563" }],
-            },
-            {
-              featureType: "poi.park",
-              elementType: "geometry",
-              stylers: [{ color: "#263c3f" }],
-            },
-            {
-              featureType: "road",
-              elementType: "geometry",
-              stylers: [{ color: "#38414e" }],
-            },
-            {
-              featureType: "water",
-              elementType: "geometry",
-              stylers: [{ color: "#17263c" }],
-            },
-          ],
-        });
-
-        mapInstanceRef.current = map;
-        mapInitialized.current = true;
-        return true;
-      } catch (error) {
-        console.error("[Map] Error creating map:", error);
-        return false;
-      }
-    };
-
-    if (initMap()) return;
-
-    let intervalId;
-    const timerId = setTimeout(() => {
-      if (!initMap()) {
-        let attempts = 0;
-        intervalId = setInterval(() => {
-          attempts++;
-          if (initMap() || attempts >= 10) {
-            clearInterval(intervalId);
-          }
-        }, 300);
-      }
-    }, 500);
-
-    return () => {
-      clearTimeout(timerId);
-      if (intervalId) clearInterval(intervalId);
-    };
-  }, [tripData]);
-
-  useEffect(() => {
-    if (!shouldUseGooglePlaces()) {
-      // No need to log here again, parent useEffect already did
-      return;
-    }
-    if (!mapInstanceRef.current || !tripData || !window.google?.maps) return;
-
-    markersRef.current.forEach((marker) => marker.setMap(null));
-    markersRef.current = [];
-
-    const currentDay = tripData.itinerary?.[selectedDay];
-    if (!currentDay?.places) return;
-
-    const bounds = new window.google.maps.LatLngBounds();
-    let hasValidLocations = false;
-
-    currentDay.places.forEach((place, idx) => {
-      const placeKey = `${selectedDay}-${idx}`;
-      const enrichedPlace = enrichedPlaces[placeKey];
-      const location = enrichedPlace?.geometry?.location;
-
-      if (location) {
-        const position = {
-          lat:
-            typeof location.lat === "function" ? location.lat() : location.lat,
-          lng:
-            typeof location.lng === "function" ? location.lng() : location.lng,
-        };
-
-        const pinSvg = `
-          <svg width="56" height="74" viewBox="0 0 56 74" xmlns="http://www.w3.org/2000/svg">
-            <defs>
-              <linearGradient id="grad${idx}" x1="0%" y1="0%" x2="0%" y2="100%">
-                <stop offset="0%" style="stop-color:#3B82F6;stop-opacity:1" />
-                <stop offset="100%" style="stop-color:#8B5CF6;stop-opacity:1" />
-              </linearGradient>
-              <filter id="shadow${idx}">
-                <feDropShadow dx="0" dy="3" stdDeviation="5" flood-opacity="0.4"/>
-              </filter>
-            </defs>
-            <path d="M28 3C18.059 3 10 11.059 10 21c0 15 18 38 18 38s18-23 18-38c0-9.941-8.059-18-18-18z"
-                  fill="url(#grad${idx})"
-                  filter="url(#shadow${idx})"
-                  stroke="#FFFFFF"
-                  stroke-width="3"/>
-            <text x="28" y="26" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="18" font-weight="bold" fill="#FFFFFF" style="text-shadow: 0 1px 3px rgba(0,0,0,0.4);">${
-              idx + 1
-            }</text>
-          </svg>
-        `;
-
-        const marker = new window.google.maps.Marker({
-          position: position,
-          map: mapInstanceRef.current,
-          title: place.name,
-          icon: {
-            url:
-              "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(pinSvg),
-            scaledSize: new window.google.maps.Size(56, 74),
-            anchor: new window.google.maps.Point(28, 74),
-            labelOrigin: new window.google.maps.Point(28, 21),
-          },
-          animation: window.google.maps.Animation.DROP,
-        });
-
-        marker.addListener("click", () => {
-          handlePlaceClick(idx);
-        });
-
-        markersRef.current.push(marker);
-        bounds.extend(position);
-        hasValidLocations = true;
-      }
-    });
-
-    if (hasValidLocations) {
-      mapInstanceRef.current.fitBounds(bounds);
-
-      if (currentDay.places.length === 1) {
-        const listener = window.google.maps.event.addListener(
-          mapInstanceRef.current,
-          "idle",
-          () => {
-            mapInstanceRef.current.setZoom(15);
-            window.google.maps.event.removeListener(listener);
-          }
-        );
-      }
-    }
-
-    return () => {
-      markersRef.current.forEach((marker) => marker.setMap(null));
-      markersRef.current = [];
-    };
-  }, [tripData, selectedDay, enrichedPlaces]);
-
-  useEffect(() => {
-    if (!shouldUseGooglePlaces()) {
-      return;
-    }
-    if (
-      !mapInstanceRef.current ||
-      selectedPlaceIndex === null ||
-      !tripData ||
-      !window.google?.maps
-    )
-      return;
-
-    const currentDay = tripData.itinerary?.[selectedDay];
-    if (!currentDay?.places) return;
-
-    const placeKey = `${selectedDay}-${selectedPlaceIndex}`;
-    const enrichedPlace = enrichedPlaces[placeKey];
-    const location = enrichedPlace?.geometry?.location;
-
-    if (location) {
-      const position = {
-        lat: typeof location.lat === "function" ? location.lat() : location.lat,
-        lng: typeof location.lng === "function" ? location.lng() : location.lng,
-      };
-
-      mapInstanceRef.current.panTo(position);
-      mapInstanceRef.current.setZoom(16);
-    }
-  }, [selectedPlaceIndex, selectedDay, tripData, enrichedPlaces]);
-
-  useEffect(() => {
-    if (!shouldUseGooglePlaces()) {
-      return;
-    }
     window.openPlaceDetails = (dayIndex, placeIndex) => {
       if (dayIndex === selectedDay) {
         handlePlaceClick(placeIndex);
@@ -1262,15 +1108,25 @@ export default function TripDetails({ user, openLoginModal }) {
     setSelectedPlaceId(placeCombinedId);
     setSelectedPlaceIndex(placeIndex);
 
-    const currentDay = tripData.itinerary[selectedDay];
+    const currentDay = tripData?.itinerary?.[selectedDay];
+    if (!currentDay || !currentDay.places) {
+      console.error("Day data not available");
+      return;
+    }
+
     const place = currentDay.places[placeIndex];
+    if (!place) {
+      console.error("Place not found at index:", placeIndex);
+      return;
+    }
+
     const placeKey = `${selectedDay}-${placeIndex}`;
-    const enrichedPlace = enrichedPlaces[placeKey] || place;
+    const enrichedPlace = enrichedPlaces[placeKey] || {};
 
     setSelectedPlaceDetails({
       ...place,
       ...enrichedPlace,
-      photos: enrichedPlace?.photos || place.photos || [],
+      photos: enrichedPlace?.photos || place?.photos || [],
       reviews: [],
     });
 
@@ -1418,7 +1274,29 @@ export default function TripDetails({ user, openLoginModal }) {
   );
 
   const currentDayPlaces = React.useMemo(() => {
-    return tripData?.itinerary?.[selectedDay]?.places || [];
+    const currentDay = tripData?.itinerary?.[selectedDay];
+    if (!currentDay) return [];
+
+    // Prioritize activities with placeDetails if available
+    if (currentDay.activities && currentDay.activities.length > 0) {
+      return currentDay.activities.map((activity) => ({
+        name: activity.name,
+        address: activity.placeDetails?.address || activity.location,
+        rating: activity.placeDetails?.rating || null,
+        reviews_count: activity.placeDetails?.user_ratings_total || 0,
+        user_ratings_total: activity.placeDetails?.user_ratings_total || 0,
+        price_level: activity.placeDetails?.price_level,
+        place_id: activity.placeDetails?.google_place_id,
+        latitude: activity.placeDetails?.latitude || activity.latitude,
+        longitude: activity.placeDetails?.longitude || activity.longitude,
+        description: activity.description,
+        time: activity.time,
+        isActivity: true,
+      }));
+    }
+
+    // Fallback to places for backward compatibility
+    return currentDay.places || [];
   }, [tripData?.itinerary, selectedDay]);
 
   if (isLoading || !tripData) {
@@ -2319,11 +2197,17 @@ export default function TripDetails({ user, openLoginModal }) {
         </section>
 
         <section className="column-right relative bg-[#1A1B23]">
-          <div
-            ref={mapContainerRef}
-            className="w-full h-full"
-            style={{ minHeight: "100%", background: "#1A1B23" }}
-          />
+          {tripData && (
+            <TripMap
+              center={mapCenter}
+              zoom={13}
+              markers={mapMarkers}
+              cityMarkers={cityMarkers}
+              onMarkerClick={handlePlaceClick}
+              selectedPlaceIndex={selectedPlaceIndex}
+              className="w-full h-full"
+            />
+          )}
         </section>
       </div>
 
