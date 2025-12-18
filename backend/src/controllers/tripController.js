@@ -183,6 +183,19 @@ const getTripById = async (req, res, next) => {
           ],
           order: [["day_number", "ASC"]],
         },
+        {
+          model: require("../models/sequelize").TripComment,
+          as: "comments",
+          include: [
+            {
+              model: require("../models/sequelize").User,
+              as: "commenter",
+              attributes: ["id", "preferred_name", "full_name", "photo_url"],
+            },
+          ],
+          limit: 10,
+          order: [["created_at", "DESC"]],
+        },
       ],
     });
 
@@ -483,6 +496,20 @@ async function formatTripResponse(trip) {
                 activity_order: a.activity_order,
               }))
             : [],
+        }))
+      : [],
+    comments: tripData.comments
+      ? tripData.comments.map((c) => ({
+          id: c.id,
+          comment: c.comment,
+          created_at: c.created_at,
+          commenter: c.commenter
+            ? {
+                id: c.commenter.id,
+                name: c.commenter.preferred_name || c.commenter.full_name,
+                photo: c.commenter.photo_url,
+              }
+            : null,
         }))
       : [],
   };

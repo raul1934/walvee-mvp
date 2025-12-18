@@ -108,6 +108,46 @@ export default function TripDetails({ user, openLoginModal }) {
     cacheTime: 30 * 60 * 1000,
   });
 
+  // Trip comments
+  const { data: commentsData, refetch: refetchComments } = useQuery({
+    queryKey: ["tripComments", tripId],
+    queryFn: async () => {
+      try {
+        const resp = await Trip.getComments(tripId);
+
+        // apiClient.get returns the full API response object ({ success, data, pagination })
+        // but backendService.Trip.getComments currently returns response.data (array) in some cases.
+        // Normalize to an object with `data` and `pagination` to keep the UI logic consistent.
+        if (Array.isArray(resp)) {
+          return { data: resp, pagination: {} };
+        }
+
+        return resp;
+      } catch (e) {
+        console.warn("[TripDetails] Error fetching comments:", e.message);
+        return { data: [], pagination: {} };
+      }
+    },
+    enabled: !!tripId,
+    retry: 0,
+    refetchOnWindowFocus: false,
+  });
+
+  // monitor commentsData updates for debugging (removed logs in production)
+
+  const [newComment, setNewComment] = useState("");
+  const postCommentMutation = useMutation({
+    mutationFn: async (commentText) => {
+      if (!currentUser) throw new Error("Not authenticated");
+      return await Trip.postComment(tripId, { comment: commentText });
+    },
+    onSuccess: () => {
+      setNewComment("");
+      refetchComments();
+      queryClient.invalidateQueries(["trip", tripId]);
+    },
+  });
+
   const { data: currentUser } = useQuery({
     queryKey: ["currentUser"],
     queryFn: async () => {
@@ -1371,15 +1411,21 @@ export default function TripDetails({ user, openLoginModal }) {
     );
   }, [activeTab, placePhotos, tripData?.images, tripData?.image_url]);
 
+  const commentCount = commentsData?.data?.length || 0;
+
   const tabs = React.useMemo(
     () => [
       { id: "about", label: "About", Icon: Info },
       { id: "itinerary", label: "Itinerary", Icon: Map },
       { id: "steal", label: "Steal", Icon: Infinity },
       { id: "photos", label: "Photos", Icon: Image },
-      { id: "comments", label: "Comments", Icon: MessageSquare },
+      {
+        id: "comments",
+        label: `Comments${commentCount > 0 ? ` (${commentCount})` : ""}`,
+        Icon: MessageSquare,
+      },
     ],
-    []
+    [commentCount]
   );
 
   const currentDayPlaces = React.useMemo(() => {
@@ -2082,6 +2128,48 @@ export default function TripDetails({ user, openLoginModal }) {
                   )}
                 </div>
 
+                {/* Recent comments preview */}
+                {commentsData &&
+                  commentsData.data &&
+                  commentsData.data.length > 0 && (
+                    <div className="border-t border-[#1F1F1F] pt-4">
+                      <h3 className="font-semibold mb-3">Recent comments</h3>
+                      <div className="space-y-3">
+                        {commentsData.data.slice(0, 3).map((c) => (
+                          <div key={c.id} className="flex gap-3 items-start">
+                            <UserAvatar
+                              src={c.commenter?.photo || c.commenter?.photo_url}
+                              name={c.commenter?.name}
+                              size="sm"
+                            />
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <div className="text-sm font-semibold">
+                                  {c.commenter?.name || "Anonymous"}
+                                </div>
+                                <div className="text-xs text-gray-400">
+                                  {new Date(c.created_at).toLocaleDateString()}
+                                </div>
+                              </div>
+                              <div className="text-sm text-gray-200 mt-1">
+                                {c.comment}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="mt-3">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setActiveTab("comments")}
+                        >
+                          View all comments
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
                 <div className="border-t border-[#1F1F1F] pt-4">
                   <h3 className="font-semibold mb-3">Share this trip</h3>
 
@@ -2160,20 +2248,66 @@ export default function TripDetails({ user, openLoginModal }) {
 
             {activeTab === "comments" && (
               <div className="h-full flex flex-col">
-                <div ref={dragScrollRef} className="flex-1 p-4 pb-20">
-                  <div className="text-center text-gray-500 py-8">
-                    No comments yet. Be the first to comment!
-                  </div>
+                <div ref={dragScrollRef} className="flex-1 p-4 pb-20 space-y-4">
+                  {commentsData &&
+                  commentsData.data &&
+                  commentsData.data.length > 0 ? (
+                    commentsData.data.map((c) => (
+                      <div key={c.id} className="flex gap-3 items-start">
+                        <UserAvatar
+                          src={c.commenter?.photo || c.commenter?.photo_url}
+                          name={c.commenter?.name}
+                          size="sm"
+                        />
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <div className="text-sm font-semibold">
+                              {c.commenter?.name || "Anonymous"}
+                            </div>
+                            <div className="text-xs text-gray-400">
+                              {new Date(c.created_at).toLocaleString()}
+                            </div>
+                          </div>
+                          <div className="text-sm text-gray-200 mt-1">
+                            {c.comment}
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-center text-gray-500 py-8">
+                      No comments yet. Be the first to comment!
+                    </div>
+                  )}
                 </div>
 
                 <div className="border-t border-[#1F1F1F] p-4">
                   <textarea
                     placeholder="Add a comment..."
+                    value={newComment}
+                    onChange={(e) => setNewComment(e.target.value)}
                     className="w-full bg-gray-800 rounded-lg p-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-ring-blue-500"
                     rows={3}
                   />
-                  <Button className="w-full mt-2 bg-blue-600 hover:bg-blue-700">
-                    POST
+                  <Button
+                    className="w-full mt-2 bg-blue-600 hover:bg-blue-700"
+                    onClick={async () => {
+                      if (!currentUser) {
+                        openLoginModal?.();
+                        return;
+                      }
+                      if (!newComment || newComment.trim() === "") return;
+                      try {
+                        await postCommentMutation.mutateAsync(
+                          newComment.trim()
+                        );
+                      } catch (err) {
+                        alert(err.message || "Error posting comment");
+                      }
+                    }}
+                    disabled={postCommentMutation.isLoading}
+                  >
+                    {postCommentMutation.isLoading ? "Posting..." : "POST"}
                   </Button>
                 </div>
               </div>

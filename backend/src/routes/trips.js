@@ -2,6 +2,7 @@ const express = require("express");
 const { body } = require("express-validator");
 const tripController = require("../controllers/tripController");
 const { authenticate, optionalAuth } = require("../middleware/auth");
+const tripCommentController = require("../controllers/tripCommentController");
 const { validate } = require("../middleware/validator");
 
 const router = express.Router();
@@ -70,6 +71,10 @@ router.get("/:id/likes", tripController.getTripLikes);
 
 // Get trip reviews
 router.get("/:id/reviews", tripController.getTripReviews);
+
+// Trip comments
+router.get("/:id/comments", tripCommentController.getComments);
+router.post("/:id/comments", authenticate, tripCommentController.createComment);
 
 // Get trip derivations
 router.get("/:id/derivations", tripController.getTripDerivations);

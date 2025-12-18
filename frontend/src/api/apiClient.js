@@ -160,6 +160,8 @@ export const endpoints = {
     getLikes: (id) => `/trips/${id}/likes`,
     getReviews: (id) => `/trips/${id}/reviews`,
     getDerivations: (id) => `/trips/${id}/derivations`,
+    getComments: (id) => `/trips/${id}/comments`,
+    postComment: (id) => `/trips/${id}/comments`,
   },
 
   // Trip Likes

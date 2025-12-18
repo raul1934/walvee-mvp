@@ -66,6 +66,21 @@ export const Trip = {
     );
     return response.data;
   },
+  async getComments(tripId, options = {}) {
+    const response = await apiClient.get(
+      endpoints.trips.getComments(tripId),
+      options
+    );
+    // Return the full API response (contains { success, data, pagination })
+    return response;
+  },
+  async postComment(tripId, data) {
+    const response = await apiClient.post(
+      endpoints.trips.postComment(tripId),
+      data
+    );
+    return response.data;
+  },
 };
 
 /**

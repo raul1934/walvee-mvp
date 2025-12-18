@@ -9,6 +9,7 @@ const TripLike = require("./TripLike");
 const Follow = require("./Follow");
 const TripSteal = require("./TripSteal");
 const Review = require("./Review");
+const TripComment = require("./TripComment");
 const Country = require("./Country");
 const City = require("./City");
 
@@ -73,8 +74,14 @@ TripSteal.belongsTo(User, { foreignKey: "new_user_id", as: "newUser" });
 Trip.hasMany(Review, { foreignKey: "trip_id", as: "reviews" });
 Review.belongsTo(Trip, { foreignKey: "trip_id" });
 
+Trip.hasMany(TripComment, { foreignKey: "trip_id", as: "comments" });
+TripComment.belongsTo(Trip, { foreignKey: "trip_id" });
+
 User.hasMany(Review, { foreignKey: "reviewer_id", as: "reviews" });
 Review.belongsTo(User, { foreignKey: "reviewer_id", as: "reviewer" });
+
+User.hasMany(TripComment, { foreignKey: "user_id", as: "comments" });
+TripComment.belongsTo(User, { foreignKey: "user_id", as: "commenter" });
 
 module.exports = {
   sequelize,
@@ -88,6 +95,7 @@ module.exports = {
   Follow,
   TripSteal,
   Review,
+  TripComment,
   Country,
   City,
 };
