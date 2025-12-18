@@ -150,18 +150,22 @@ const getCurrentUser = async (req, res, next) => {
     }
 
     // Add follower/following counts from user_follow table for accuracy
-    const { Follow } = require("../models/sequelize");
+    const { Follow, Trip } = require("../models/sequelize");
     const followersCount = await Follow.count({
       where: { followee_id: user.id },
     });
     const followingCount = await Follow.count({
       where: { follower_id: user.id },
     });
+    const tripsCount = await Trip.count({
+      where: { author_id: user.id },
+    });
 
     const userObj = user.toJSON();
     // Keep backward-compatible metric fields
     userObj.metrics_followers = followersCount;
     userObj.metrics_following = followingCount;
+    userObj.metrics_my_trips = tripsCount;
 
     res.json(buildSuccessResponse(userObj));
   } catch (error) {

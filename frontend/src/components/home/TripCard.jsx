@@ -92,11 +92,7 @@ export default React.memo(
 
         if (shouldLike) {
           // Criar like
-          await TripLike.create({
-            trip_id: trip.id,
-            trip_owner_id: trip.created_by,
-            liker_id: currentUserId,
-          });
+          await TripLike.create(trip.id);
           console.log("[TripCard] Like created");
 
           // Atualizar contador no Trip

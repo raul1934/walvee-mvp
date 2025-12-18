@@ -444,12 +444,17 @@ async function formatTripResponse(trip) {
     )},travel`;
   }
 
+  const durationDays = tripData.itineraryDays
+    ? tripData.itineraryDays.length
+    : 0;
+
   return {
     id: tripData.id,
     title: tripData.title,
     destination: tripData.destination,
     description: tripData.description,
     duration: tripData.duration,
+    duration_days: durationDays,
     budget: tripData.budget,
     transportation: tripData.transportation,
     accommodation: tripData.accommodation,

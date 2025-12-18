@@ -513,11 +513,8 @@ export default function TripDetails({ user, openLoginModal }) {
         trip_owner_id: tripData.created_by,
       });
 
-      return await TripLike.create({
-        trip_id: tripId,
-        liker_id: currentUser.id,
-        trip_owner_id: tripData.created_by,
-      });
+      // TripLike.create expects a single `tripId` string
+      return await TripLike.create(tripId);
     },
     onMutate: async () => {
       const startTime = Date.now();

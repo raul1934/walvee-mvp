@@ -93,6 +93,13 @@ export const Trip = {
  */
 export const TripLike = {
   async create(tripId) {
+    // Strict: only accept a string tripId to avoid nested/duplicated payloads
+    if (typeof tripId !== "string") {
+      throw new Error(
+        "TripLike.create requires a trip id string (do not pass objects)"
+      );
+    }
+
     const response = await apiClient.post(endpoints.tripLikes.create, {
       tripId,
     });
@@ -256,6 +263,18 @@ export const User = {
   async updateMe(data) {
     const response = await apiClient.put(endpoints.users.updateMe, data);
     return response.data;
+  },
+
+  async isAuthenticated() {
+    try {
+      const token = apiClient.getToken();
+      if (!token) return false;
+      // Verify token is valid by attempting to get current user
+      await this.me();
+      return true;
+    } catch (error) {
+      return false;
+    }
   },
 };
 
