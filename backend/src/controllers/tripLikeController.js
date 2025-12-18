@@ -14,7 +14,12 @@ const getUserFavorites = async (req, res, next) => {
 
     const { count: total, rows: likes } = await TripLike.findAndCountAll({
       where: { liker_id: userId },
-      include: [{ model: Trip, attributes: ["id", "title", "cover_image", "destination"] }],
+      include: [
+        {
+          model: Trip,
+          attributes: ["id", "title", "cover_image", "destination"],
+        },
+      ],
       offset,
       limit: limitNum,
       order: [["created_at", "DESC"]],

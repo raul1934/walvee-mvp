@@ -12,7 +12,7 @@ export default function PrivacySettings() {
   const [consents, setConsents] = useState({
     consent_location: false,
     consent_demographics: false,
-    marketing_opt_in: false
+    marketing_opt_in: false,
   });
 
   useEffect(() => {
@@ -23,7 +23,7 @@ export default function PrivacySettings() {
         setConsents({
           consent_location: currentUser.consent_location || false,
           consent_demographics: currentUser.consent_demographics || false,
-          marketing_opt_in: currentUser.marketing_opt_in || false
+          marketing_opt_in: currentUser.marketing_opt_in || false,
         });
       } catch (error) {
         console.error("Error loading user:", error);
@@ -37,7 +37,7 @@ export default function PrivacySettings() {
     try {
       const updateData = {
         ...consents,
-        consent_given_at: new Date().toISOString()
+        consent_given_at: new Date().toISOString(),
       };
 
       // Clear data if consent is revoked
@@ -48,9 +48,7 @@ export default function PrivacySettings() {
 
       if (!consents.consent_demographics) {
         updateData.birth_date = null;
-        updateData.age_in_years = null;
         updateData.gender = "prefer-not-to-say";
-        updateData.gender_other = null;
       }
 
       await User.updateMe(updateData);
@@ -67,9 +65,9 @@ export default function PrivacySettings() {
     try {
       const currentUser = await User.me();
       const dataStr = JSON.stringify(currentUser, null, 2);
-      const dataBlob = new Blob([dataStr], { type: 'application/json' });
+      const dataBlob = new Blob([dataStr], { type: "application/json" });
       const url = URL.createObjectURL(dataBlob);
-      const link = document.createElement('a');
+      const link = document.createElement("a");
       link.href = url;
       link.download = `walvee-data-${new Date().toISOString()}.json`;
       link.click();
@@ -81,11 +79,19 @@ export default function PrivacySettings() {
   };
 
   const handleDeleteAccount = async () => {
-    if (!confirm("Tem certeza que deseja excluir sua conta? Esta ação é irreversível.")) {
+    if (
+      !confirm(
+        "Tem certeza que deseja excluir sua conta? Esta ação é irreversível."
+      )
+    ) {
       return;
     }
 
-    if (!confirm("ÚLTIMA CONFIRMAÇÃO: Todos os seus dados serão permanentemente excluídos.")) {
+    if (
+      !confirm(
+        "ÚLTIMA CONFIRMAÇÃO: Todos os seus dados serão permanentemente excluídos."
+      )
+    ) {
       return;
     }
 
@@ -108,13 +114,18 @@ export default function PrivacySettings() {
   return (
     <div className="min-h-screen bg-[#0D0D0D] text-white p-6">
       <div className="max-w-3xl mx-auto">
-        <Link to={createPageUrl("Home")} className="text-blue-400 hover:underline mb-6 inline-block">
+        <Link
+          to={createPageUrl("Home")}
+          className="text-blue-400 hover:underline mb-6 inline-block"
+        >
           ← Voltar
         </Link>
 
         <div className="mb-8">
           <h1 className="text-3xl font-bold mb-2">Privacidade e Dados</h1>
-          <p className="text-gray-400">Gerencie suas permissões e dados pessoais</p>
+          <p className="text-gray-400">
+            Gerencie suas permissões e dados pessoais
+          </p>
         </div>
 
         {/* Consent Management */}
@@ -129,10 +140,15 @@ export default function PrivacySettings() {
               <Checkbox
                 id="consent_location"
                 checked={consents.consent_location}
-                onCheckedChange={(checked) => setConsents({...consents, consent_location: checked})}
+                onCheckedChange={(checked) =>
+                  setConsents({ ...consents, consent_location: checked })
+                }
               />
               <div className="flex-1">
-                <label htmlFor="consent_location" className="font-medium cursor-pointer block mb-1">
+                <label
+                  htmlFor="consent_location"
+                  className="font-medium cursor-pointer block mb-1"
+                >
                   Localização (Cidade e País)
                 </label>
                 <p className="text-sm text-gray-400">
@@ -145,11 +161,16 @@ export default function PrivacySettings() {
               <Checkbox
                 id="consent_demographics"
                 checked={consents.consent_demographics}
-                onCheckedChange={(checked) => setConsents({...consents, consent_demographics: checked})}
+                onCheckedChange={(checked) =>
+                  setConsents({ ...consents, consent_demographics: checked })
+                }
               />
               <div className="flex-1">
-                <label htmlFor="consent_demographics" className="font-medium cursor-pointer block mb-1">
-                  Dados Demográficos (Idade e Gênero)
+                <label
+                  htmlFor="consent_demographics"
+                  className="font-medium cursor-pointer block mb-1"
+                >
+                  Dados Demográficos (Data de nascimento e Gênero)
                 </label>
                 <p className="text-sm text-gray-400">
                   Ajuda a personalizar recomendações de viagens
@@ -161,10 +182,15 @@ export default function PrivacySettings() {
               <Checkbox
                 id="marketing_opt_in"
                 checked={consents.marketing_opt_in}
-                onCheckedChange={(checked) => setConsents({...consents, marketing_opt_in: checked})}
+                onCheckedChange={(checked) =>
+                  setConsents({ ...consents, marketing_opt_in: checked })
+                }
               />
               <div className="flex-1">
-                <label htmlFor="marketing_opt_in" className="font-medium cursor-pointer block mb-1">
+                <label
+                  htmlFor="marketing_opt_in"
+                  className="font-medium cursor-pointer block mb-1"
+                >
                   Comunicações de Marketing
                 </label>
                 <p className="text-sm text-gray-400">
@@ -199,7 +225,8 @@ export default function PrivacySettings() {
 
             <div className="bg-blue-950/30 border border-blue-500/30 rounded-lg p-4">
               <p className="text-sm text-blue-200">
-                📊 Você pode baixar uma cópia de todos os dados que temos sobre você em formato JSON
+                📊 Você pode baixar uma cópia de todos os dados que temos sobre
+                você em formato JSON
               </p>
             </div>
           </div>
@@ -213,7 +240,8 @@ export default function PrivacySettings() {
           </div>
 
           <p className="text-sm text-gray-400 mb-4">
-            A exclusão da conta é permanente e não pode ser desfeita. Todos os seus dados, viagens e conexões serão perdidos.
+            A exclusão da conta é permanente e não pode ser desfeita. Todos os
+            seus dados, viagens e conexões serão perdidos.
           </p>
 
           <Button
@@ -231,9 +259,18 @@ export default function PrivacySettings() {
           <p className="mb-2">🔒 Conformidade e Segurança</p>
           <ul className="space-y-1 text-xs">
             <li>• Todos os dados criptografados em repouso e em trânsito</li>
-            <li>• Conformidade total com LGPD (Lei Geral de Proteção de Dados)</li>
-            <li>• Conformidade com políticas de OAuth e People API do Google</li>
-            <li>• Última atualização de consentimento: {user.consent_given_at ? new Date(user.consent_given_at).toLocaleDateString('pt-BR') : 'Nunca'}</li>
+            <li>
+              • Conformidade total com LGPD (Lei Geral de Proteção de Dados)
+            </li>
+            <li>
+              • Conformidade com políticas de OAuth e People API do Google
+            </li>
+            <li>
+              • Última atualização de consentimento:{" "}
+              {user.consent_given_at
+                ? new Date(user.consent_given_at).toLocaleDateString("pt-BR")
+                : "Nunca"}
+            </li>
           </ul>
         </div>
       </div>

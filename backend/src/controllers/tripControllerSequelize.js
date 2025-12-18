@@ -265,8 +265,7 @@ const getTripDerivations = async (req, res, next) => {
       new_trip_title: steal.newTrip?.title,
       new_trip_cover: steal.newTrip?.cover_image,
       stolen_by: steal.newUser?.id,
-      stolen_by_name:
-        steal.newUser?.preferred_name || steal.newUser?.full_name,
+      stolen_by_name: steal.newUser?.preferred_name || steal.newUser?.full_name,
       stolen_by_photo: steal.newUser?.photo_url,
       created_at: steal.created_at,
     }));

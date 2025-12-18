@@ -42,13 +42,14 @@ const User = sequelize.define(
         key: "id",
       },
     },
-    city: {
-      type: DataTypes.STRING(100),
-      comment: "Deprecated - use city_id instead",
+    birth_date: {
+      type: DataTypes.DATEONLY,
+      allowNull: true,
+      comment: "User's date of birth (YYYY-MM-DD)",
     },
-    country: {
-      type: DataTypes.STRING(100),
-      comment: "Deprecated - use city_id->country instead",
+    gender: {
+      type: DataTypes.ENUM("male", "female", "non-binary", "other", "prefer-not-to-say"),
+      allowNull: true,
     },
     instagram_username: {
       type: DataTypes.STRING(50),

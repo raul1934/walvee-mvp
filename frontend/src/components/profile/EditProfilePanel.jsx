@@ -29,6 +29,8 @@ export default function EditProfilePanel({ user, onClose, onSave }) {
     city: user?.city || "",
     country: user?.country || "",
     photo_url: user?.photo_url || user?.picture || "",
+    birth_date: user?.birth_date || "",
+    gender: user?.gender || "",
   });
 
   useEffect(() => {
@@ -155,6 +157,14 @@ export default function EditProfilePanel({ user, onClose, onSave }) {
       if (formData.photo_url) {
         updateData.photo_url = formData.photo_url;
         updateData.photo_updated_at = new Date().toISOString();
+      }
+
+      if (formData.birth_date) {
+        updateData.birth_date = formData.birth_date;
+      }
+
+      if (formData.gender) {
+        updateData.gender = formData.gender;
       }
 
       // Update the user

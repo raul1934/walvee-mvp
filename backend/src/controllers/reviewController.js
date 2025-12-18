@@ -17,7 +17,13 @@ const getReviews = async (req, res, next) => {
 
     const { count: total, rows: reviews } = await Review.findAndCountAll({
       where,
-      include: [{ model: User, as: "reviewer", attributes: ["id", "full_name", "preferred_name", "photo_url"] }],
+      include: [
+        {
+          model: User,
+          as: "reviewer",
+          attributes: ["id", "full_name", "preferred_name", "photo_url"],
+        },
+      ],
       offset,
       limit: limitNum,
       order: [["created_at", "DESC"]],
@@ -34,7 +40,13 @@ const getReviewById = async (req, res, next) => {
   try {
     const { id } = req.params;
     const review = await Review.findByPk(id, {
-      include: [{ model: User, as: "reviewer", attributes: ["id", "full_name", "preferred_name", "photo_url"] }],
+      include: [
+        {
+          model: User,
+          as: "reviewer",
+          attributes: ["id", "full_name", "preferred_name", "photo_url"],
+        },
+      ],
     });
 
     if (!review) {
@@ -104,7 +116,13 @@ const updateReview = async (req, res, next) => {
     await review.update(req.body);
 
     const updatedReview = await Review.findByPk(id, {
-      include: [{ model: User, as: "reviewer", attributes: ["id", "full_name", "preferred_name", "photo_url"] }],
+      include: [
+        {
+          model: User,
+          as: "reviewer",
+          attributes: ["id", "full_name", "preferred_name", "photo_url"],
+        },
+      ],
     });
 
     res.json(buildSuccessResponse(updatedReview));

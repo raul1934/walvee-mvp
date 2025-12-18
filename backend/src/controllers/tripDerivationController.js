@@ -22,16 +22,26 @@ const getDerivations = async (req, res, next) => {
     if (originalTripId) where.original_trip_id = originalTripId;
     if (creatorId) where.new_user_id = creatorId;
 
-    const { count: total, rows: derivations } = await TripSteal.findAndCountAll({
-      where,
-      include: [
-        { model: Trip, as: "originalTrip", attributes: ["id", "title", "destination", "cover_image"] },
-        { model: Trip, as: "newTrip", attributes: ["id", "title", "destination", "cover_image"] },
-      ],
-      offset,
-      limit: limitNum,
-      order: [["created_at", "DESC"]],
-    });
+    const { count: total, rows: derivations } = await TripSteal.findAndCountAll(
+      {
+        where,
+        include: [
+          {
+            model: Trip,
+            as: "originalTrip",
+            attributes: ["id", "title", "destination", "cover_image"],
+          },
+          {
+            model: Trip,
+            as: "newTrip",
+            attributes: ["id", "title", "destination", "cover_image"],
+          },
+        ],
+        offset,
+        limit: limitNum,
+        order: [["created_at", "DESC"]],
+      }
+    );
 
     const pagination = buildPaginationMeta(pageNum, limitNum, total);
 

@@ -14,13 +14,19 @@ const getFollowers = async (req, res, next) => {
 
     const { count: total, rows: follows } = await Follow.findAndCountAll({
       where: { followee_id: userId },
-      include: [{ model: User, as: "follower", attributes: ["id", "full_name", "preferred_name", "photo_url"] }],
+      include: [
+        {
+          model: User,
+          as: "follower",
+          attributes: ["id", "full_name", "preferred_name", "photo_url"],
+        },
+      ],
       offset,
       limit: limitNum,
       order: [["created_at", "DESC"]],
     });
 
-    const followers = follows.map(f => f.follower);
+    const followers = follows.map((f) => f.follower);
     const pagination = buildPaginationMeta(pageNum, limitNum, total);
 
     res.json(buildSuccessResponse(followers, pagination));
@@ -37,13 +43,19 @@ const getFollowing = async (req, res, next) => {
 
     const { count: total, rows: follows } = await Follow.findAndCountAll({
       where: { follower_id: userId },
-      include: [{ model: User, as: "followee", attributes: ["id", "full_name", "preferred_name", "photo_url"] }],
+      include: [
+        {
+          model: User,
+          as: "followee",
+          attributes: ["id", "full_name", "preferred_name", "photo_url"],
+        },
+      ],
       offset,
       limit: limitNum,
       order: [["created_at", "DESC"]],
     });
 
-    const following = follows.map(f => f.followee);
+    const following = follows.map((f) => f.followee);
     const pagination = buildPaginationMeta(pageNum, limitNum, total);
 
     res.json(buildSuccessResponse(following, pagination));

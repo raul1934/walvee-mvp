@@ -23,8 +23,10 @@ import {
   Lock,
   X,
 } from "lucide-react";
+import axios from "axios";
 
-const GOOGLE_MAPS_API_KEY = "AIzaSyBYLf9H7ZYfGU5fZa2Fr6XfA9ZkBmJHTb4";
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL || "http://localhost:3000/v1";
 
 export default function Onboarding() {
   const { user: userProp, userLoading } = useAuth();
@@ -35,17 +37,17 @@ export default function Onboarding() {
   const [locationSuggestions, setLocationSuggestions] = useState([]);
   const [selectedLocation, setSelectedLocation] = useState(null);
   const [activeModal, setActiveModal] = useState(null);
-  const autocompleteService = useRef(null);
+  const [searchingCities, setSearchingCities] = useState(false);
+  const searchTimeoutRef = useRef(null);
 
   const [formData, setFormData] = useState({
     preferred_name: "",
-    city: "",
-    country: "",
-    age_in_years: "",
+    city_id: null,
+    birth_date: "",
     gender: "",
-    gender_other: "",
     terms_accepted: false,
   });
+  const [formErrors, setFormErrors] = useState({});
 
   const navigate = useNavigate();
 
@@ -63,19 +65,34 @@ export default function Onboarding() {
               userProp.preferred_name ||
               userProp.full_name?.split(" ")[0] ||
               "",
-            city: userProp.city || "",
-            country: userProp.country || "",
-            age_in_years: userProp.age_in_years || "",
+            city_id: userProp.city_id || null,
+            birth_date: userProp.birth_date || "",
             gender: userProp.gender || "",
-            gender_other: userProp.gender_other || "",
           }));
 
-          if (userProp.city && userProp.country) {
-            setLocationQuery(`${userProp.city}, ${userProp.country}`);
-            setSelectedLocation({
-              city: userProp.city,
-              country: userProp.country,
-            });
+          // If user has a city, fetch it from the API to display
+          if (userProp.city_id) {
+            try {
+              const response = await axios.get(
+                `${API_BASE_URL}/cities/${userProp.city_id}`
+              );
+              if (response.data.success && response.data.data) {
+                const city = response.data.data;
+                const displayText = city.country?.name
+                  ? `${city.name}, ${city.state ? city.state + ", " : ""}${
+                      city.country.name
+                    }`
+                  : city.name;
+                setLocationQuery(displayText);
+                setSelectedLocation({
+                  city: city.name,
+                  country: city.country?.name || "",
+                  city_id: city.id,
+                });
+              }
+            } catch (error) {
+              console.error("Error fetching user's city:", error);
+            }
           }
 
           if (userProp.onboarding_completed) {
@@ -93,87 +110,60 @@ export default function Onboarding() {
     loadUser();
   }, [userProp, userLoading, navigate]);
 
-  useEffect(() => {
-    if (window.google) return;
-
-    const script = document.createElement("script");
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=places`;
-    script.async = true;
-    script.defer = true;
-    document.head.appendChild(script);
-
-    return () => {
-      if (document.head.contains(script)) {
-        document.head.removeChild(script);
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    if (
-      window.google &&
-      window.google.maps &&
-      window.google.maps.places &&
-      !autocompleteService.current
-    ) {
-      autocompleteService.current =
-        new window.google.maps.places.AutocompleteService();
-    }
-  }, [locationQuery]);
-
-  const handleLocationSearch = (query) => {
+  const handleLocationSearch = async (query) => {
     setLocationQuery(query);
     setSelectedLocation(null);
 
-    if (!query || !autocompleteService.current) {
+    // Clear previous timeout
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
+    if (!query || query.trim().length < 2) {
       setLocationSuggestions([]);
       return;
     }
 
-    autocompleteService.current.getPlacePredictions(
-      {
-        input: query,
-        types: ["(cities)"],
-      },
-      (predictions, status) => {
-        if (
-          status === window.google.maps.places.PlacesServiceStatus.OK &&
-          predictions
-        ) {
-          setLocationSuggestions(predictions);
+    // Debounce search
+    searchTimeoutRef.current = setTimeout(async () => {
+      setSearchingCities(true);
+      try {
+        const response = await axios.get(`${API_BASE_URL}/cities/search`, {
+          params: { query: query.trim() },
+        });
+
+        if (response.data.success && response.data.data) {
+          setLocationSuggestions(response.data.data);
         } else {
           setLocationSuggestions([]);
         }
+      } catch (error) {
+        console.error("Error searching cities:", error);
+        setLocationSuggestions([]);
+      } finally {
+        setSearchingCities(false);
       }
-    );
+    }, 300); // 300ms debounce
   };
 
-  const handleLocationSelect = (prediction) => {
-    let city = "";
-    let country = "";
-    const terms = prediction.terms;
+  const handleLocationSelect = (city) => {
+    const cityName = city.name;
+    const countryName = city.country?.name || "";
+    const displayText = countryName
+      ? `${cityName}, ${city.state ? city.state + ", " : ""}${countryName}`
+      : cityName;
 
-    if (terms.length > 0) {
-      city = terms[0].value;
-    }
-    if (terms.length > 1) {
-      country = terms[terms.length - 1].value;
-    } else if (terms.length === 1 && prediction.description.includes(",")) {
-      const parts = prediction.description.split(",").map((s) => s.trim());
-      city = parts[0];
-      if (parts.length > 1) {
-        country = parts[parts.length - 1];
-      }
-    }
-
-    setSelectedLocation({ city, country });
-    setLocationQuery(prediction.description);
+    setSelectedLocation({
+      city: cityName,
+      country: countryName,
+      city_id: city.id,
+    });
+    setLocationQuery(displayText);
     setLocationSuggestions([]);
 
     setFormData((prev) => ({
       ...prev,
-      city,
-      country,
+      city_id: city.id,
     }));
   };
 
@@ -185,8 +175,30 @@ export default function Onboarding() {
 
     setLoading(true);
     try {
-      const updateData = {
+      // Use the onboarding endpoint with city_id
+      const onboardingData = {
         preferred_name: formData.preferred_name,
+        city_id: formData.city_id,
+        // include optional demographic fields in the onboarding payload
+        ...(formData.birth_date ? { birth_date: formData.birth_date } : {}),
+        ...(formData.gender ? { gender: formData.gender } : {}),
+      };
+
+      // Add optional Instagram username if user has it
+      if (formData.instagram_username) {
+        onboardingData.instagram_username = formData.instagram_username;
+      }
+
+      // Call the onboarding endpoint
+      const token = localStorage.getItem("authToken");
+      await axios.post(`${API_BASE_URL}/users/me/onboarding`, onboardingData, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      // Also update additional demographic data if provided
+      const updateData = {
         onboarding_completed: true,
         terms_accepted_at: new Date().toISOString(),
         consent_given_at: new Date().toISOString(),
@@ -194,27 +206,20 @@ export default function Onboarding() {
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       };
 
-      if (formData.city) updateData.city = formData.city;
-      if (formData.country) updateData.country = formData.country;
-
       let demographicConsentGiven = false;
-      if (formData.age_in_years) {
-        updateData.age_in_years = parseInt(formData.age_in_years);
+      if (formData.birth_date) {
+        // Expect ISO date YYYY-MM-DD from input[type=date]
+        updateData.birth_date = formData.birth_date;
         demographicConsentGiven = true;
       }
       if (formData.gender) {
         updateData.gender = formData.gender;
         demographicConsentGiven = true;
       }
-      if (formData.gender === "self-describe" && formData.gender_other) {
-        updateData.gender_other = formData.gender_other;
-        demographicConsentGiven = true;
-      } else if (formData.gender !== "self-describe") {
-        updateData.gender_other = null;
-      }
+      // We store only the ENUM gender values (no self-describe field)
 
       updateData.consent_demographics = demographicConsentGiven;
-      updateData.consent_location = !!(formData.city || formData.country);
+      updateData.consent_location = !!formData.city_id;
 
       await authService.updateMe(updateData);
       navigate(createPageUrl("Home"));
@@ -392,22 +397,37 @@ export default function Onboarding() {
                     />
                   </div>
 
-                  {locationSuggestions.length > 0 && (
+                  {(searchingCities || locationSuggestions.length > 0) && (
                     <div className="absolute z-10 w-full mt-2 bg-[#1F1F1F] border border-[#2E2E2E] rounded-lg shadow-xl max-h-64 overflow-y-auto">
-                      {locationSuggestions.map((prediction) => (
-                        <button
-                          key={prediction.place_id}
-                          onClick={() => handleLocationSelect(prediction)}
-                          className="w-full text-left px-4 py-3 hover:bg-[#2A2B35] transition-colors border-b border-[#2E2E2E] last:border-b-0"
-                        >
-                          <div className="flex items-center gap-3">
-                            <MapPin className="w-4 h-4 text-blue-400 shrink-0" />
-                            <span className="text-white text-sm">
-                              {prediction.description}
-                            </span>
-                          </div>
-                        </button>
-                      ))}
+                      {searchingCities ? (
+                        <div className="px-4 py-3 text-center">
+                          <div className="animate-spin rounded-full h-5 w-5 border-2 border-blue-500 border-t-transparent mx-auto" />
+                          <span className="text-gray-400 text-sm mt-2 block">
+                            Searching cities...
+                          </span>
+                        </div>
+                      ) : (
+                        locationSuggestions.map((city) => (
+                          <button
+                            key={city.id}
+                            onClick={() => handleLocationSelect(city)}
+                            className="w-full text-left px-4 py-3 hover:bg-[#2A2B35] transition-colors border-b border-[#2E2E2E] last:border-b-0"
+                          >
+                            <div className="flex items-center gap-3">
+                              <MapPin className="w-4 h-4 text-blue-400 shrink-0" />
+                              <div className="flex flex-col">
+                                <span className="text-white text-sm">
+                                  {city.name}
+                                  {city.state && `, ${city.state}`}
+                                </span>
+                                <span className="text-gray-400 text-xs">
+                                  {city.country?.name || "Unknown Country"}
+                                </span>
+                              </div>
+                            </div>
+                          </button>
+                        ))
+                      )}
                     </div>
                   )}
                 </div>
@@ -425,41 +445,60 @@ export default function Onboarding() {
                   <h3 className="text-lg font-semibold">About you</h3>
                 </div>
 
-                <div className="grid grid-cols-[120px_1fr] gap-3">
-                  {/* Age Field */}
+                <div className="grid grid-cols-[150px_1fr] gap-3">
+                  {/* Birth date Field */}
                   <div>
-                    <Label htmlFor="age" className="text-gray-300 mb-2 block">
-                      Age{" "}
-                      <span className="text-gray-500 text-xs font-normal">
-                        (optional)
-                      </span>
+                    <Label
+                      htmlFor="birth_date"
+                      className="text-gray-300 mb-2 block"
+                    >
+                      Birth date <span className="text-red-400">*</span>
                     </Label>
                     <Input
-                      id="age"
-                      type="text"
-                      inputMode="numeric"
-                      value={formData.age_in_years}
+                      id="birth_date"
+                      type="date"
+                      value={formData.birth_date}
                       onChange={(e) => {
-                        const value = e.target.value;
-                        if (value === "" || /^\d+$/.test(value)) {
-                          const numValue = parseInt(value);
-                          if (
-                            value === "" ||
-                            (numValue >= 0 && numValue <= 120)
-                          ) {
-                            setFormData({ ...formData, age_in_years: value });
-                          }
-                        }
+                        setFormData({
+                          ...formData,
+                          birth_date: e.target.value,
+                        });
                       }}
                       onBlur={(e) => {
                         const value = e.target.value;
-                        if (value && parseInt(value) < 13) {
-                          setFormData({ ...formData, age_in_years: "" });
+                        if (value) {
+                          const dob = new Date(value);
+                          const now = new Date();
+                          const age = now.getFullYear() - dob.getFullYear();
+                          const m = now.getMonth() - dob.getMonth();
+                          if (
+                            m < 0 ||
+                            (m === 0 && now.getDate() < dob.getDate())
+                          ) {
+                            // adjust
+                          }
+                          // Enforce minimum age 13
+                          if (age < 13) {
+                            alert(
+                              "You must be at least 13 years old to use this service."
+                            );
+                            setFormData({ ...formData, birth_date: "" });
+                          }
+                          // clear any previous validation errors
+                          setFormErrors((f) => ({
+                            ...f,
+                            birth_date: undefined,
+                          }));
                         }
                       }}
-                      placeholder="Age"
+                      placeholder="YYYY-MM-DD"
                       className="bg-[#1F1F1F] border-[#2E2E2E] text-white h-12"
                     />
+                    {formErrors.birth_date && (
+                      <p className="text-xs text-red-400 mt-1">
+                        {formErrors.birth_date}
+                      </p>
+                    )}
                   </div>
 
                   {/* Gender Field */}
@@ -468,22 +507,12 @@ export default function Onboarding() {
                       htmlFor="gender"
                       className="text-gray-300 mb-2 block"
                     >
-                      Gender{" "}
-                      <span className="text-gray-500 text-xs font-normal">
-                        (optional)
-                      </span>
+                      Gender <span className="text-red-400">*</span>
                     </Label>
                     <Select
                       value={formData.gender}
                       onValueChange={(value) =>
-                        setFormData({
-                          ...formData,
-                          gender: value,
-                          gender_other:
-                            value !== "self-describe"
-                              ? ""
-                              : formData.gender_other,
-                        })
+                        setFormData({ ...formData, gender: value })
                       }
                     >
                       <SelectTrigger className="bg-[#1F1F1F] border-[#2E2E2E] text-white h-12">
@@ -493,15 +522,17 @@ export default function Onboarding() {
                         <SelectItem value="female">Female</SelectItem>
                         <SelectItem value="male">Male</SelectItem>
                         <SelectItem value="non-binary">Non-binary</SelectItem>
-                        <SelectItem value="transgender">Transgender</SelectItem>
+                        <SelectItem value="other">Other</SelectItem>
                         <SelectItem value="prefer-not-to-say">
                           Prefer not to say
                         </SelectItem>
-                        <SelectItem value="self-describe">
-                          Self-describe...
-                        </SelectItem>
                       </SelectContent>
                     </Select>
+                    {formErrors.gender && (
+                      <p className="text-xs text-red-400 mt-1">
+                        {formErrors.gender}
+                      </p>
+                    )}
                   </div>
                 </div>
 
@@ -509,26 +540,7 @@ export default function Onboarding() {
                   Used only for personalized travel insights
                 </p>
 
-                {/* Self-describe field */}
-                {formData.gender === "self-describe" && (
-                  <div className="mt-3">
-                    <Input
-                      value={formData.gender_other}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          gender_other: e.target.value,
-                        })
-                      }
-                      placeholder="Describe here"
-                      maxLength={40}
-                      className="bg-[#1F1F1F] border-[#2E2E2E] text-white h-12"
-                    />
-                    <p className="text-xs text-gray-500 mt-1.5">
-                      {formData.gender_other.length}/40 characters
-                    </p>
-                  </div>
-                )}
+                {/* No self-describe option: we store enum gender values only */}
               </div>
 
               {/* Action Buttons */}
@@ -541,7 +553,17 @@ export default function Onboarding() {
                   Back
                 </Button>
                 <Button
-                  onClick={() => setStep(3)}
+                  onClick={() => {
+                    // Validate required fields for this step
+                    const errors = {};
+                    if (!formData.birth_date)
+                      errors.birth_date = "Birth date is required";
+                    if (!formData.gender) errors.gender = "Gender is required";
+                    setFormErrors(errors);
+                    if (Object.keys(errors).length === 0) {
+                      setStep(3);
+                    }
+                  }}
                   className="h-12 bg-gradient-to-r from-blue-600 to-purple-600 hover:opacity-90"
                 >
                   Continue

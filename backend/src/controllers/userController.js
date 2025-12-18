@@ -88,7 +88,11 @@ const getUserTrips = async (req, res, next) => {
       offset,
       limit: limitNum,
       include: [
-        { model: User, as: "author", attributes: ["id", "full_name", "preferred_name", "photo_url"] },
+        {
+          model: User,
+          as: "author",
+          attributes: ["id", "full_name", "preferred_name", "photo_url"],
+        },
       ],
     });
     const pagination = buildPaginationMeta(pageNum, limitNum, total);
@@ -126,7 +130,14 @@ const getUserStats = async (req, res, next) => {
 const completeOnboarding = async (req, res, next) => {
   try {
     const userId = req.user.id;
-    const { city_id, preferred_name, bio, instagram_username } = req.body;
+    const {
+      city_id,
+      preferred_name,
+      bio,
+      instagram_username,
+      birth_date,
+      gender,
+    } = req.body;
 
     const user = await User.findByPk(userId);
     if (!user) {
@@ -145,14 +156,75 @@ const completeOnboarding = async (req, res, next) => {
       }
     }
 
+    // Require birth_date and gender during onboarding
+    if (!birth_date || !gender) {
+      return res
+        .status(400)
+        .json(
+          buildErrorResponse(
+            "VALIDATION_ERROR",
+            "birth_date and gender are required"
+          )
+        );
+    }
+
+    // Validate birth_date - expect YYYY-MM-DD and minimum age 13
+    if (birth_date) {
+      const dob = new Date(birth_date);
+      if (isNaN(dob.getTime())) {
+        return res
+          .status(400)
+          .json(
+            buildErrorResponse("VALIDATION_ERROR", "Invalid birth_date format")
+          );
+      }
+      const now = new Date();
+      let age = now.getFullYear() - dob.getFullYear();
+      const m = now.getMonth() - dob.getMonth();
+      if (m < 0 || (m === 0 && now.getDate() < dob.getDate())) {
+        age--;
+      }
+      if (age < 13) {
+        return res
+          .status(400)
+          .json(
+            buildErrorResponse(
+              "VALIDATION_ERROR",
+              "User must be at least 13 years old"
+            )
+          );
+      }
+    }
+
+    // Validate gender (if provided)
+    const allowedGenders = [
+      "male",
+      "female",
+      "non-binary",
+      "other",
+      "prefer-not-to-say",
+    ];
+    if (gender !== undefined && gender !== null && gender !== "") {
+      if (!allowedGenders.includes(gender)) {
+        return res
+          .status(400)
+          .json(buildErrorResponse("VALIDATION_ERROR", "Invalid gender value"));
+      }
+    }
+
     // Update user with onboarding data
-    await user.update({
+    const updates = {
       city_id,
       preferred_name: preferred_name || user.preferred_name,
       bio: bio || user.bio,
       instagram_username: instagram_username || user.instagram_username,
       onboarding_completed: true,
-    });
+    };
+
+    if (birth_date) updates.birth_date = birth_date;
+    if (gender) updates.gender = gender;
+
+    await user.update(updates);
 
     // Fetch updated user with city data
     const updatedUser = await User.findByPk(userId, {
@@ -160,7 +232,9 @@ const completeOnboarding = async (req, res, next) => {
         {
           model: City,
           as: "cityData",
-          include: [{ model: require("../models/sequelize").Country, as: "country" }],
+          include: [
+            { model: require("../models/sequelize").Country, as: "country" },
+          ],
         },
       ],
     });

@@ -425,8 +425,10 @@ async function formatTripResponse(trip) {
   // Fallback to a placeholder image based on destination if still no image
   if (!coverImage && tripData.destination) {
     // Use Unsplash as a fallback with the destination as the query
-    const destination = tripData.destination.split(',')[0].trim();
-    coverImage = `https://source.unsplash.com/1200x800/?${encodeURIComponent(destination)},travel`;
+    const destination = tripData.destination.split(",")[0].trim();
+    coverImage = `https://source.unsplash.com/1200x800/?${encodeURIComponent(
+      destination
+    )},travel`;
   }
 
   return {
@@ -562,8 +564,7 @@ const getTripDerivations = async (req, res, next) => {
       new_trip_title: steal.newTrip?.title,
       new_trip_cover: steal.newTrip?.cover_image,
       stolen_by: steal.newUser?.id,
-      stolen_by_name:
-        steal.newUser?.preferred_name || steal.newUser?.full_name,
+      stolen_by_name: steal.newUser?.preferred_name || steal.newUser?.full_name,
       stolen_by_photo: steal.newUser?.photo_url,
       created_at: steal.created_at,
     }));
