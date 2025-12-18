@@ -224,7 +224,10 @@ All endpoints prefixed with `/v1`:
 ### Follows
 
 - `POST /follows` - Follow user
-- `DELETE /follows/:id` - Unfollow user
+- `POST /follows` - Follow user
+- `DELETE /follows/:userId` - Unfollow user (authenticated follower)
+- `GET /follows` - List follow records for authenticated user
+- `DELETE /follows/record/:id` - Delete follow record by id (allowed if you're follower or followee)
 - `GET /follows/check` - Check follow status
 
 ### Reviews

@@ -257,21 +257,14 @@ export default function Profile() {
       }
 
       try {
-        const follows = await Follow.filter({
-          followee_id: profileUser.id,
-          follower_id: currentUser.id,
-        });
-        const result = follows.length > 0 ? follows[0] : null;
+        const status = await Follow.check(profileUser.id);
 
         sessionStorage.setItem(
           `followStatus_${profileUser.id}_${currentUser.id}`,
-          JSON.stringify({
-            data: result,
-            timestamp: Date.now(),
-          })
+          JSON.stringify({ data: status, timestamp: Date.now() })
         );
 
-        return result;
+        return status;
       } catch (error) {
         console.warn(
           "[Follow] Error checking status (might not be authenticated for follow entity):",
@@ -480,11 +473,8 @@ export default function Profile() {
       if (!currentUser || !profileUser || !profileUser.id)
         throw new Error("Not authenticated or profile user ID missing.");
 
-      return await Follow.create({
-        followee_id: profileUser.id,
-        follower_id: currentUser.id,
-        followee_email: profileUser.email,
-      });
+      // Follow.create expects a single `followeeId` string in the body
+      return await Follow.create(profileUser.id);
     },
     onMutate: async () => {
       await queryClient.cancelQueries([
@@ -506,6 +496,7 @@ export default function Profile() {
 
       const optimisticFollow = {
         id: "optimistic-follow",
+        following: true,
         followee_id: profileUser.id,
         follower_id: currentUser.id,
       };
@@ -576,14 +567,18 @@ export default function Profile() {
           });
       }
     },
+    onSettled: () => {
+      followActionRef.current = false;
+    },
   });
+
+  const followActionRef = useRef(false);
 
   const unfollowMutation = useMutation({
     mutationFn: async () => {
-      if (!followStatus || followStatus.id === "optimistic-follow") {
-        throw new Error("Not following");
-      }
-      return await Follow.delete(followStatus.id);
+      if (!profileUser || !currentUser) throw new Error("Not authenticated");
+      if (!followStatus) throw new Error("Not following");
+      return await Follow.unfollow(profileUser.id);
     },
     onMutate: async () => {
       await queryClient.cancelQueries([
@@ -684,11 +679,17 @@ export default function Profile() {
       return;
     }
 
-    if (followMutation.isPending || unfollowMutation.isPending) return;
+    if (
+      followMutation.isPending ||
+      unfollowMutation.isPending ||
+      followActionRef.current
+    )
+      return;
 
     if (isFollowing) {
       unfollowMutation.mutate();
     } else {
+      followActionRef.current = true;
       followMutation.mutate();
     }
   };

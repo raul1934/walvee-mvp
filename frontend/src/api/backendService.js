@@ -29,6 +29,11 @@ const createEntityService = (entityEndpoints) => ({
     const response = await apiClient.get(entityEndpoints.list, options);
     return response.data;
   },
+
+  async list(options = {}) {
+    const response = await apiClient.get(entityEndpoints.list, options);
+    return response.data;
+  },
 });
 
 /**
@@ -128,12 +133,24 @@ export const Follow = {
     const response = await apiClient.post(endpoints.follows.create, {
       followeeId,
     });
+
     return response.data;
   },
 
   async delete(id) {
     await apiClient.delete(endpoints.follows.delete(id));
     return { id, deleted: true };
+  },
+
+  async deleteRecord(id) {
+    await apiClient.delete(endpoints.follows.deleteRecord(id));
+    return { id, deleted: true };
+  },
+
+  async unfollow(userId) {
+    // Delete follow relationship for the authenticated user -> target userId
+    const response = await apiClient.delete(endpoints.follows.delete(userId));
+    return response;
   },
 
   async getFollowers(userId, options = {}) {

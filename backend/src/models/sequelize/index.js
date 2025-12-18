@@ -51,6 +51,7 @@ TripLike.belongsTo(Trip, { foreignKey: "trip_id" });
 User.hasMany(TripLike, { foreignKey: "liker_id", as: "likedTrips" });
 TripLike.belongsTo(User, { foreignKey: "liker_id", as: "liker" });
 
+// Follows (user_follow table): followee_id = user being followed, follower_id = follower
 User.hasMany(Follow, { foreignKey: "follower_id", as: "following" });
 User.hasMany(Follow, { foreignKey: "followee_id", as: "followers" });
 Follow.belongsTo(User, { foreignKey: "follower_id", as: "follower" });

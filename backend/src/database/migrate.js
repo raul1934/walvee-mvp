@@ -209,23 +209,6 @@ const migrations = [
     `,
   },
   {
-    name: "create_follows_table",
-    up: `
-      CREATE TABLE IF NOT EXISTS follows (
-        id CHAR(36) PRIMARY KEY,
-        follower_id CHAR(36) NOT NULL,
-        followee_id CHAR(36) NOT NULL,
-        followee_email VARCHAR(255),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (follower_id) REFERENCES users(id) ON DELETE CASCADE,
-        FOREIGN KEY (followee_id) REFERENCES users(id) ON DELETE CASCADE,
-        UNIQUE KEY unique_follow (follower_id, followee_id),
-        INDEX idx_follower_id (follower_id),
-        INDEX idx_followee_id (followee_id)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-    `,
-  },
-  {
     name: "create_reviews_table",
     up: `
       CREATE TABLE IF NOT EXISTS reviews (

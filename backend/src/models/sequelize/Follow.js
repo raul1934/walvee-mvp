@@ -4,11 +4,6 @@ const { sequelize } = require("../../database/sequelize");
 const Follow = sequelize.define(
   "Follow",
   {
-    id: {
-      type: DataTypes.UUID,
-      defaultValue: DataTypes.UUIDV4,
-      primaryKey: true,
-    },
     follower_id: {
       type: DataTypes.UUID,
       allowNull: false,
@@ -25,18 +20,14 @@ const Follow = sequelize.define(
         key: "id",
       },
     },
-    followee_email: {
-      type: DataTypes.STRING(255),
-    },
   },
   {
-    tableName: "follows",
+    tableName: "user_follow",
     timestamps: true,
-    updatedAt: false,
     indexes: [
-      { fields: ["follower_id"] },
       { fields: ["followee_id"] },
-      { unique: true, fields: ["follower_id", "followee_id"] },
+      { fields: ["follower_id"] },
+      { unique: true, fields: ["followee_id", "follower_id"] },
     ],
   }
 );

@@ -155,7 +155,9 @@ Complete API documentation is available in `documentation.yaml` (OpenAPI 3.0 for
   - `GET /v1/follows/followers/:userId` - Get followers
   - `GET /v1/follows/following/:userId` - Get following
   - `POST /v1/follows` - Follow user
-  - `DELETE /v1/follows/:id` - Unfollow user
+    - `DELETE /v1/follows/:userId` - Unfollow user (authenticated follower)
+    - `GET /v1/follows` - List follow records involving authenticated user (returns `user_follow` records)
+    - `DELETE /v1/follows/record/:id` - Delete follow record by id (allowed if you're follower or followee)
 
 ## 🔄 Frontend Migration
 

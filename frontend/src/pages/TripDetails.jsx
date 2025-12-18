@@ -197,7 +197,6 @@ export default function TripDetails({ user, openLoginModal }) {
     queryKey: ["followStatus", tripData?.created_by, currentUser?.id],
     queryFn: async () => {
       if (!currentUser || !tripData) return null;
-
       const cached = sessionStorage.getItem(
         `followStatus_${tripData.created_by}_${currentUser.id}`
       );
@@ -210,21 +209,15 @@ export default function TripDetails({ user, openLoginModal }) {
       }
 
       try {
-        const follows = await Follow.filter({
-          followee_id: tripData.created_by,
-          follower_id: currentUser.id,
-        });
-        const result = follows.length > 0 ? follows[0] : null;
+        // Use the check endpoint which returns { following: boolean }
+        const status = await Follow.check(tripData.created_by);
 
         sessionStorage.setItem(
           `followStatus_${tripData.created_by}_${currentUser.id}`,
-          JSON.stringify({
-            data: result,
-            timestamp: Date.now(),
-          })
+          JSON.stringify({ data: status, timestamp: Date.now() })
         );
 
-        return result;
+        return status;
       } catch (error) {
         console.warn("[Follow] Error checking status:", error.message);
         return null;
@@ -290,6 +283,7 @@ export default function TripDetails({ user, openLoginModal }) {
   const hasLiked = !!likeStatus;
   const isAuthor =
     currentUser && tripData && currentUser.id === tripData.created_by;
+  const followActionRef = useRef(false);
 
   const followMutation = useMutation({
     mutationFn: async () => {
@@ -297,16 +291,7 @@ export default function TripDetails({ user, openLoginModal }) {
       if (tripData.created_by === currentUser.id)
         throw new Error("Cannot follow yourself.");
 
-      console.log("[Follow] Creating follow:", {
-        followee_id: tripData.created_by,
-        follower_id: currentUser.id,
-      });
-
-      return await Follow.create({
-        followee_id: tripData.created_by,
-        follower_id: currentUser.id,
-        followee_email: tripData.author_email || tripData.created_by,
-      });
+      return await Follow.create(tripData.created_by);
     },
     onMutate: async () => {
       const startTime = Date.now();
@@ -327,6 +312,7 @@ export default function TripDetails({ user, openLoginModal }) {
 
       const optimisticFollow = {
         id: "optimistic-follow",
+        following: true,
         followee_id: tripData.created_by,
         follower_id: currentUser.id,
       };
@@ -407,17 +393,18 @@ export default function TripDetails({ user, openLoginModal }) {
           console.error("[Follow] KPI update failed (non-critical):", error);
         });
     },
+    onSettled: () => {
+      followActionRef.current = false;
+    },
   });
 
   const unfollowMutation = useMutation({
     mutationFn: async () => {
-      if (!followStatus || followStatus.id === "optimistic-follow") {
-        throw new Error("Not following or optimistic state");
-      }
+      if (!tripData || !currentUser) throw new Error("Not authenticated");
+      if (!isFollowing) throw new Error("Not following");
 
-      console.log("[Unfollow] Deleting follow:", followStatus.id);
-
-      return await Follow.delete(followStatus.id);
+      console.log("[Unfollow] Deleting follow for user:", tripData.created_by);
+      return await Follow.unfollow(tripData.created_by);
     },
     onMutate: async () => {
       const startTime = Date.now();
@@ -1354,13 +1341,18 @@ export default function TripDetails({ user, openLoginModal }) {
     }
     if (isAuthor) return;
 
-    if (followMutation.isPending || unfollowMutation.isPending) {
+    if (
+      followMutation.isPending ||
+      unfollowMutation.isPending ||
+      followActionRef.current
+    ) {
       return;
     }
 
     if (isFollowing) {
       unfollowMutation.mutate();
     } else {
+      followActionRef.current = true;
       followMutation.mutate();
     }
   };

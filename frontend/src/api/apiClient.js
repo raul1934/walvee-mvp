@@ -176,8 +176,10 @@ export const endpoints = {
   follows: {
     followers: (userId) => `/follows/followers/${userId}`,
     following: (userId) => `/follows/following/${userId}`,
+    list: "/follows",
     create: "/follows",
     delete: (id) => `/follows/${id}`,
+    deleteRecord: (id) => `/follows/record/${id}`,
     check: (userId) => `/follows/check/${userId}`,
   },
 
