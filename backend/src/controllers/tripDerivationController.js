@@ -5,6 +5,7 @@ const {
   TripItineraryDay,
   TripItineraryActivity,
   TripSteal,
+  User,
 } = require("../models/sequelize");
 const {
   paginate,
@@ -35,6 +36,16 @@ const getDerivations = async (req, res, next) => {
             model: Trip,
             as: "newTrip",
             attributes: ["id", "title", "destination", "cover_image"],
+          },
+          {
+            model: User,
+            as: "originalUser",
+            attributes: ["id", "full_name", "preferred_name", "photo_url"],
+          },
+          {
+            model: User,
+            as: "newUser",
+            attributes: ["id", "full_name", "preferred_name", "photo_url"],
           },
         ],
         offset,

@@ -149,9 +149,7 @@ export default function TripDetails() {
     queryFn: async () => {
       try {
         const all = await TripSteal.list();
-        return all.filter(
-          (d) => d.source_trip_id === tripId && d.status === "created"
-        );
+        return all.filter((d) => d.original_trip_id === tripId);
       } catch (error) {
         console.warn(
           "[TripDetails] Error fetching derivations:",
@@ -252,6 +250,12 @@ export default function TripDetails() {
   const hasLiked = !!likeStatus;
   const isAuthor =
     currentUser && tripData && currentUser.id === tripData.created_by;
+  const hasAlreadyStolen = derivations.some(
+    (d) => d.newUser?.id === currentUser?.id
+  );
+  const userStolenTrip = derivations.find(
+    (d) => d.newUser?.id === currentUser?.id
+  );
   const followActionRef = useRef(false);
 
   const followMutation = useMutation({
@@ -2081,43 +2085,140 @@ export default function TripDetails() {
 
             {activeTab === "steal" && (
               <div className="h-full flex items-center justify-center p-6">
-                <div className="max-w-md text-center space-y-6">
-                  <div className="w-20 h-20 bg-gradient-to-br from-blue-600 to-purple-600 rounded-2xl flex items-center justify-center mx-auto">
-                    <Infinity className="w-10 h-10 text-white" />
-                  </div>
-
-                  <div>
-                    <h2 className="text-3xl font-bold mb-3 bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-                      Make it yours. ✨
-                    </h2>
-                    <p className="text-gray-300 text-base leading-relaxed mb-4">
-                      Steal this trip and make it your own. Customize everything
-                      — dates, places, pace, and budget — while giving credit to
-                      the original traveler who inspired it.
-                    </p>
-                  </div>
-
-                  <Button
-                    onClick={handleStealClick}
-                    className="w-full h-14 bg-gradient-to-r from-blue-600 to-purple-600 hover:opacity-90 text-white font-bold text-base rounded-xl shadow-lg shadow-blue-500/25 transition-all hover:scale-[1.02]"
-                  >
-                    Steal this trip
-                  </Button>
-
-                  {derivations.length > 0 && (
-                    <div className="bg-[#111827] rounded-xl p-4 border border-[#2A2B35]">
-                      <p className="text-sm text-gray-400">
-                        <span className="text-blue-400 font-semibold">
-                          {derivations.length}
-                        </span>{" "}
-                        {derivations.length === 1
-                          ? "traveler has"
-                          : "travelers have"}{" "}
-                        already made this trip their own
+                {isAuthor ? (
+                  // Show list of steals/derivations for trip owner
+                  <div className="w-full max-w-2xl space-y-6">
+                    <div className="text-center">
+                      <div className="w-20 h-20 bg-gradient-to-br from-green-600 to-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                        <Infinity className="w-10 h-10 text-white" />
+                      </div>
+                      <h2 className="text-3xl font-bold mb-3 bg-gradient-to-r from-green-400 to-blue-400 bg-clip-text text-transparent">
+                        Your Trip's Journey ✨
+                      </h2>
+                      <p className="text-gray-300 text-base leading-relaxed">
+                        See how travelers have been inspired by your trip and made it their own.
                       </p>
                     </div>
-                  )}
-                </div>
+
+                    {derivations.length > 0 ? (
+                      <div className="space-y-4">
+                        <h3 className="text-xl font-semibold text-white mb-4">
+                          {derivations.length} {derivations.length === 1 ? 'Traveler' : 'Travelers'} Inspired
+                        </h3>
+                        <div className="grid gap-4">
+                          {derivations.map((derivation) => (
+                            <div
+                              key={derivation.id}
+                              className="bg-[#1A1B23] rounded-xl p-4 border border-[#2A2B35] hover:border-green-500/30 transition-colors"
+                            >
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center space-x-3">
+                                  <UserAvatar
+                                    src={derivation.newUser?.photo_url}
+                                    name={derivation.newUser?.preferred_name || derivation.newUser?.full_name}
+                                    size="sm"
+                                    email={derivation.newUser?.id}
+                                  />
+                                  <div>
+                                    <Link
+                                      to={`${createPageUrl("Profile")}?email=${encodeURIComponent(derivation.newUser?.id)}`}
+                                      className="font-semibold text-white hover:text-green-400 transition-colors"
+                                    >
+                                      {derivation.newUser?.preferred_name || derivation.newUser?.full_name}
+                                    </Link>
+                                    <p className="text-sm text-gray-400">
+                                      Created their version
+                                    </p>
+                                  </div>
+                                </div>
+                                <Link
+                                  to={`/trip/${derivation.new_trip_id}`}
+                                  className="text-green-400 hover:text-green-300 text-sm font-medium"
+                                >
+                                  View Trip →
+                                </Link>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-center py-8">
+                        <p className="text-gray-400">
+                          No one has stolen your trip yet. Share it to inspire others! 🌟
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                ) : hasAlreadyStolen ? (
+                  // User has already stolen this trip
+                  <div className="max-w-md text-center space-y-6">
+                    <div className="w-20 h-20 bg-gradient-to-br from-green-600 to-blue-600 rounded-2xl flex items-center justify-center mx-auto">
+                      <Infinity className="w-10 h-10 text-white" />
+                    </div>
+
+                    <div>
+                      <h2 className="text-3xl font-bold mb-3 bg-gradient-to-r from-green-400 to-blue-400 bg-clip-text text-transparent">
+                        Already Yours! ✨
+                      </h2>
+                      <p className="text-gray-300 text-base leading-relaxed mb-4">
+                        You've already made this trip your own. Check out your customized version!
+                      </p>
+                    </div>
+
+                    <Button
+                      onClick={() => navigate(`/TripDetails/${userStolenTrip.new_trip_id}`)}
+                      className="w-full h-14 bg-gradient-to-r from-green-600 to-blue-600 hover:opacity-90 text-white font-bold text-base rounded-xl shadow-lg shadow-green-500/25 transition-all hover:scale-[1.02]"
+                    >
+                      View My Version
+                    </Button>
+
+                    <div className="bg-[#111827] rounded-xl p-4 border border-[#2A2B35]">
+                      <p className="text-sm text-gray-400">
+                        You can continue customizing your version anytime.
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  // Show steal interface for non-owners who haven't stolen yet
+                  <div className="max-w-md text-center space-y-6">
+                    <div className="w-20 h-20 bg-gradient-to-br from-blue-600 to-purple-600 rounded-2xl flex items-center justify-center mx-auto">
+                      <Infinity className="w-10 h-10 text-white" />
+                    </div>
+
+                    <div>
+                      <h2 className="text-3xl font-bold mb-3 bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+                        Make it yours. ✨
+                      </h2>
+                      <p className="text-gray-300 text-base leading-relaxed mb-4">
+                        Steal this trip and make it your own. Customize everything
+                        — dates, places, pace, and budget — while giving credit to
+                        the original traveler who inspired it.
+                      </p>
+                    </div>
+
+                    <Button
+                      onClick={handleStealClick}
+                      className="w-full h-14 bg-gradient-to-r from-blue-600 to-purple-600 hover:opacity-90 text-white font-bold text-base rounded-xl shadow-lg shadow-blue-500/25 transition-all hover:scale-[1.02]"
+                    >
+                      Steal this trip
+                    </Button>
+
+                    {derivations.length > 0 && (
+                      <div className="bg-[#111827] rounded-xl p-4 border border-[#2A2B35]">
+                        <p className="text-sm text-gray-400">
+                          <span className="text-blue-400 font-semibold">
+                            {derivations.length}
+                          </span>{" "}
+                          {derivations.length === 1
+                            ? "traveler has"
+                            : "travelers have"}{" "}
+                          already made this trip their own
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 

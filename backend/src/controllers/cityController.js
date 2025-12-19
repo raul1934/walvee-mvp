@@ -1,4 +1,10 @@
-const { City, Country, CityReview, Trip, CityPhoto } = require("../models/sequelize");
+const {
+  City,
+  Country,
+  CityReview,
+  Trip,
+  CityPhoto,
+} = require("../models/sequelize");
 const { Op, Sequelize } = require("sequelize");
 const { sequelize } = require("../database/sequelize");
 const {
@@ -687,8 +693,7 @@ const getCityAiReview = async (req, res, next) => {
         "AI review retrieved successfully"
       )
     );
-  } catch (error) {
-  }
+  } catch (error) {}
 };
 
 /**
@@ -703,12 +708,7 @@ const getSuggestedCitiesByCountry = async (req, res, next) => {
     if (!countryId) {
       return res
         .status(400)
-        .json(
-          buildErrorResponse(
-            "INVALID_INPUT",
-            "Country ID is required"
-          )
-        );
+        .json(buildErrorResponse("INVALID_INPUT", "Country ID is required"));
     }
 
     // Get the country record by ID
@@ -731,7 +731,7 @@ const getSuggestedCitiesByCountry = async (req, res, next) => {
           required: false,
           limit: 1,
           order: [["photo_order", "ASC"]],
-        }
+        },
       ],
       attributes: {
         include: [
@@ -741,23 +741,26 @@ const getSuggestedCitiesByCountry = async (req, res, next) => {
               FROM trips
               WHERE trips.destination_city_id = City.id
             )`),
-            'trip_count'
-          ]
-        ]
+            "trip_count",
+          ],
+        ],
       },
       order: [
-        [sequelize.literal('trip_count'), 'DESC'],
-        ['name', 'ASC']
+        [sequelize.literal("trip_count"), "DESC"],
+        ["name", "ASC"],
       ],
       limit: 5,
     });
 
     // Format the response
-    const suggestedCities = cities.map(city => ({
+    const suggestedCities = cities.map((city) => ({
       id: city.id,
       name: `${city.name}, ${countryRecord.name}`,
       tripsCount: parseInt(city.dataValues.trip_count) || 0,
-      image: city.photos && city.photos.length > 0 ? city.photos[0].url_medium || city.photos[0].url_small : null,
+      image:
+        city.photos && city.photos.length > 0
+          ? city.photos[0].url_medium || city.photos[0].url_small
+          : null,
     }));
 
     res.json(buildSuccessResponse(suggestedCities));

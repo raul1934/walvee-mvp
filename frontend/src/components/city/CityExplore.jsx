@@ -24,7 +24,9 @@ export default function CityExplore({
       if (!countryId) return [];
 
       try {
-        const response = await apiClient.get(endpoints.cities.suggestedByCountry(countryId));
+        const response = await apiClient.get(
+          endpoints.cities.suggestedByCountry(countryId)
+        );
 
         if (response.success && response.data) {
           return response.data.map((city) => ({
@@ -85,13 +87,17 @@ export default function CityExplore({
                           alt={city.name.split(",")[0]}
                           className="w-full h-full object-cover"
                           onError={(e) => {
-                            e.target.style.display = 'none';
+                            e.target.style.display = "none";
                             const mapPin = e.target.nextElementSibling;
-                            if (mapPin) mapPin.style.display = 'flex';
+                            if (mapPin) mapPin.style.display = "flex";
                           }}
                         />
                       ) : null}
-                      <MapPin className={`w-8 h-8 text-blue-400 ${city.image ? 'hidden' : ''}`} />
+                      <MapPin
+                        className={`w-8 h-8 text-blue-400 ${
+                          city.image ? "hidden" : ""
+                        }`}
+                      />
                     </div>
                     <h4 className="font-semibold text-white text-sm mb-1">
                       {city.name.split(",")[0]}
