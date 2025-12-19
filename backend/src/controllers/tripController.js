@@ -15,6 +15,7 @@ const {
   buildPaginationMeta,
   buildSuccessResponse,
   buildErrorResponse,
+  getFullImageUrl,
 } = require("../utils/helpers");
 
 const getTrips = async (req, res, next) => {
@@ -181,6 +182,19 @@ const getTripById = async (req, res, next) => {
           ],
         },
         {
+          model: require("../models/sequelize").City,
+          as: "destinationCity",
+          attributes: ["id", "name"],
+          include: [
+            {
+              model: require("../models/sequelize").CityPhoto,
+              as: "photos",
+              attributes: ["url_small", "url_medium", "url_large"],
+              limit: 3,
+            },
+          ],
+        },
+        {
           model: TripTag,
           as: "tags",
           attributes: ["tag"],
@@ -241,6 +255,14 @@ const getTripById = async (req, res, next) => {
                     "name",
                     "address",
                     "price_level",
+                  ],
+                  include: [
+                    {
+                      model: require("../models/sequelize").PlacePhoto,
+                      as: "photos",
+                      attributes: ["url_small", "url_medium", "url_large"],
+                      limit: 3,
+                    },
                   ],
                 },
               ],
@@ -564,27 +586,44 @@ async function formatTripResponse(trip) {
   const tripData = trip.toJSON();
 
   // Count steals from trip_steals table
-  const stealsCount = await TripSteal.count({
+  const derivationsCount = await TripSteal.count({
     where: { original_trip_id: tripData.id },
   });
 
-  // If no cover_image, try to use the first place's image or generate from destination
-  let coverImage = tripData.cover_image;
-  if (!coverImage && tripData.places && tripData.places.length > 0) {
-    // Try to find a place with an image (you might have a photo_url or image field)
-    const placeWithImage = tripData.places.find((p) => p.photo_url || p.image);
-    if (placeWithImage) {
-      coverImage = placeWithImage.photo_url || placeWithImage.image;
-    }
+  // Collect all images: cover + city photos + place photos
+  const images = [];
+
+  // Add cover image first
+  if (tripData.cover_image) {
+    images.push(getFullImageUrl(tripData.cover_image));
   }
 
-  // Fallback to a placeholder image based on destination if still no image
-  if (!coverImage && tripData.destination) {
-    // Use Unsplash as a fallback with the destination as the query
-    const destination = tripData.destination.split(",")[0].trim();
-    coverImage = `https://source.unsplash.com/1200x800/?${encodeURIComponent(
-      destination
-    )},travel`;
+  // Add city photos
+  if (tripData.destinationCity?.photos) {
+    tripData.destinationCity.photos.forEach(photo => {
+      if (photo.url_medium) {
+        images.push(getFullImageUrl(photo.url_medium));
+      }
+    });
+  }
+
+  // Add place photos from itinerary days and activities
+  if (tripData.itineraryDays) {
+    const addedPlaceIds = new Set();
+    tripData.itineraryDays.forEach(day => {
+      if (day.activities) {
+        day.activities.forEach(activity => {
+          if (activity.placeDetails?.photos && !addedPlaceIds.has(activity.placeDetails.id)) {
+            addedPlaceIds.add(activity.placeDetails.id);
+            activity.placeDetails.photos.forEach(photo => {
+              if (photo.url_medium) {
+                images.push(getFullImageUrl(photo.url_medium));
+              }
+            });
+          }
+        });
+      }
+    });
   }
 
   const durationDays = tripData.itineraryDays
@@ -604,20 +643,20 @@ async function formatTripResponse(trip) {
     best_time_to_visit: tripData.best_time_to_visit,
     difficulty_level: tripData.difficulty_level,
     trip_type: tripData.trip_type,
-    cover_image: coverImage,
+    images: images,
     destination_lat: tripData.destination_lat,
     destination_lng: tripData.destination_lng,
     is_public: tripData.is_public,
     is_featured: tripData.is_featured,
     likes: tripData.likes_count,
     views: tripData.views_count,
-    steals: stealsCount,
+    steals: derivationsCount,
     created_at: tripData.created_at,
     updated_at: tripData.updated_at,
     created_by: tripData.author?.id || null,
     author_name:
       tripData.author?.preferred_name || tripData.author?.full_name || null,
-    author_photo: tripData.author?.photo_url || null,
+    author_photo: getFullImageUrl(tripData.author?.photo_url) || null,
     author_email: tripData.author?.email || null,
     author_bio: tripData.author?.bio || null,
     tags: tripData.tags ? tripData.tags.map((t) => t.tag) : [],
@@ -625,15 +664,22 @@ async function formatTripResponse(trip) {
       ? tripData.itineraryDays.map((day) => ({
           day: day.day_number,
           title: day.title,
-          places: tripData.places
-            ? tripData.places.map((p) => ({
-                name: p.name,
-                address: p.address,
-                rating: p.rating ? parseFloat(p.rating) : null,
-                price_level: p.price_level,
-                types: p.types,
-                description: p.description,
-              }))
+          places: day.activities
+            ? day.activities
+                .filter((a) => a.placeDetails)
+                .map((a) => ({
+                  name: a.placeDetails.name,
+                  address: a.placeDetails.address,
+                  rating: a.placeDetails.rating
+                    ? parseFloat(a.placeDetails.rating)
+                    : null,
+                  price_level: a.placeDetails.price_level,
+                  types: [],
+                  description: a.description || "",
+                  photo: a.placeDetails.photos?.[0]
+                    ? getFullImageUrl(a.placeDetails.photos[0].url_medium)
+                    : null,
+                }))
             : [],
           activities: day.activities
             ? day.activities.map((a) => ({

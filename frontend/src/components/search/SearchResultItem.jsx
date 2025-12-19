@@ -1,6 +1,6 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import { createPageUrl, createProfileUrl } from "@/utils";
+import { createPageUrl, createProfileUrl, createCityUrl } from "@/utils";
 import {
   MapPin,
   Star,
@@ -36,9 +36,7 @@ export default function SearchResultItem({ result, onClose, onPlaceClick }) {
   if (result.type === "city") {
     return (
       <Link
-        to={`${createPageUrl("City")}?name=${encodeURIComponent(
-          result.name + ", " + result.country
-        )}`}
+        to={createCityUrl(result.countryId, result.id)}
         onClick={handleClick}
         className="flex items-center gap-4 p-4 hover:bg-[#1A1B23] rounded-xl transition-colors group"
       >

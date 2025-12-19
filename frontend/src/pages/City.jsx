@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Trip } from "@/api/entities";
 import { useQuery } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { createPageUrl } from "@/utils";
+import { useAuth } from "@/contexts/AuthContext";
 import { MapPin } from "lucide-react";
 import CityHeader from "../components/city/CityHeader";
 import CityNavigation from "../components/city/CityNavigation";
@@ -12,14 +13,17 @@ import CityExplore from "../components/city/CityExplore";
 import CityLocals from "../components/city/CityLocals";
 import CityFavorites from "../components/city/CityFavorites";
 import PlaceModal from "../components/city/PlaceModal";
+import { apiClient, endpoints } from "@/api/apiClient";
 
 console.log("[City Page] ===== MODULE LOADED =====");
 
 export default function City({
-  user,
   cityNameOverride,
   isModal = false,
 }) {
+  // Get user from auth context
+  const { user, openLoginModal } = useAuth();
+
   console.log("[City Page] ===== FUNCTION CALLED =====");
   console.log("[City Page] Received props:", {
     hasUser: !!user,
@@ -30,9 +34,13 @@ export default function City({
     isModal: isModal,
   });
 
-  const urlParams = new URLSearchParams(window.location.search);
-  const cityName =
-    cityNameOverride || urlParams.get("name") || urlParams.get("city");
+  // Extract cityId from route params (for /:countryId/:cityId route)
+  const { countryId, cityId: cityIdParam } = useParams();
+  const [searchParams] = useSearchParams();
+  
+  // Support both ID format and legacy query params
+  const legacyCityName = cityNameOverride || searchParams.get("name") || searchParams.get("city");
+  const cityId = cityIdParam;
 
   const [activeTab, setActiveTab] = useState("all");
   const [placeCategory, setPlaceCategory] = useState("all");
@@ -88,6 +96,39 @@ export default function City({
       });
     }
   }, [activeTab]);
+
+  // Fetch city data by ID
+  const {
+    data: cityData,
+    isLoading: isCityLoading,
+  } = useQuery({
+    queryKey: ["cityData", cityId],
+    queryFn: async () => {
+      if (!cityId) return null;
+      
+      try {
+        const response = await apiClient.get(endpoints.cities.getById(cityId));
+        if (response.success && response.data) {
+          return response.data;
+        }
+        return null;
+      } catch (error) {
+        console.error("[City Page] Error fetching city:", error);
+        return null;
+      }
+    },
+    enabled: !!cityId,
+    staleTime: 30 * 60 * 1000, // 30 minutes
+    cacheTime: 60 * 60 * 1000, // 1 hour
+  });
+
+  // Determine city name from either cityData or legacy URL params (memoized to prevent infinite loops)
+  const cityName = React.useMemo(() => {
+    if (cityData) {
+      return `${cityData.name}, ${cityData.country?.name || ''}`;
+    }
+    return legacyCityName;
+  }, [cityData, legacyCityName]);
 
   const {
     data: trips = [],
@@ -261,7 +302,7 @@ export default function City({
       if (a.mentions && b.mentions) return b.mentions - a.mentions;
       return (b.rating || 0) - (a.rating || 0);
     });
-  }, [enrichedTripPlaces, googlePlaces, placeCategory, cityName]);
+  }, [enrichedTripPlaces, placeCategory, cityName]);
 
   useEffect(() => {
     if (activeTab !== "places") return;
@@ -379,7 +420,6 @@ export default function City({
       hasUser: !!user,
       userId: user?.id,
       userName: user?.preferred_name || user?.full_name,
-      hasOpenLoginModal: !!openLoginModal,
     });
 
     console.log("[City Page] Setting selectedPlace and opening modal");
@@ -408,7 +448,6 @@ export default function City({
     isOpen: isPlaceModalOpen,
     hasUser: !!user,
     userId: user?.id,
-    hasOpenLoginModal: !!openLoginModal,
   });
 
   return (
@@ -552,6 +591,7 @@ export default function City({
             cityName={cityName}
             user={user}
             onPlaceClick={handlePlaceClick}
+            openLoginModal={openLoginModal}
           />
         )}
 

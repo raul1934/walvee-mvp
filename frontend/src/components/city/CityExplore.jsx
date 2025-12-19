@@ -1,6 +1,6 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import { createPageUrl } from "@/utils";
+import { createLegacyCityUrl, createPageUrl } from "@/utils";
 import { MapPin, Users } from "lucide-react";
 import { motion } from "framer-motion";
 import UserAvatar from "../common/UserAvatar";
@@ -60,7 +60,7 @@ export default function CityExplore({ relatedCities, featuredLocals, currentCity
                 transition={{ delay: idx * 0.05 }}
               >
                 <Link
-                  to={`${createPageUrl("City")}?name=${encodeURIComponent(city.name)}`}
+                  to={createLegacyCityUrl(city.name)}
                   className="block bg-[#1A1B23] rounded-xl p-4 text-center hover:bg-[#2A2B35] hover:scale-105 transition-all border border-[#2A2B35] hover:border-blue-500/30"
                 >
                   <div className="w-16 h-16 mx-auto mb-3 rounded-full bg-gradient-to-br from-blue-600/20 to-purple-600/20 flex items-center justify-center">

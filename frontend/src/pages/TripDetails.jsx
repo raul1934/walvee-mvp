@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Trip, TripLike, TripSteal, Follow, User } from "@/api/entities";
+import { apiClient } from "@/api/apiClient";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
@@ -1082,32 +1083,61 @@ export default function TripDetails() {
     }
   };
 
-  const handlePlaceClick = (placeIndex) => {
+  const handlePlaceClick = async (placeIndex) => {
     const placeCombinedId = `${selectedDay}-${placeIndex}`;
     setSelectedPlaceId(placeCombinedId);
     setSelectedPlaceIndex(placeIndex);
 
-    const currentDay = tripData?.itinerary?.[selectedDay];
-    if (!currentDay || !currentDay.places) {
-      console.error("Day data not available");
+    // Use currentDayPlaces instead of currentDay.places
+    if (!currentDayPlaces || currentDayPlaces.length === 0) {
+      console.error("Day places not available");
       return;
     }
 
-    const place = currentDay.places[placeIndex];
+    const place = currentDayPlaces[placeIndex];
     if (!place) {
       console.error("Place not found at index:", placeIndex);
       return;
     }
 
-    const placeKey = `${selectedDay}-${placeIndex}`;
-    const enrichedPlace = enrichedPlaces[placeKey] || {};
+    // Build initial photos array from place.photo
+    let photos = [];
+    if (place?.photo) {
+      photos.push(place.photo);
+    }
 
+    // Set initial place details
     setSelectedPlaceDetails({
       ...place,
-      ...enrichedPlace,
-      photos: enrichedPlace?.photos || place?.photos || [],
+      photos: photos,
       reviews: [],
     });
+
+    // Fetch full photos from backend if we have activity with placeDetails
+    const currentDay = tripData?.itinerary?.[selectedDay];
+    const activity = currentDay?.activities?.[placeIndex];
+
+    if (activity?.placeDetails?.id) {
+      try {
+        const data = await apiClient.get(`/places/${activity.placeDetails.id}`);
+        if (data.success && data.data?.photos) {
+          // Update with full photo URLs from backend
+          const fullPhotos = data.data.photos.map(photo =>
+            photo.url_medium || photo.url_large || photo.url_small
+          ).filter(Boolean);
+
+          if (fullPhotos.length > 0) {
+            setSelectedPlaceDetails(prev => ({
+              ...prev,
+              photos: fullPhotos,
+              ...data.data, // Include other enriched data like opening_hours, etc.
+            }));
+          }
+        }
+      } catch (error) {
+        console.error("[TripDetails] Error fetching place photos:", error);
+      }
+    }
 
     const newUrl = `${window.location.pathname}?id=${tripId}&day=${
       selectedDay + 1
@@ -1221,13 +1251,8 @@ export default function TripDetails() {
     if (activeTab === "photos" && placePhotos.length > 0) {
       return placePhotos.map((p) => p.url);
     }
-    return (
-      tripData?.images || [
-        tripData?.image_url ||
-          "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?w=800&h=600&fit=crop",
-      ]
-    );
-  }, [activeTab, placePhotos, tripData?.images, tripData?.image_url]);
+    return tripData?.images || [];
+  }, [activeTab, placePhotos, tripData?.images]);
 
   const commentCount = commentsData?.data?.length || 0;
 
@@ -1252,20 +1277,28 @@ export default function TripDetails() {
 
     // Prioritize activities with placeDetails if available
     if (currentDay.activities && currentDay.activities.length > 0) {
-      return currentDay.activities.map((activity) => ({
-        name: activity.name,
-        address: activity.placeDetails?.address || activity.location,
-        rating: activity.placeDetails?.rating || null,
-        reviews_count: activity.placeDetails?.user_ratings_total || 0,
-        user_ratings_total: activity.placeDetails?.user_ratings_total || 0,
-        price_level: activity.placeDetails?.price_level,
-        place_id: activity.placeDetails?.google_place_id,
-        latitude: activity.placeDetails?.latitude || activity.latitude,
-        longitude: activity.placeDetails?.longitude || activity.longitude,
-        description: activity.description,
-        time: activity.time,
-        isActivity: true,
-      }));
+      return currentDay.activities.map((activity) => {
+        // Find matching place in places array to get photo
+        const matchingPlace = currentDay.places?.find(
+          (p) => p.name === activity.name || p.address === activity.placeDetails?.address
+        );
+
+        return {
+          name: activity.name,
+          address: activity.placeDetails?.address || activity.location,
+          rating: activity.placeDetails?.rating || null,
+          reviews_count: activity.placeDetails?.user_ratings_total || 0,
+          user_ratings_total: activity.placeDetails?.user_ratings_total || 0,
+          price_level: activity.placeDetails?.price_level,
+          place_id: activity.placeDetails?.google_place_id,
+          latitude: activity.placeDetails?.latitude || activity.latitude,
+          longitude: activity.placeDetails?.longitude || activity.longitude,
+          description: activity.description,
+          time: activity.time,
+          photo: matchingPlace?.photo || null,
+          isActivity: true,
+        };
+      });
     }
 
     // Fallback to places for backward compatibility
@@ -1767,7 +1800,7 @@ export default function TripDetails() {
                           Day {String(day.day || idx + 1).padStart(2, "0")}
                         </div>
                         <div className="text-xs opacity-80">
-                          {day.places_count || day.places?.length || "03"}{" "}
+                          {day.activities?.length || 0}{" "}
                           places
                         </div>
                         {selectedDay === idx && (
@@ -1837,9 +1870,19 @@ export default function TripDetails() {
                               >
                                 <div className="flex items-center gap-3">
                                   <div className="relative shrink-0">
-                                    <div className="w-12 h-12 bg-blue-900/50 rounded-xl flex items-center justify-center">
-                                      <MapPin className="w-6 h-6 text-blue-400" />
-                                    </div>
+                                    {displayPlace.photo ? (
+                                      <div className="w-12 h-12 rounded-xl overflow-hidden">
+                                        <img
+                                          src={displayPlace.photo}
+                                          alt={displayPlace.name}
+                                          className="w-full h-full object-cover"
+                                        />
+                                      </div>
+                                    ) : (
+                                      <div className="w-12 h-12 bg-blue-900/50 rounded-xl flex items-center justify-center">
+                                        <MapPin className="w-6 h-6 text-blue-400" />
+                                      </div>
+                                    )}
                                     <div className="absolute -top-1 -left-1 w-5 h-5 bg-blue-600 rounded-full flex items-center justify-center text-xs font-bold">
                                       {idx + 1}
                                     </div>
@@ -1922,10 +1965,9 @@ export default function TripDetails() {
                       <MapPin className="w-4 h-4 text-yellow-500" />
                       <span className="text-yellow-500 font-semibold">
                         {tripData.itinerary?.reduce(
-                          (sum, day) =>
-                            sum + (day.places_count || day.places?.length || 0),
+                          (sum, day) => sum + (day.activities?.length || 0),
                           0
-                        ) || "09"}{" "}
+                        ) || 0}{" "}
                         Places
                       </span>
                       <span className="text-gray-500">|</span>
@@ -1953,9 +1995,7 @@ export default function TripDetails() {
                   {cities.map((city, idx) => (
                     <Link
                       key={idx}
-                      to={`${createPageUrl("City")}?name=${encodeURIComponent(
-                        city
-                      )}`}
+                      to={`/City?name=${encodeURIComponent(city)}`}
                       className="text-sm text-blue-400 hover:text-blue-300 hover:underline transition-colors"
                     >
                       #{city.toLowerCase().replace(/\s+/g, "")}

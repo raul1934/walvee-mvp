@@ -26,9 +26,9 @@ export default function Navbar({ user, onMenuClick, openLoginModal }) {
     retrySearch,
   } = useGlobalSearch();
 
-  // Fetch live KPIs from user entity - with silent error handling
+  // Use cached user data with 30s stale time - refetches automatically when stale
   const { data: liveUser } = useQuery({
-    queryKey: ["userKPIs", user?.id],
+    queryKey: ["currentUser"],
     queryFn: async () => {
       if (!user?.id) return null;
       try {
@@ -40,11 +40,12 @@ export default function Navbar({ user, onMenuClick, openLoginModal }) {
     },
     enabled: !!user?.id,
     retry: 0,
-    refetchInterval: 30000,
     initialData: user,
-    staleTime: 5 * 60 * 1000,
-    cacheTime: 10 * 60 * 1000,
+    staleTime: 30 * 1000, // 30 seconds - data is fresh for 30s, then refetch on next access
+    cacheTime: 10 * 60 * 1000, // Keep in cache for 10 minutes
     refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    refetchOnReconnect: false,
     onError: () => {
       // Silent - don't show error to user
     },

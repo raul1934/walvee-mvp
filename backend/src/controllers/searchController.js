@@ -187,6 +187,7 @@ const searchOverlay = async (req, res, next) => {
         id: city.id,
         name: city.name,
         country: city.country?.name,
+        countryId: city.country?.id,
         countryCode: city.country?.code,
         state: city.state,
         image: city.photos?.[0]?.url_medium || null,

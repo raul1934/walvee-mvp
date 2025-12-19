@@ -254,6 +254,13 @@ export const endpoints = {
     cities: "/home/cities",
     travelers: "/home/travelers",
   },
+
+  // Cities
+  cities: {
+    getById: (id) => `/cities/${id}`,
+    search: "/cities/search",
+    byCountry: "/cities/country",
+  },
 };
 
 export default apiClient;

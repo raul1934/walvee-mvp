@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from "react";
-import { invokeLLM } from "@/api/llmService";
 import { Review } from "@/api/entities";
 import {
   X,
@@ -390,68 +389,32 @@ export default function PlaceDetails({
       setIsLoadingAiReview(true);
 
       try {
-        const hasGoogleReviews = googleReviewsList.length > 0;
-        const hasUserReviews = userReviews.length > 0;
-
-        const prompt = `Create a helpful, editorial-style summary and practical guide for this destination:
-
-**Place:** ${enrichedPlace.name}
-**Location:** ${enrichedPlace.formatted_address || trip.destination}
-**Type:** ${enrichedPlace.types?.[0] || "attraction"}
-**Rating:** ${enrichedPlace.rating ? `${enrichedPlace.rating}/5` : "N/A"}
-${
-  hasGoogleReviews || hasUserReviews
-    ? `**Note:** This place has ${
-        googleReviewsList.length + userReviews.length
-      } traveler reviews`
-    : ""
-}
-
-**Your role:** Provide a curated overview and practical insights that complement other reviews.
-
-**Requirements:**
-
-1. **Structure:** Write 3-4 short, scannable paragraphs (max 4 lines each)
-
-2. **Content sections:**
-   - **Overview:** What makes this place special and who it's perfect for
-   - **Atmosphere & Experience:** Vibe, ambiance, what to expect
-   - **Practical Tips:** Best times to visit, how to get there, what to bring
-   - **Insider Info:** Local tips, things first-timers should know
-
-4. **Sources:**
-   - If using external info, cite at the end:
-   
-Sources:
-- [Source Name](full_url)
-- [Another Source](full_url)
-
-5. **Rating:** Provide a realistic 4-5 star rating based on the place's actual reputation
-
-**Tone:** Helpful travel curator sharing expert insights — informative, warm, trustworthy.`;
-
-        const response = await invokeLLM({
-          prompt: prompt,
-          add_context_from_internet: true,
-          response_json_schema: {
-            type: "object",
-            properties: {
-              rating: { type: "number" },
-              text: { type: "string" },
-            },
-            required: ["rating", "text"],
-          },
-        });
-
-        if (response && response.rating && response.text) {
-          setAiReviews((prev) => ({
-            ...prev,
-            [placeKey]: {
-              rating: response.rating,
-              text: response.text,
-            },
-          }));
+        // First, try to fetch saved AI review from backend
+        if (enrichedPlace.place_id) {
+          try {
+            const response = await fetch(`/v1/places/ai-review/${enrichedPlace.place_id}`);
+            if (response.ok) {
+              const data = await response.json();
+              if (data.data && data.data.rating && data.data.text) {
+                console.log("[PlaceDetails] Found saved AI review in database");
+                setAiReviews((prev) => ({
+                  ...prev,
+                  [placeKey]: {
+                    rating: data.data.rating,
+                    text: data.data.text,
+                  },
+                }));
+                setIsLoadingAiReview(false);
+                return;
+              }
+            }
+          } catch (error) {
+            console.warn("[PlaceDetails] Error fetching saved AI review:", error);
+            // Continue to generate new one
+          }
         }
+        // Generation and saving is now handled by the backend
+        // No need for frontend LLM call
       } catch (error) {
         console.error("Error generating AI review:", error);
       } finally {
@@ -955,7 +918,7 @@ Sources:
                 ))}
               </div>
               <span className="text-sm font-semibold text-white">
-                {enrichedPlace.rating ? enrichedPlace.rating.toFixed(1) : "N/A"}
+                {enrichedPlace.rating ? parseFloat(enrichedPlace.rating).toFixed(1) : "N/A"}
               </span>
               <span className="text-sm text-gray-500">
                 ({googleRatingsTotal.toLocaleString()} reviews)
@@ -1338,26 +1301,36 @@ Sources:
 
         {activeTab === "photos" && (
           <div className="p-6">
-            <div className="grid grid-cols-2 gap-3">
-              {(enrichedPlace.photos || []).map((photo, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => openPhotoModal(idx)}
-                  className="aspect-square rounded-xl overflow-hidden hover:opacity-90 transition-opacity"
-                >
-                  {imageErrors.has(idx) ? (
-                    <ImagePlaceholder type="image" />
-                  ) : (
-                    <img
-                      src={photo}
-                      alt={`${enrichedPlace.name} ${idx + 1}`}
-                      className="w-full h-full object-cover"
-                      onError={() => handleImageError(idx)}
-                    />
-                  )}
-                </button>
-              ))}
-            </div>
+            {enrichedPlace.photos && enrichedPlace.photos.length > 0 ? (
+              <div className="grid grid-cols-2 gap-3">
+                {enrichedPlace.photos.map((photo, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => openPhotoModal(idx)}
+                    className="aspect-square rounded-xl overflow-hidden hover:opacity-90 transition-opacity"
+                  >
+                    {imageErrors.has(idx) ? (
+                      <ImagePlaceholder type="image" />
+                    ) : (
+                      <img
+                        src={photo}
+                        alt={`${enrichedPlace.name} ${idx + 1}`}
+                        className="w-full h-full object-cover"
+                        onError={() => handleImageError(idx)}
+                      />
+                    )}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center h-64 text-center">
+                <ImageIcon className="w-16 h-16 text-gray-600 mb-4" />
+                <p className="text-gray-400 text-lg font-medium">No photos available</p>
+                <p className="text-gray-500 text-sm mt-2">
+                  This place doesn't have any photos yet
+                </p>
+              </div>
+            )}
           </div>
         )}
 

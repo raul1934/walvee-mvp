@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
-import { createPageUrl } from "@/utils";
+import { createCityUrl } from "@/utils";
 import { apiClient, endpoints } from "@/api/apiClient";
 
 export default function DestinationCarousel() {
@@ -19,8 +19,10 @@ export default function DestinationCarousel() {
         const response = await apiClient.get(endpoints.home.cities);
 
         if (response.success && response.data) {
-          // Format for carousel: {name, tripsCount, image}
+          // Format for carousel: {id, country_id, name, tripsCount, image}
           const cities = response.data.map((city) => ({
+            id: city.id,
+            country_id: city.country?.id,
             name: `${city.name}, ${city.country_name}`,
             tripsCount: city.trip_count,
             image: city.city_image || city.photo,
@@ -100,9 +102,7 @@ export default function DestinationCarousel() {
           {cities.map((city) => (
             <Link
               key={city.name}
-              to={`${createPageUrl("City")}?name=${encodeURIComponent(
-                city.name
-              )}`}
+              to={createCityUrl(city.country_id, city.id)}
               className="flex-shrink-0 group cursor-pointer"
             >
               <div className="relative w-14 h-14 md:w-16 md:h-16 rounded-full overflow-hidden border-2 border-gray-700 group-hover:border-blue-500 transition-all duration-300 group-hover:scale-110">

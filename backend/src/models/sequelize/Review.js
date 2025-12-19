@@ -38,6 +38,21 @@ const Review = sequelize.define(
     comment: {
       type: DataTypes.TEXT,
     },
+    ai_rating: {
+      type: DataTypes.FLOAT,
+      allowNull: true,
+      comment: "AI-generated rating (1-5 stars)",
+    },
+    ai_text: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      comment: "AI-generated review text",
+    },
+    is_ai_generated: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
+      comment: "Flag to indicate if this review is AI-generated",
+    },
   },
   {
     tableName: "reviews",
@@ -45,6 +60,7 @@ const Review = sequelize.define(
       { fields: ["trip_id"] },
       { fields: ["place_id"] },
       { fields: ["reviewer_id"] },
+      { fields: ["place_id", "is_ai_generated"] },
     ],
   }
 );

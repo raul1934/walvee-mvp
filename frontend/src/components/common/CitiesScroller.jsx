@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Link } from "react-router-dom";
-import { createPageUrl } from "@/utils";
+import { createLegacyCityUrl } from "@/utils";
 
 export default function CitiesScroller({ cities, className = "", makeLinks = false }) {
   const scrollRef = useRef(null);
@@ -50,7 +50,7 @@ export default function CitiesScroller({ cities, className = "", makeLinks = fal
     if (makeLinks) {
       return (
         <Link
-          to={`${createPageUrl("City")}?name=${encodeURIComponent(cities[0])}`}
+          to={createLegacyCityUrl(cities[0])}
           onClick={(e) => e.stopPropagation()}
           className={`${className} hover:text-blue-400 transition-colors`}
         >
@@ -85,7 +85,7 @@ export default function CitiesScroller({ cities, className = "", makeLinks = fal
           <React.Fragment key={idx}>
             {makeLinks ? (
               <Link
-                to={`${createPageUrl("City")}?name=${encodeURIComponent(city)}`}
+                to={createLegacyCityUrl(city)}
                 onClick={(e) => e.stopPropagation()}
                 className="whitespace-nowrap hover:text-blue-400 transition-colors"
               >

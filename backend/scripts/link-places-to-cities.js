@@ -1,4 +1,4 @@
-const { getConnection } = require('../src/database/connection');
+const { getConnection } = require("../src/database/connection");
 
 /**
  * Script to link places to cities by matching place names with city names
@@ -6,8 +6,8 @@ const { getConnection } = require('../src/database/connection');
  */
 
 async function linkPlacesToCities() {
-  console.log('\n🔗 LINKING PLACES TO CITIES');
-  console.log('===========================\n');
+  console.log("\n🔗 LINKING PLACES TO CITIES");
+  console.log("===========================\n");
 
   const connection = await getConnection();
 
@@ -23,7 +23,7 @@ async function linkPlacesToCities() {
     console.log(`Found ${placesWithoutCity.length} places without city_id\n`);
 
     if (placesWithoutCity.length === 0) {
-      console.log('✅ All places are already linked to cities!');
+      console.log("✅ All places are already linked to cities!");
       return;
     }
 
@@ -44,22 +44,23 @@ async function linkPlacesToCities() {
 
       // Try to extract city name from address
       if (place.address) {
-        const addressParts = place.address.split(',').map(s => s.trim());
-        
+        const addressParts = place.address.split(",").map((s) => s.trim());
+
         // Try to find city in address (usually second to last or third to last part)
         for (let i = 0; i < addressParts.length && !cityMatch; i++) {
           const addressPart = addressParts[i];
-          
+
           // Try exact match
-          cityMatch = cities.find(c => 
-            c.name.toLowerCase() === addressPart.toLowerCase()
+          cityMatch = cities.find(
+            (c) => c.name.toLowerCase() === addressPart.toLowerCase()
           );
 
           // Try partial match
           if (!cityMatch) {
-            cityMatch = cities.find(c => 
-              addressPart.toLowerCase().includes(c.name.toLowerCase()) ||
-              c.name.toLowerCase().includes(addressPart.toLowerCase())
+            cityMatch = cities.find(
+              (c) =>
+                addressPart.toLowerCase().includes(c.name.toLowerCase()) ||
+                c.name.toLowerCase().includes(addressPart.toLowerCase())
             );
           }
         }
@@ -69,25 +70,30 @@ async function linkPlacesToCities() {
       if (!cityMatch) {
         // Check if place name contains a city name
         const placeLower = place.name.toLowerCase();
-        cityMatch = cities.find(c => 
-          placeLower.includes(c.name.toLowerCase()) ||
-          c.name.toLowerCase().includes(placeLower)
+        cityMatch = cities.find(
+          (c) =>
+            placeLower.includes(c.name.toLowerCase()) ||
+            c.name.toLowerCase().includes(placeLower)
         );
       }
 
       if (cityMatch) {
-        console.log(`✓ Matched: "${place.name}" → ${cityMatch.name}, ${cityMatch.country_name}`);
-        
-        // Update the place with city_id
-        await connection.query(
-          'UPDATE places SET city_id = ? WHERE id = ?',
-          [cityMatch.id, place.id]
+        console.log(
+          `✓ Matched: "${place.name}" → ${cityMatch.name}, ${cityMatch.country_name}`
         );
-        
+
+        // Update the place with city_id
+        await connection.query("UPDATE places SET city_id = ? WHERE id = ?", [
+          cityMatch.id,
+          place.id,
+        ]);
+
         place.matched = true; // Mark as matched
         matched++;
       } else {
-        console.log(`✗ No match: "${place.name}" (${place.address || 'no address'})`);
+        console.log(
+          `✗ No match: "${place.name}" (${place.address || "no address"})`
+        );
         place.matched = false; // Mark as unmatched
         unmatched++;
       }
@@ -95,9 +101,11 @@ async function linkPlacesToCities() {
 
     // Try AI matching for unmatched places
     if (unmatched > 0) {
-      console.log('\n🤖 Attempting AI-based matching for remaining places...\n');
-      
-      const unmatchedPlaces = placesWithoutCity.filter(place => {
+      console.log(
+        "\n🤖 Attempting AI-based matching for remaining places...\n"
+      );
+
+      const unmatchedPlaces = placesWithoutCity.filter((place) => {
         // Check if this place was not matched yet
         return !place.matched;
       });
@@ -105,72 +113,94 @@ async function linkPlacesToCities() {
       for (const place of unmatchedPlaces) {
         try {
           const inferredCityName = await inferCityNameWithAI(place, cities);
-          
+
           if (inferredCityName) {
             // Try to match with existing cities first
-            const match = cities.find(c => 
-              c.name.toLowerCase() === inferredCityName.toLowerCase() ||
-              inferredCityName.toLowerCase().includes(c.name.toLowerCase())
+            const match = cities.find(
+              (c) =>
+                c.name.toLowerCase() === inferredCityName.toLowerCase() ||
+                inferredCityName.toLowerCase().includes(c.name.toLowerCase())
             );
 
             if (match) {
-              console.log(`✓ AI Matched: "${place.name}" → ${match.name}, ${match.country_name}`);
-              
+              console.log(
+                `✓ AI Matched: "${place.name}" → ${match.name}, ${match.country_name}`
+              );
+
               await connection.query(
-                'UPDATE places SET city_id = ? WHERE id = ?',
+                "UPDATE places SET city_id = ? WHERE id = ?",
                 [match.id, place.id]
               );
-              
+
               matched++;
               unmatched--;
               place.matched = true;
             } else {
               // Store the inferred city name for Google Maps lookup
-              console.log(`🔍 AI inferred city "${inferredCityName}" for "${place.name}" - will fetch from Google Maps`);
+              console.log(
+                `🔍 AI inferred city "${inferredCityName}" for "${place.name}" - will fetch from Google Maps`
+              );
               place.inferredCityName = inferredCityName;
             }
           }
         } catch (error) {
-          console.error(`✗ AI inference failed for "${place.name}":`, error.message);
+          console.error(
+            `✗ AI inference failed for "${place.name}":`,
+            error.message
+          );
         }
       }
     }
 
     // Try Google Maps to create missing cities
     if (unmatched > 0) {
-      console.log('\n🗺️  Fetching city info from Google Maps for remaining places...\n');
-      
-      const stillUnmatched = placesWithoutCity.filter(place => !place.matched);
+      console.log(
+        "\n🗺️  Fetching city info from Google Maps for remaining places...\n"
+      );
+
+      const stillUnmatched = placesWithoutCity.filter(
+        (place) => !place.matched
+      );
 
       for (const place of stillUnmatched) {
         try {
           // Use AI-inferred city name if available for better Google Maps search
-          const cityCreated = await fetchAndCreateCityFromGoogleMaps(place, connection, place.inferredCityName);
-          
+          const cityCreated = await fetchAndCreateCityFromGoogleMaps(
+            place,
+            connection,
+            place.inferredCityName
+          );
+
           if (cityCreated) {
-            console.log(`✓ Created city and linked: "${place.name}" → ${cityCreated.cityName}`);
+            console.log(
+              `✓ Created city and linked: "${place.name}" → ${cityCreated.cityName}`
+            );
             matched++;
             unmatched--;
           }
         } catch (error) {
-          console.error(`✗ Google Maps fetch failed for "${place.name}":`, error.message);
+          console.error(
+            `✗ Google Maps fetch failed for "${place.name}":`,
+            error.message
+          );
         }
       }
     }
 
-    console.log('\n📊 RESULTS');
-    console.log('==========');
+    console.log("\n📊 RESULTS");
+    console.log("==========");
     console.log(`Total places processed: ${placesWithoutCity.length}`);
     console.log(`Successfully matched: ${matched}`);
     console.log(`No match found: ${unmatched}`);
 
     if (unmatched > 0) {
-      console.log('\n⚠️  Some places could not be matched automatically.');
-      console.log('   You may need to manually link them or add the cities to the database.');
+      console.log("\n⚠️  Some places could not be matched automatically.");
+      console.log(
+        "   You may need to manually link them or add the cities to the database."
+      );
     }
-
   } catch (error) {
-    console.error('\n❌ ERROR:', error.message);
+    console.error("\n❌ ERROR:", error.message);
     console.error(error.stack);
     process.exit(1);
   } finally {
@@ -185,18 +215,18 @@ async function linkPlacesToCities() {
  * @returns {string|null} - City name or null
  */
 async function inferCityNameWithAI(place, cities) {
-  const axios = require('axios');
-  
+  const axios = require("axios");
+
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    console.log('⚠️  GEMINI_API_KEY not found, skipping AI inference');
+    console.log("⚠️  GEMINI_API_KEY not found, skipping AI inference");
     return null;
   }
 
   const prompt = `Analyze this place and determine which city it is located in.
 
 Place Name: ${place.name}
-Place Address: ${place.address || 'N/A'}
+Place Address: ${place.address || "N/A"}
 
 Instructions:
 1. Based on the place name and address, determine the city name
@@ -210,34 +240,37 @@ City name:`;
     const response = await axios.post(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
       {
-        contents: [{
-          parts: [{
-            text: prompt
-          }]
-        }],
+        contents: [
+          {
+            parts: [
+              {
+                text: prompt,
+              },
+            ],
+          },
+        ],
         generationConfig: {
           temperature: 0,
           maxOutputTokens: 20,
-        }
+        },
       },
       {
         headers: {
-          'Content-Type': 'application/json'
+          "Content-Type": "application/json",
         },
-        timeout: 10000
+        timeout: 10000,
       }
     );
 
     const cityName = response.data.candidates[0].content.parts[0].text.trim();
-    
-    if (cityName === 'UNKNOWN' || !cityName) {
+
+    if (cityName === "UNKNOWN" || !cityName) {
       return null;
     }
 
     return cityName;
-    
   } catch (error) {
-    if (error.code === 'ECONNABORTED') {
+    if (error.code === "ECONNABORTED") {
       console.log(`  ⏱️  Timeout for "${place.name}"`);
     }
     return null;
@@ -251,13 +284,22 @@ City name:`;
  * @param {string} inferredCityName - Optional city name inferred by AI
  * @returns {Object|null} - Created city info or null
  */
-async function fetchAndCreateCityFromGoogleMaps(place, connection, inferredCityName = null) {
-  const axios = require('axios');
-  const { getPlaceDetailsWithPhotos, getCityDetailsWithPhotos } = require('../src/services/googleMapsService');
-  
+async function fetchAndCreateCityFromGoogleMaps(
+  place,
+  connection,
+  inferredCityName = null
+) {
+  const axios = require("axios");
+  const {
+    getPlaceDetailsWithPhotos,
+    getCityDetailsWithPhotos,
+  } = require("../src/services/googleMapsService");
+
   const apiKey = process.env.GOOGLE_MAPS_API_KEY;
   if (!apiKey) {
-    console.log('⚠️  GOOGLE_MAPS_API_KEY not found, skipping Google Maps fetch');
+    console.log(
+      "⚠️  GOOGLE_MAPS_API_KEY not found, skipping Google Maps fetch"
+    );
     return null;
   }
 
@@ -272,8 +314,10 @@ async function fetchAndCreateCityFromGoogleMaps(place, connection, inferredCityN
 
     // If AI inferred a city name, try to find it on Google Maps first
     if (inferredCityName) {
-      console.log(`  🔍 Searching Google Maps for AI-inferred city: "${inferredCityName}"`);
-      
+      console.log(
+        `  🔍 Searching Google Maps for AI-inferred city: "${inferredCityName}"`
+      );
+
       try {
         // Search for the city on Google Maps
         const searchResponse = await axios.get(
@@ -281,20 +325,23 @@ async function fetchAndCreateCityFromGoogleMaps(place, connection, inferredCityN
           {
             params: {
               input: inferredCityName,
-              inputtype: 'textquery',
-              fields: 'place_id,name,geometry',
-              key: apiKey
-            }
+              inputtype: "textquery",
+              fields: "place_id,name,geometry",
+              key: apiKey,
+            },
           }
         );
 
-        if (searchResponse.data.candidates && searchResponse.data.candidates.length > 0) {
+        if (
+          searchResponse.data.candidates &&
+          searchResponse.data.candidates.length > 0
+        ) {
           const cityPlaceId = searchResponse.data.candidates[0].place_id;
           console.log(`  ✓ Found city on Google Maps: ${cityPlaceId}`);
-          
+
           // Get detailed city info
           const cityDetails = await getCityDetailsWithPhotos(cityPlaceId);
-          
+
           if (cityDetails && cityDetails.address_components) {
             googleMapsId = cityPlaceId;
             cityLat = cityDetails.geometry?.location?.lat;
@@ -302,13 +349,13 @@ async function fetchAndCreateCityFromGoogleMaps(place, connection, inferredCityN
 
             // Extract city and country from city details
             for (const component of cityDetails.address_components) {
-              if (component.types.includes('locality')) {
+              if (component.types.includes("locality")) {
                 cityName = component.long_name;
               }
-              if (component.types.includes('administrative_area_level_1')) {
+              if (component.types.includes("administrative_area_level_1")) {
                 stateName = component.long_name;
               }
-              if (component.types.includes('country')) {
+              if (component.types.includes("country")) {
                 countryName = component.long_name;
                 countryCode = component.short_name;
               }
@@ -316,15 +363,19 @@ async function fetchAndCreateCityFromGoogleMaps(place, connection, inferredCityN
           }
         }
       } catch (error) {
-        console.log(`  ⚠️  Could not fetch AI-inferred city from Google Maps: ${error.message}`);
+        console.log(
+          `  ⚠️  Could not fetch AI-inferred city from Google Maps: ${error.message}`
+        );
       }
     }
 
     // Fallback: Get place details to extract city info
     if (!cityName) {
       console.log(`  📍 Fetching place details from Google Maps...`);
-      const placeDetails = await getPlaceDetailsWithPhotos(place.google_place_id);
-      
+      const placeDetails = await getPlaceDetailsWithPhotos(
+        place.google_place_id
+      );
+
       if (!placeDetails || !placeDetails.address_components) {
         console.log(`  ⚠️  No address components for "${place.name}"`);
         return null;
@@ -332,13 +383,13 @@ async function fetchAndCreateCityFromGoogleMaps(place, connection, inferredCityN
 
       // Extract city and country from address components
       for (const component of placeDetails.address_components) {
-        if (component.types.includes('locality')) {
+        if (component.types.includes("locality")) {
           cityName = component.long_name;
         }
-        if (component.types.includes('administrative_area_level_1')) {
+        if (component.types.includes("administrative_area_level_1")) {
           stateName = component.long_name;
         }
-        if (component.types.includes('country')) {
+        if (component.types.includes("country")) {
           countryName = component.long_name;
           countryCode = component.short_name;
         }
@@ -357,7 +408,7 @@ async function fetchAndCreateCityFromGoogleMaps(place, connection, inferredCityN
 
     // Check if country exists, if not create it
     let [countries] = await connection.query(
-      'SELECT id FROM countries WHERE code = ? OR name = ?',
+      "SELECT id FROM countries WHERE code = ? OR name = ?",
       [countryCode, countryName]
     );
 
@@ -365,7 +416,7 @@ async function fetchAndCreateCityFromGoogleMaps(place, connection, inferredCityN
     if (countries.length === 0) {
       console.log(`  ➕ Creating country: ${countryName}`);
       const [result] = await connection.query(
-        'INSERT INTO countries (name, code, created_at) VALUES (?, ?, NOW())',
+        "INSERT INTO countries (name, code, created_at) VALUES (?, ?, NOW())",
         [countryName, countryCode]
       );
       countryId = result.insertId;
@@ -375,16 +426,16 @@ async function fetchAndCreateCityFromGoogleMaps(place, connection, inferredCityN
 
     // Check if city already exists
     let [existingCities] = await connection.query(
-      'SELECT id FROM cities WHERE name = ? AND country_id = ?',
+      "SELECT id FROM cities WHERE name = ? AND country_id = ?",
       [cityName, countryId]
     );
 
     let cityId;
     if (existingCities.length === 0) {
       console.log(`  ➕ Creating city: ${cityName}`);
-      
+
       const [result] = await connection.query(
-        'INSERT INTO cities (name, state, country_id, latitude, longitude, google_maps_id, created_at) VALUES (?, ?, ?, ?, ?, ?, NOW())',
+        "INSERT INTO cities (name, state, country_id, latitude, longitude, google_maps_id, created_at) VALUES (?, ?, ?, ?, ?, ?, NOW())",
         [cityName, stateName, countryId, cityLat, cityLng, googleMapsId]
       );
       cityId = result.insertId;
@@ -394,13 +445,12 @@ async function fetchAndCreateCityFromGoogleMaps(place, connection, inferredCityN
     }
 
     // Link place to city
-    await connection.query(
-      'UPDATE places SET city_id = ? WHERE id = ?',
-      [cityId, place.id]
-    );
+    await connection.query("UPDATE places SET city_id = ? WHERE id = ?", [
+      cityId,
+      place.id,
+    ]);
 
     return { cityName, countryName, cityId };
-    
   } catch (error) {
     console.error(`  ✗ Error fetching from Google Maps:`, error.message);
     return null;
@@ -409,6 +459,6 @@ async function fetchAndCreateCityFromGoogleMaps(place, connection, inferredCityN
 
 // Run the script
 linkPlacesToCities().then(() => {
-  console.log('\n✅ Script completed!');
+  console.log("\n✅ Script completed!");
   process.exit(0);
 });

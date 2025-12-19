@@ -1,8 +1,9 @@
-const { Place, PlacePhoto, City, Country, Trip, TripPlace } = require("../models/sequelize");
+const { Place, PlacePhoto, City, Country, Trip, TripPlace, Review } = require("../models/sequelize");
 const { Op } = require("sequelize");
 const {
   buildSuccessResponse,
   buildErrorResponse,
+  getFullImageUrl,
 } = require("../utils/helpers");
 const {
   searchPlace,
@@ -11,6 +12,7 @@ const {
   getPlaceDetails,
   getTimezone,
 } = require("../services/googleMapsService");
+const { GoogleGenerativeAI } = require("@google/generative-ai");
 
 /**
  * Helper function to find or create a city from Google Maps place data
@@ -411,9 +413,184 @@ const getPlaceById = async (req, res, next) => {
         .json(buildErrorResponse("NOT_FOUND", "Place not found"));
     }
 
-    return res.json(buildSuccessResponse(place));
+    // Format photos with full URLs
+    const formattedPlace = {
+      ...place.toJSON(),
+      photos: place.photos?.map(photo => ({
+        ...photo.toJSON(),
+        url_small: getFullImageUrl(photo.url_small),
+        url_medium: getFullImageUrl(photo.url_medium),
+        url_large: getFullImageUrl(photo.url_large),
+      })) || []
+    };
+
+    return res.json(buildSuccessResponse(formattedPlace));
   } catch (error) {
     console.error("[Get Place] Error:", error);
+    next(error);
+  }
+};
+
+/**
+ * Helper to initialize Gemini AI
+ */
+const initGemini = () => {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    console.warn("[Places] GEMINI_API_KEY not configured");
+    return null;
+  }
+  return new GoogleGenerativeAI(apiKey);
+};
+
+/**
+ * Helper to generate AI review text using Gemini
+ */
+const generateAiReviewText = async (place) => {
+  try {
+    const genAI = initGemini();
+    if (!genAI) {
+      throw new Error("LLM service not configured");
+    }
+
+    const prompt = `Create a helpful, editorial-style summary and practical guide for this destination:
+
+**Place:** ${place.name}
+**Location:** ${place.formatted_address || ""}
+**Type:** ${place.types?.[0] || "attraction"}
+**Rating:** ${place.rating ? `${place.rating}/5` : "N/A"}
+
+**Your role:** Provide a curated overview and practical insights that complement other reviews.
+
+**Requirements:**
+
+1. **Structure:** Write 3-4 short, scannable paragraphs (max 4 lines each)
+
+2. **Content sections:**
+   - **Overview:** What makes this place special and who it's perfect for
+   - **Atmosphere & Experience:** Vibe, ambiance, what to expect
+   - **Practical Tips:** Best times to visit, how to get there, what to bring
+   - **Insider Info:** Local tips, things first-timers should know
+
+3. **Sources:**
+   - If using external info, cite at the end:
+   
+Sources:
+- [Source Name](full_url)
+- [Another Source](full_url)
+
+4. **Rating:** Provide a realistic 4-5 star rating based on the place's actual reputation
+
+**Tone:** Helpful travel curator sharing expert insights — informative, warm, trustworthy.`;
+
+    const modelConfig = {
+      model: "gemini-2.5-flash",
+      generationConfig: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: "object",
+          properties: {
+            rating: { type: "number" },
+            text: { type: "string" },
+          },
+          required: ["rating", "text"],
+        },
+      },
+    };
+
+    const geminiModel = genAI.getGenerativeModel(modelConfig);
+    const result = await geminiModel.generateContent(prompt);
+    const responseText = result.response.text();
+    
+    return JSON.parse(responseText);
+  } catch (error) {
+    console.error("[Generate AI Review] Error:", error.message);
+    throw error;
+  }
+};
+
+/**
+ * Get AI review for a place
+ * Returns saved AI review if exists, otherwise generates and saves a new one
+ */
+const getAiReview = async (req, res, next) => {
+  try {
+    const { placeId } = req.params;
+
+    if (!placeId) {
+      return res.status(400).json(
+        buildErrorResponse("INVALID_INPUT", "placeId is required")
+      );
+    }
+
+    // Find the AI review for this place
+    let aiReview = await Review.findOne({
+      where: {
+        place_id: placeId,
+        is_ai_generated: true,
+      },
+      attributes: ["id", "place_id", "ai_rating", "ai_text", "created_at"],
+    });
+
+    // If found, return it
+    if (aiReview) {
+      console.log(`[Get AI Review] Found existing AI review for place: ${placeId}`);
+      return res.json(
+        buildSuccessResponse(
+          {
+            id: aiReview.id,
+            place_id: aiReview.place_id,
+            rating: aiReview.ai_rating,
+            text: aiReview.ai_text,
+            created_at: aiReview.created_at,
+          },
+          "AI review retrieved successfully"
+        )
+      );
+    }
+
+    // If not found, generate new one
+    console.log(`[Get AI Review] No existing AI review found, generating new one for place: ${placeId}`);
+
+    // Get place details
+    const place = await Place.findByPk(placeId);
+    if (!place) {
+      return res.status(404).json(
+        buildErrorResponse("NOT_FOUND", "Place not found")
+      );
+    }
+
+    // Generate AI review
+    const aiGeneratedReview = await generateAiReviewText(place.toJSON());
+
+    if (!aiGeneratedReview || !aiGeneratedReview.rating || !aiGeneratedReview.text) {
+      throw new Error("Failed to generate AI review");
+    }
+
+    // Save the generated review
+    aiReview = await Review.create({
+      place_id: placeId,
+      ai_rating: aiGeneratedReview.rating,
+      ai_text: aiGeneratedReview.text,
+      is_ai_generated: true,
+    });
+
+    console.log(`[Get AI Review] Created and saved new AI review for place: ${placeId}`);
+
+    return res.json(
+      buildSuccessResponse(
+        {
+          id: aiReview.id,
+          place_id: aiReview.place_id,
+          rating: aiReview.ai_rating,
+          text: aiReview.ai_text,
+          created_at: aiReview.created_at,
+        },
+        "AI review generated and saved successfully"
+      )
+    );
+  } catch (error) {
+    console.error("[Get AI Review] Error:", error);
     next(error);
   }
 };
@@ -422,4 +599,5 @@ module.exports = {
   searchPlaces,
   getTripPlacesEnriched,
   getPlaceById,
+  getAiReview,
 };

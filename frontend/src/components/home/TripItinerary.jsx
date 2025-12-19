@@ -23,6 +23,13 @@ export default function TripItinerary({ trip, onPlaceClick }) {
   const daysScrollRef = useRef(null);
   const navigate = useNavigate();
 
+  // Debug: log places data
+  React.useEffect(() => {
+    if (trip?.itinerary?.[selectedDay]?.places) {
+      console.log('[TripItinerary] Places for day', selectedDay, ':', trip.itinerary[selectedDay].places);
+    }
+  }, [selectedDay, trip]);
+
   if (!trip.itinerary || trip.itinerary.length === 0) {
     return (
       <div className="bg-[#1A1B23] rounded-3xl overflow-hidden border border-[#2A2B35] h-full flex items-center justify-center">
@@ -69,7 +76,7 @@ export default function TripItinerary({ trip, onPlaceClick }) {
   };
 
   return (
-    <div className="bg-[#1A1B23] rounded-3xl overflow-hidden border border-[#2A2B35] h-full flex flex-col">
+    <div className="bg-[#1A1B23] rounded-3xl overflow-hidden h-full flex flex-col">
       {/* Day Selector - Horizontal Carousel */}
       <div className="relative flex items-center gap-2 px-4 py-3 border-b border-[#2A2B35]">
         {totalDays > 3 && (
@@ -114,7 +121,7 @@ export default function TripItinerary({ trip, onPlaceClick }) {
 
       {/* Places List - Scrollable */}
       <div className="flex-1 overflow-y-auto scrollbar-hide px-4 py-3">
-        <div className="space-y-3">
+        <div className="space-y-3 mb-12">
           {currentDay.places?.map((place, idx) => {
             const priceRange = getPriceRangeText(place.price_level);
             
@@ -126,9 +133,19 @@ export default function TripItinerary({ trip, onPlaceClick }) {
               >
                 <div className="flex items-start gap-3">
                   <div className="relative shrink-0">
-                    <div className="w-12 h-12 bg-blue-900/50 rounded-xl flex items-center justify-center">
-                      <MapPin className="w-6 h-6 text-blue-400" />
-                    </div>
+                    {place.photo ? (
+                      <div className="w-12 h-12 rounded-xl overflow-hidden">
+                        <img
+                          src={place.photo}
+                          alt={place.name}
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                    ) : (
+                      <div className="w-12 h-12 bg-blue-900/50 rounded-xl flex items-center justify-center">
+                        <MapPin className="w-6 h-6 text-blue-400" />
+                      </div>
+                    )}
                     <div className="absolute -top-1 -left-1 w-5 h-5 bg-blue-600 rounded-full flex items-center justify-center text-xs font-bold">
                       {idx + 1}
                     </div>

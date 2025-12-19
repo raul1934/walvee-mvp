@@ -86,7 +86,7 @@ export default function CityTripGrid({ trips, isLoading, currentUserId }) {
                     <CitiesScroller
                       cities={cities}
                       className="text-xs"
-                      makeLinks={true}
+                      makeLinks={false}
                     />
                   </div>
                 </div>

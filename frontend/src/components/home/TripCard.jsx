@@ -50,26 +50,11 @@ export default React.memo(
 
     // Determine valid images - filter out broken ones and provide a fallback if none exist
     const validImages = React.useMemo(() => {
-      // Prioritize: cover_image/coverImage > trip.images array > trip.image_url
-      let sourceImages = [];
-
-      if (trip.cover_image || trip.coverImage) {
-        sourceImages = [trip.cover_image || trip.coverImage];
-      } else if (trip.images && trip.images.length > 0) {
-        sourceImages = trip.images;
-      } else if (trip.image_url) {
-        sourceImages = [trip.image_url];
-      }
+      const sourceImages = trip.images || [];
 
       // Filter out any null/undefined entries and those marked as erroneous
       return sourceImages.filter((img, idx) => img && !imageErrors.has(idx));
-    }, [
-      trip.cover_image,
-      trip.coverImage,
-      trip.images,
-      trip.image_url,
-      imageErrors,
-    ]);
+    }, [trip.images, imageErrors]);
 
     const hasValidImages = validImages.length > 0;
 

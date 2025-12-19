@@ -1,20 +1,11 @@
-const { Trip, User, City, Country, CityPhoto } = require("../models/sequelize");
+const { Trip, User, City, Country, CityPhoto, Place, PlacePhoto, TripItineraryDay, TripItineraryActivity } = require("../models/sequelize");
 const { Op } = require("sequelize");
 const { sequelize } = require("../database/sequelize");
 const {
   buildSuccessResponse,
   buildErrorResponse,
+  getFullImageUrl,
 } = require("../utils/helpers");
-
-// Helper function to build full image URL
-const getFullImageUrl = (imagePath) => {
-  if (!imagePath) return null;
-  if (imagePath.startsWith("http://") || imagePath.startsWith("https://")) {
-    return imagePath; // Already a full URL
-  }
-  const baseUrl = process.env.BACKEND_URL || "http://localhost:3000";
-  return `${baseUrl}${imagePath.startsWith("/") ? "" : "/"}${imagePath}`;
-};
 
 /**
  * Get random trips for home page
@@ -33,6 +24,7 @@ const getHomeTrips = async (req, res) => {
         "title",
         "description",
         "destination",
+        "destination_city_id",
         "duration",
         "budget",
         "is_public",
@@ -47,31 +39,154 @@ const getHomeTrips = async (req, res) => {
           as: "author",
           attributes: ["id", "full_name", "preferred_name", "photo_url"],
         },
+        {
+          model: City,
+          as: "destinationCity",
+          attributes: ["id", "name"],
+          include: [
+            {
+              model: CityPhoto,
+              as: "photos",
+              attributes: ["url_small", "url_medium", "url_large"],
+              limit: 3,
+            },
+          ],
+        },
+        {
+          model: TripItineraryDay,
+          as: "itineraryDays",
+          attributes: ["id", "day_number", "title"],
+          include: [
+            {
+              model: TripItineraryActivity,
+              as: "activities",
+              attributes: ["place_id", "time", "name", "location", "description", "activity_order"],
+              include: [
+                {
+                  model: Place,
+                  as: "placeDetails",
+                  attributes: ["id", "name", "address", "rating", "price_level"],
+                  include: [
+                    {
+                      model: PlacePhoto,
+                      as: "photos",
+                      attributes: ["url_small", "url_medium", "url_large"],
+                      limit: 3,
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+          order: [["day_number", "ASC"]],
+        },
       ],
     });
 
     // Format response
-    const formattedTrips = trips.map((trip) => ({
-      id: trip.id,
-      title: trip.title,
-      description: trip.description,
-      destination: trip.destination,
-      duration: trip.duration,
-      budget: trip.budget,
-      tags: trip.tags,
-      is_public: trip.is_public,
-      cover_image: getFullImageUrl(trip.cover_image),
-      image_url: getFullImageUrl(trip.cover_image),
-      images: trip.cover_image ? [getFullImageUrl(trip.cover_image)] : [],
-      likes: trip.likes_count || 0,
-      views: trip.views_count || 0,
-      steals: trip.steals_count || 0,
-      created_at: trip.created_at,
-      author_name:
-        trip.author?.preferred_name || trip.author?.full_name || "Unknown User",
-      author_photo: getFullImageUrl(trip.author?.photo_url),
-      author_id: trip.author?.id,
-    }));
+    const formattedTrips = trips.map((trip) => {
+      // Collect all images: cover + city photos + place photos
+      const images = [];
+      
+      // Add cover image first
+      if (trip.cover_image) {
+        images.push(getFullImageUrl(trip.cover_image));
+      }
+      
+      // Add city photos
+      if (trip.destinationCity?.photos) {
+        trip.destinationCity.photos.forEach(photo => {
+          if (photo.url_medium) {
+            images.push(getFullImageUrl(photo.url_medium));
+          }
+        });
+      }
+      
+      // Add place photos from itinerary days and activities
+      if (trip.itineraryDays) {
+        const addedPlaceIds = new Set();
+        trip.itineraryDays.forEach(day => {
+          if (day.activities) {
+            day.activities.forEach(activity => {
+              if (activity.placeDetails?.photos && !addedPlaceIds.has(activity.placeDetails.id)) {
+                addedPlaceIds.add(activity.placeDetails.id);
+                activity.placeDetails.photos.forEach(photo => {
+                  if (photo.url_medium) {
+                    images.push(getFullImageUrl(photo.url_medium));
+                  }
+                });
+              }
+            });
+          }
+        });
+      }
+
+      // Calculate duration_days from itinerary
+      const durationDays = trip.itineraryDays ? trip.itineraryDays.length : 0;
+
+      return {
+        id: trip.id,
+        title: trip.title,
+        description: trip.description,
+        destination: trip.destination,
+        duration: trip.duration,
+        duration_days: durationDays,
+        budget: trip.budget,
+        is_public: trip.is_public,
+        images: images,
+        likes: trip.likes_count || 0,
+        views: trip.views_count || 0,
+        created_at: trip.created_at,
+        author_name:
+          trip.author?.preferred_name || trip.author?.full_name || "Unknown User",
+        author_photo: getFullImageUrl(trip.author?.photo_url),
+        author_id: trip.author?.id,
+        itinerary: trip.itineraryDays
+          ? trip.itineraryDays.map((day) => ({
+              day: day.day_number,
+              title: day.title,
+              places: day.activities
+                ? day.activities
+                    .filter((a) => a.placeDetails)
+                    .map((a) => ({
+                      name: a.placeDetails.name,
+                      address: a.placeDetails.address,
+                      rating: a.placeDetails.rating
+                        ? parseFloat(a.placeDetails.rating)
+                        : null,
+                      price_level: a.placeDetails.price_level,
+                      types: [],
+                      description: a.description || "",
+                      photo: a.placeDetails.photos?.[0]
+                        ? getFullImageUrl(a.placeDetails.photos[0].url_medium)
+                        : null,
+                    }))
+                : [],
+              activities: day.activities
+                ? day.activities.map((a) => ({
+                    time: a.time,
+                    name: a.name,
+                    location: a.location,
+                    description: a.description,
+                    activity_order: a.activity_order,
+                    place_id: a.place_id,
+                    placeDetails: a.placeDetails
+                      ? {
+                          id: a.placeDetails.id,
+                          name: a.placeDetails.name,
+                          address: a.placeDetails.address,
+                          rating: a.placeDetails.rating
+                            ? parseFloat(a.placeDetails.rating)
+                            : null,
+                          price_level: a.placeDetails.price_level,
+                        }
+                      : null,
+                  }))
+                : [],
+            }))
+          : [],
+      };
+    });
 
     return res.json(
       buildSuccessResponse(formattedTrips, "Trips fetched successfully")
@@ -132,6 +247,11 @@ const getHomeCities = async (req, res) => {
       id: city.id,
       name: city.name,
       state: city.state,
+      country: {
+        id: city.country?.id,
+        name: city.country?.name || "Unknown",
+        code: city.country?.code,
+      },
       country_name: city.country?.name || "Unknown",
       country_code: city.country?.code,
       google_maps_id: city.google_maps_id,
