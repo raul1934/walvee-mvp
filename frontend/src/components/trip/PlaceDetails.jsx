@@ -225,16 +225,22 @@ export default function PlaceDetails({
   const { data: userReviews = [] } = useQuery({
     queryKey: ["reviews", "place", enrichedPlace.place_id],
     queryFn: async () => {
-      console.log("[PlaceDetails] Query enabled, enrichedPlace:", enrichedPlace);
+      console.log(
+        "[PlaceDetails] Query enabled, enrichedPlace:",
+        enrichedPlace
+      );
       console.log("[PlaceDetails] place_id:", enrichedPlace.place_id);
       console.log("[PlaceDetails] activeTab:", activeTab);
-      
+
       if (!enrichedPlace.place_id) {
         console.warn("[PlaceDetails] No place_id found, returning empty array");
         return [];
       }
-      
-      console.log("[PlaceDetails] Fetching reviews for place:", enrichedPlace.place_id);
+
+      console.log(
+        "[PlaceDetails] Fetching reviews for place:",
+        enrichedPlace.place_id
+      );
       const response = await apiClient.get(
         `/places/${enrichedPlace.place_id}/reviews`
       );
