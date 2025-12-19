@@ -2096,14 +2096,17 @@ export default function TripDetails() {
                         Your Trip's Journey ✨
                       </h2>
                       <p className="text-gray-300 text-base leading-relaxed">
-                        See how travelers have been inspired by your trip and made it their own.
+                        See how travelers have been inspired by your trip and
+                        made it their own.
                       </p>
                     </div>
 
                     {derivations.length > 0 ? (
                       <div className="space-y-4">
                         <h3 className="text-xl font-semibold text-white mb-4">
-                          {derivations.length} {derivations.length === 1 ? 'Traveler' : 'Travelers'} Inspired
+                          {derivations.length}{" "}
+                          {derivations.length === 1 ? "Traveler" : "Travelers"}{" "}
+                          Inspired
                         </h3>
                         <div className="grid gap-4">
                           {derivations.map((derivation) => (
@@ -2115,16 +2118,24 @@ export default function TripDetails() {
                                 <div className="flex items-center space-x-3">
                                   <UserAvatar
                                     src={derivation.newUser?.photo_url}
-                                    name={derivation.newUser?.preferred_name || derivation.newUser?.full_name}
+                                    name={
+                                      derivation.newUser?.preferred_name ||
+                                      derivation.newUser?.full_name
+                                    }
                                     size="sm"
                                     email={derivation.newUser?.id}
                                   />
                                   <div>
                                     <Link
-                                      to={`${createPageUrl("Profile")}?email=${encodeURIComponent(derivation.newUser?.id)}`}
+                                      to={`${createPageUrl(
+                                        "Profile"
+                                      )}?email=${encodeURIComponent(
+                                        derivation.newUser?.id
+                                      )}`}
                                       className="font-semibold text-white hover:text-green-400 transition-colors"
                                     >
-                                      {derivation.newUser?.preferred_name || derivation.newUser?.full_name}
+                                      {derivation.newUser?.preferred_name ||
+                                        derivation.newUser?.full_name}
                                     </Link>
                                     <p className="text-sm text-gray-400">
                                       Created their version
@@ -2145,7 +2156,8 @@ export default function TripDetails() {
                     ) : (
                       <div className="text-center py-8">
                         <p className="text-gray-400">
-                          No one has stolen your trip yet. Share it to inspire others! 🌟
+                          No one has stolen your trip yet. Share it to inspire
+                          others! 🌟
                         </p>
                       </div>
                     )}
@@ -2162,12 +2174,15 @@ export default function TripDetails() {
                         Already Yours! ✨
                       </h2>
                       <p className="text-gray-300 text-base leading-relaxed mb-4">
-                        You've already made this trip your own. Check out your customized version!
+                        You've already made this trip your own. Check out your
+                        customized version!
                       </p>
                     </div>
 
                     <Button
-                      onClick={() => navigate(`/TripDetails/${userStolenTrip.new_trip_id}`)}
+                      onClick={() =>
+                        navigate(`/TripDetails/${userStolenTrip.new_trip_id}`)
+                      }
                       className="w-full h-14 bg-gradient-to-r from-green-600 to-blue-600 hover:opacity-90 text-white font-bold text-base rounded-xl shadow-lg shadow-green-500/25 transition-all hover:scale-[1.02]"
                     >
                       View My Version
@@ -2191,9 +2206,9 @@ export default function TripDetails() {
                         Make it yours. ✨
                       </h2>
                       <p className="text-gray-300 text-base leading-relaxed mb-4">
-                        Steal this trip and make it your own. Customize everything
-                        — dates, places, pace, and budget — while giving credit to
-                        the original traveler who inspired it.
+                        Steal this trip and make it your own. Customize
+                        everything — dates, places, pace, and budget — while
+                        giving credit to the original traveler who inspired it.
                       </p>
                     </div>
 
