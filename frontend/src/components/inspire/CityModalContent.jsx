@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from "react";
 import { Trip } from "@/api/entities";
 import { useQuery } from "@tanstack/react-query";
@@ -16,7 +15,7 @@ const tabs = [
   { id: "all", label: "All Trips", icon: Map },
   { id: "places", label: "Top Places", icon: Sparkles },
   { id: "locals", label: "Locals", icon: Users },
-  { id: "favorites", label: "Favorites", icon: Heart }
+  { id: "favorites", label: "Favorites", icon: Heart },
 ];
 
 export default function CityModalContent({ cityName, user, onAddToTrip }) {
@@ -24,7 +23,7 @@ export default function CityModalContent({ cityName, user, onAddToTrip }) {
   const [placeCategory, setPlaceCategory] = useState("all");
   const [selectedPlace, setSelectedPlace] = useState(null);
   const [isPlaceModalOpen, setIsPlaceModalOpen] = useState(false);
-  
+
   const [offset, setOffset] = useState(0);
   const [allTrips, setAllTrips] = useState([]);
   const [hasMore, setHasMore] = useState(true);
@@ -36,27 +35,34 @@ export default function CityModalContent({ cityName, user, onAddToTrip }) {
 
   // Fetch trips for this city
   const { data: trips = [], isLoading } = useQuery({
-    queryKey: ['cityTrips', cityName],
+    queryKey: ["cityTrips", cityName],
     queryFn: async () => {
       if (!cityName) return [];
 
-      const allTrips = await Trip.list({ sortBy: 'likes_count', order: 'desc' });
+      const allTrips = await Trip.list({
+        sortBy: "likes_count",
+        order: "desc",
+      });
 
       const normalizedCityName = cityName.toLowerCase().trim();
-      const cityNameOnly = normalizedCityName.split(',')[0].trim();
+      const cityNameOnly = normalizedCityName.split(",")[0].trim();
 
-      let filtered = allTrips.filter(trip => {
-        const destination = trip.destination?.toLowerCase().trim() || '';
-        const destinationCity = destination.split(',')[0].trim();
+      let filtered = allTrips.filter((trip) => {
+        const destination = trip.destination?.toLowerCase().trim() || "";
+        const destinationCity = destination.split(",")[0].trim();
 
-        if (destinationCity === cityNameOnly || destination === normalizedCityName) {
+        if (
+          destinationCity === cityNameOnly ||
+          destination === normalizedCityName
+        ) {
           return true;
         }
 
-        const locations = trip.locations?.map(loc => loc.toLowerCase().trim()) || [];
+        const locations =
+          trip.locations?.map((loc) => loc.toLowerCase().trim()) || [];
 
-        return locations.some(loc => {
-          const locCity = loc.split(',')[0].trim();
+        return locations.some((loc) => {
+          const locCity = loc.split(",")[0].trim();
           return locCity === cityNameOnly || loc === normalizedCityName;
         });
       });
@@ -83,10 +89,15 @@ export default function CityModalContent({ cityName, user, onAddToTrip }) {
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting && hasMore && !loadingRef.current && !isLoading) {
+        if (
+          entries[0].isIntersecting &&
+          hasMore &&
+          !loadingRef.current &&
+          !isLoading
+        ) {
           loadingRef.current = true;
           setTimeout(() => {
-            setOffset(prev => prev + LIMIT);
+            setOffset((prev) => prev + LIMIT);
             loadingRef.current = false;
           }, 300);
         }
@@ -108,9 +119,9 @@ export default function CityModalContent({ cityName, user, onAddToTrip }) {
     const placeCount = {};
     const placeDetails = {};
 
-    trips.forEach(trip => {
-      trip.itinerary?.forEach(day => {
-        day.places?.forEach(place => {
+    trips.forEach((trip) => {
+      trip.itinerary?.forEach((day) => {
+        day.places?.forEach((place) => {
           if (!place.name) return;
 
           const key = place.place_id || place.name;
@@ -136,7 +147,7 @@ export default function CityModalContent({ cityName, user, onAddToTrip }) {
     const placesFromTrips = Object.entries(placeCount)
       .map(([key, count]) => ({
         ...placeDetails[key],
-        mentions: count
+        mentions: count,
       }))
       .sort((a, b) => b.mentions - a.mentions)
       .slice(0, 12);
@@ -148,10 +159,11 @@ export default function CityModalContent({ cityName, user, onAddToTrip }) {
   const filteredPlaces = React.useMemo(() => {
     if (placeCategory === "all") return topPlaces;
 
-    return topPlaces.filter(place =>
-      place.types?.some(type =>
-        type.toLowerCase().includes(placeCategory.toLowerCase()) ||
-        placeCategory.toLowerCase().includes(type.toLowerCase())
+    return topPlaces.filter((place) =>
+      place.types?.some(
+        (type) =>
+          type.toLowerCase().includes(placeCategory.toLowerCase()) ||
+          placeCategory.toLowerCase().includes(type.toLowerCase())
       )
     );
   }, [topPlaces, placeCategory]);
@@ -166,7 +178,10 @@ export default function CityModalContent({ cityName, user, onAddToTrip }) {
     setTimeout(() => setSelectedPlace(null), 300);
   };
 
-  const [city, country] = cityName?.split(',').map((s) => s.trim()) || [cityName, ''];
+  const [city, country] = cityName?.split(",").map((s) => s.trim()) || [
+    cityName,
+    "",
+  ];
 
   return (
     <div className="min-h-full bg-[#0C0E11] text-white">
@@ -184,17 +199,17 @@ export default function CityModalContent({ cityName, user, onAddToTrip }) {
       <div className="relative overflow-hidden min-h-[200px] flex items-center justify-center">
         <div className="absolute inset-0 bg-gradient-to-br from-blue-600 via-purple-600 to-pink-600 opacity-20" />
         <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#0C0E11]/50 to-[#0C0E11]" />
-        
-        <motion.div 
+
+        <motion.div
           className="absolute top-5 left-1/4 w-64 h-64 bg-blue-500/15 rounded-full blur-3xl"
-          animate={{ 
+          animate={{
             scale: [1, 1.2, 1],
-            opacity: [0.15, 0.25, 0.15]
+            opacity: [0.15, 0.25, 0.15],
           }}
-          transition={{ 
+          transition={{
             duration: 8,
             repeat: Infinity,
-            ease: "easeInOut"
+            ease: "easeInOut",
           }}
         />
 
@@ -226,7 +241,10 @@ export default function CityModalContent({ cityName, user, onAddToTrip }) {
             >
               <Button
                 onClick={() => {
-                  console.log('[CityModalContent] Add to Trip clicked for:', cityName);
+                  console.log(
+                    "[CityModalContent] Add to Trip clicked for:",
+                    cityName
+                  );
                   onAddToTrip();
                 }}
                 className="bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white px-8 py-3 text-sm font-bold rounded-xl shadow-xl shadow-emerald-500/25 transition-all hover:scale-105 border-0"
@@ -254,8 +272,8 @@ export default function CityModalContent({ cityName, user, onAddToTrip }) {
                     onClick={() => setActiveTab(tab.id)}
                     className={`flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm whitespace-nowrap transition-all ${
                       isActive
-                        ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white'
-                        : 'bg-[#1A1B23] text-gray-400 hover:text-white hover:bg-[#2A2B35]'
+                        ? "bg-gradient-to-r from-blue-600 to-purple-600 text-white"
+                        : "bg-[#1A1B23] text-gray-400 hover:text-white hover:bg-[#2A2B35]"
                     }`}
                   >
                     <Icon className="w-4 h-4" />
@@ -268,7 +286,7 @@ export default function CityModalContent({ cityName, user, onAddToTrip }) {
             {/* Category Filter */}
             {activeTab === "places" && (
               <div className="border-t border-[#1F1F1F] pt-2">
-                <PlaceCategoryFilter 
+                <PlaceCategoryFilter
                   activeCategory={placeCategory}
                   onCategoryChange={setPlaceCategory}
                 />
@@ -337,7 +355,11 @@ export default function CityModalContent({ cityName, user, onAddToTrip }) {
                     No places found
                   </h3>
                   <p className="text-gray-400 mb-4">
-                    No {placeCategory === "all" ? "places" : placeCategory.replace(/_/g, ' ')} found in {cityName}.
+                    No{" "}
+                    {placeCategory === "all"
+                      ? "places"
+                      : placeCategory.replace(/_/g, " ")}{" "}
+                    found in {cityName}.
                   </p>
                   <button
                     onClick={() => setPlaceCategory("all")}
@@ -370,7 +392,7 @@ export default function CityModalContent({ cityName, user, onAddToTrip }) {
       {selectedPlace && (
         <PlaceModal
           place={selectedPlace}
-          trip={{ destination: cityName, id: 'inspire-modal' }}
+          trip={{ destination: cityName, id: "inspire-modal" }}
           isOpen={isPlaceModalOpen}
           onClose={handleClosePlaceModal}
           user={user}
