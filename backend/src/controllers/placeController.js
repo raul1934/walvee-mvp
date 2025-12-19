@@ -5,7 +5,8 @@ const {
   Country,
   Trip,
   TripPlace,
-  Review,
+  PlaceReview,
+  User,
 } = require("../models/sequelize");
 const { Op } = require("sequelize");
 const {
@@ -566,10 +567,11 @@ Sources:
 };
 
 /**
- * Get AI review for a place
- * Returns saved AI review if exists, otherwise generates and saves a new one
+ * Get reviews for a place (AI review first, then user reviews ordered by date)
+ * GET /v1/places/:placeId/reviews
+ * Returns AI review first (generates if doesn't exist), then all user reviews
  */
-const getAiReview = async (req, res, next) => {
+const getPlaceReviews = async (req, res, next) => {
   try {
     const { placeId } = req.params;
 
@@ -580,83 +582,117 @@ const getAiReview = async (req, res, next) => {
     }
 
     // Find the AI review for this place
-    let aiReview = await Review.findOne({
+    let aiReview = await PlaceReview.findOne({
       where: {
         place_id: placeId,
         is_ai_generated: true,
       },
-      attributes: ["id", "place_id", "ai_rating", "ai_text", "created_at"],
+      attributes: [
+        "id",
+        "place_id",
+        "rating",
+        "comment",
+        "price_opinion",
+        "created_at",
+      ],
     });
 
-    // If found, return it
-    if (aiReview) {
+    // If AI review not found, generate new one
+    if (!aiReview) {
       console.log(
-        `[Get AI Review] Found existing AI review for place: ${placeId}`
+        `[Get Place Reviews] No existing AI review found, generating new one for place: ${placeId}`
       );
-      return res.json(
-        buildSuccessResponse(
-          {
-            id: aiReview.id,
-            place_id: aiReview.place_id,
-            rating: aiReview.ai_rating,
-            text: aiReview.ai_text,
-            created_at: aiReview.created_at,
-          },
-          "AI review retrieved successfully"
-        )
-      );
+
+      // Get place details
+      const place = await Place.findByPk(placeId);
+      if (place) {
+        try {
+          // Generate AI review
+          const aiGeneratedReview = await generateAiReviewText(place.toJSON());
+
+          if (
+            aiGeneratedReview &&
+            aiGeneratedReview.rating &&
+            aiGeneratedReview.text
+          ) {
+            // Save the generated review with AI system user
+            const systemUserId = "00000000-0000-0000-0000-000000000000";
+            aiReview = await PlaceReview.create({
+              place_id: placeId,
+              reviewer_id: systemUserId,
+              created_by: "ai-system",
+              rating: aiGeneratedReview.rating,
+              comment: aiGeneratedReview.text,
+              is_ai_generated: true,
+            });
+
+            console.log(
+              `[Get Place Reviews] Created and saved new AI review for place: ${placeId}`
+            );
+          }
+        } catch (genError) {
+          console.error(
+            "[Get Place Reviews] Error generating AI review:",
+            genError
+          );
+          // Continue without AI review
+        }
+      }
     }
 
-    // If not found, generate new one
-    console.log(
-      `[Get AI Review] No existing AI review found, generating new one for place: ${placeId}`
-    );
-
-    // Get place details
-    const place = await Place.findByPk(placeId);
-    if (!place) {
-      return res
-        .status(404)
-        .json(buildErrorResponse("NOT_FOUND", "Place not found"));
-    }
-
-    // Generate AI review
-    const aiGeneratedReview = await generateAiReviewText(place.toJSON());
-
-    if (
-      !aiGeneratedReview ||
-      !aiGeneratedReview.rating ||
-      !aiGeneratedReview.text
-    ) {
-      throw new Error("Failed to generate AI review");
-    }
-
-    // Save the generated review
-    aiReview = await Review.create({
-      place_id: placeId,
-      ai_rating: aiGeneratedReview.rating,
-      ai_text: aiGeneratedReview.text,
-      is_ai_generated: true,
+    // Get all user reviews ordered by created_at DESC
+    const userReviews = await PlaceReview.findAll({
+      where: {
+        place_id: placeId,
+        is_ai_generated: false,
+      },
+      include: [
+        {
+          model: User,
+          as: "reviewer",
+          attributes: ["id", "full_name", "preferred_name", "photo_url"],
+        },
+      ],
+      order: [["created_at", "DESC"]],
     });
 
-    console.log(
-      `[Get AI Review] Created and saved new AI review for place: ${placeId}`
+    // Build response with AI review first, then user reviews
+    const allReviews = [];
+
+    if (aiReview) {
+      allReviews.push({
+        id: aiReview.id,
+        place_id: aiReview.place_id,
+        rating: aiReview.rating,
+        comment: aiReview.comment,
+        price_opinion: aiReview.price_opinion,
+        is_ai_generated: true,
+        created_by: "ai-system",
+        created_at: aiReview.created_at,
+      });
+    }
+
+    // Add user reviews
+    allReviews.push(
+      ...userReviews.map((review) => ({
+        id: review.id,
+        place_id: review.place_id,
+        reviewer_id: review.reviewer_id,
+        created_by: review.created_by,
+        rating: review.rating,
+        comment: review.comment,
+        price_opinion: review.price_opinion,
+        is_ai_generated: false,
+        created_at: review.created_at,
+        reviewer: review.reviewer,
+      }))
     );
 
     return res.json(
-      buildSuccessResponse(
-        {
-          id: aiReview.id,
-          place_id: aiReview.place_id,
-          rating: aiReview.ai_rating,
-          text: aiReview.ai_text,
-          created_at: aiReview.created_at,
-        },
-        "AI review generated and saved successfully"
-      )
+      buildSuccessResponse(allReviews, `Retrieved ${allReviews.length} reviews`)
     );
   } catch (error) {
-    console.error("[Get AI Review] Error:", error);
+    console.error("[Get Place Reviews] Error:", error);
     next(error);
   }
 };
@@ -665,5 +701,5 @@ module.exports = {
   searchPlaces,
   getTripPlacesEnriched,
   getPlaceById,
-  getAiReview,
+  getPlaceReviews,
 };

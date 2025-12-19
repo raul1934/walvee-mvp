@@ -73,6 +73,9 @@ router.get("/:id/likes", tripController.getTripLikes);
 // Get trip reviews
 router.get("/:id/reviews", tripController.getTripReviews);
 
+// Get AI review for trip
+router.get("/:tripId/reviews/ai", tripController.getTripAiReview);
+
 // Trip comments
 router.get("/:id/comments", tripCommentController.getComments);
 router.post("/:id/comments", authenticate, tripCommentController.createComment);

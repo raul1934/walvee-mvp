@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Review } from "@/api/entities";
+import { apiClient } from "@/api/apiClient";
 import {
   X,
   Clock,
@@ -30,6 +31,7 @@ import ImagePlaceholder from "../common/ImagePlaceholder";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getPriceRangeInfo } from "../utils/priceFormatter";
 import { useFavorites } from "../hooks/useFavorites";
+import { tr } from "date-fns/locale";
 
 const getPriceRangeText = (priceLevel) => {
   if (priceLevel === undefined || priceLevel === null || priceLevel === 0) {
@@ -202,15 +204,15 @@ export default function PlaceDetails({
   const tabsRef = useRef(null);
   const scrollRef = useRef(null);
 
-  const priceLevel = enrichedPlace.price_level || 0;
-  const priceInfo = getPriceRangeInfo(enrichedPlace.price_level);
+  const priceLevel = place.price_level || 0;
+  const priceInfo = getPriceRangeInfo(place.price_level);
 
   const { isFavorited, toggleFavorite, isToggling } = useFavorites(user);
 
-  const isFavorite = isFavorited(enrichedPlace.name);
+  const isFavorite = isFavorited(place.name);
 
   console.log("[PlaceDetails] Favorites state:", {
-    placeName: enrichedPlace.name,
+    placeName: place.name,
     isFavorite,
     isToggling,
     hasUser: !!user,
@@ -219,27 +221,24 @@ export default function PlaceDetails({
   });
 
   const { data: userReviews = [] } = useQuery({
-    queryKey: ["reviews", enrichedPlace.name],
+    queryKey: ["reviews", "place", place.place_id],
     queryFn: async () => {
-      const allReviews = await Review.list({
-        sortBy: "created_at",
-        order: "desc",
+      if (!place.place_id) return [];
+      const response = await Review.list({
+        placeId: place.place_id,
       });
-      return allReviews.filter(
-        (review) => review.place_name === enrichedPlace.name
-      );
+      return response || [];
     },
-    enabled: !!enrichedPlace.name,
+    enabled: !!place.place_id && activeTab === "reviews",
   });
 
   const handleFavoriteToggle = async () => {
     try {
       // If not authenticated, the API call will trigger 401 and show login modal
       const placeDataForToggle = {
-        ...enrichedPlace,
-        city: enrichedPlace.city || trip?.destination?.split(",")[0],
-        country:
-          enrichedPlace.country || trip?.destination?.split(",")[1]?.trim(),
+        ...place,
+        city: place.city || trip?.destination?.split(",")[0],
+        country: place.country || trip?.destination?.split(",")[1]?.trim(),
       };
 
       await toggleFavorite(placeDataForToggle, trip?.destination);
@@ -251,31 +250,16 @@ export default function PlaceDetails({
 
   const addReviewMutation = useMutation({
     mutationFn: async (reviewData) => {
-      const city =
-        trip?.destination?.split(",")[0] ||
-        enrichedPlace.address?.split(",")[1]?.trim() ||
-        "Unknown";
-      const country =
-        trip?.destination?.split(",")[1]?.trim() ||
-        enrichedPlace.address?.split(",")[2]?.trim() ||
-        "Unknown";
-
       return Review.create({
-        place_name: enrichedPlace.name,
-        place_address: enrichedPlace.address,
-        place_id: enrichedPlace.place_id || null,
-        city: city,
-        country: country,
+        placeId: place.place_id,
         rating: reviewData.rating,
-        price_opinion: reviewData.price_opinion || null,
+        priceOpinion: reviewData.price_opinion || null,
         comment: reviewData.comment,
-        user_name: user?.preferred_name || user?.full_name || user?.email,
-        user_photo: user?.photo_url || user?.picture || null,
       });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: ["reviews", enrichedPlace.name],
+        queryKey: ["reviews", "place", place.place_id],
       });
       setReviewRating(0);
       setReviewPriceOpinion("");
@@ -312,7 +296,7 @@ export default function PlaceDetails({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: ["reviews", enrichedPlace.name],
+        queryKey: ["reviews", "place", place.place_id],
       });
     },
   });
@@ -353,7 +337,7 @@ export default function PlaceDetails({
   }, [place]);
 
   const googleReviewsList = enrichedPlace.reviews
-    ? enrichedPlace.reviews.map((review, idx) => ({
+    ? place.reviews.map((review, idx) => ({
         id: review.time + "-" + idx,
         author_name: review.author_name,
         author_photo: review.profile_photo_url,
@@ -366,82 +350,34 @@ export default function PlaceDetails({
     : [];
 
   useEffect(() => {
-    if (enrichedPlace.user_ratings_total !== undefined) {
-      setGoogleRatingsTotal(enrichedPlace.user_ratings_total);
-    } else if (enrichedPlace.reviews) {
-      setGoogleRatingsTotal(enrichedPlace.reviews.length);
+    if (place.user_ratings_total !== undefined) {
+      setGoogleRatingsTotal(place.user_ratings_total);
+    } else if (place.reviews) {
+      setGoogleRatingsTotal(place.reviews.length);
     } else {
       setGoogleRatingsTotal(0);
     }
-  }, [enrichedPlace.user_ratings_total, enrichedPlace.reviews]);
+  }, [place.user_ratings_total, place.reviews]);
 
+  // Separate AI review from user reviews
+  const aiReviewFromList = userReviews.find((review) => review.is_ai_generated);
+  const actualUserReviews = userReviews.filter(
+    (review) => !review.is_ai_generated
+  );
+
+  // Set AI review in state when it arrives
   useEffect(() => {
-    const generateAiReview = async () => {
-      if (activeTab !== "reviews" || !enrichedPlace.name) return;
-
-      const placeKey = enrichedPlace.place_id || enrichedPlace.name;
-      const existingReview = aiReviews[placeKey];
-
-      if (existingReview || isLoadingAiReview) return;
-
-      if (isEnriching) return;
-
-      setIsLoadingAiReview(true);
-
-      try {
-        // First, try to fetch saved AI review from backend
-        if (enrichedPlace.place_id) {
-          try {
-            const response = await fetch(
-              `/v1/places/ai-review/${enrichedPlace.place_id}`
-            );
-            if (response.ok) {
-              const data = await response.json();
-              if (data.data && data.data.rating && data.data.text) {
-                console.log("[PlaceDetails] Found saved AI review in database");
-                setAiReviews((prev) => ({
-                  ...prev,
-                  [placeKey]: {
-                    rating: data.data.rating,
-                    text: data.data.text,
-                  },
-                }));
-                setIsLoadingAiReview(false);
-                return;
-              }
-            }
-          } catch (error) {
-            console.warn(
-              "[PlaceDetails] Error fetching saved AI review:",
-              error
-            );
-            // Continue to generate new one
-          }
-        }
-        // Generation and saving is now handled by the backend
-        // No need for frontend LLM call
-      } catch (error) {
-        console.error("Error generating AI review:", error);
-      } finally {
-        setIsLoadingAiReview(false);
-      }
-    };
-
-    generateAiReview();
-  }, [
-    activeTab,
-    enrichedPlace.name,
-    enrichedPlace.place_id,
-    googleReviewsList.length,
-    userReviews.length,
-    isEnriching,
-    aiReviews,
-    isLoadingAiReview,
-    enrichedPlace.formatted_address,
-    enrichedPlace.types,
-    enrichedPlace.rating,
-    trip?.destination,
-  ]);
+    if (aiReviewFromList && place.place_id) {
+      const placeKey = place.place_id || place.name;
+      setAiReviews((prev) => ({
+        ...prev,
+        [placeKey]: {
+          rating: aiReviewFromList.rating,
+          text: aiReviewFromList.comment,
+        },
+      }));
+    }
+  }, [aiReviewFromList, place.place_id, place.name]);
 
   const formatReviewDate = (timestamp) => {
     if (!timestamp) return "Unknown date";
@@ -475,19 +411,24 @@ export default function PlaceDetails({
     });
   };
 
-  const placeKey = enrichedPlace.place_id || enrichedPlace.name;
+  const placeKey = place.place_id || place.name;
   const currentPlaceAiReview = aiReviews[placeKey];
 
-  const formattedUserReviews = userReviews.map((review) => ({
+  const formattedUserReviews = actualUserReviews.map((review) => ({
     id: `walvee-${review.id}`,
-    author_name: review.user_name,
-    author_photo: review.user_photo,
-    time: review.created_date,
+    author_name:
+      review.reviewer?.preferred_name ||
+      review.reviewer?.full_name ||
+      review.created_by,
+    author_photo: review.reviewer?.photo_url || null,
+    time: review.created_at,
     rating: review.rating,
     text: review.comment,
     price_opinion: review.price_opinion,
     source: "walvee",
-    isOwn: user && review.created_by === user.email,
+    isOwn:
+      user &&
+      (review.reviewer_id === user.id || review.created_by === user.email),
     originalId: review.id,
   }));
 
@@ -669,14 +610,11 @@ export default function PlaceDetails({
   ];
 
   const formatOpeningHours = () => {
-    if (
-      !enrichedPlace.opening_hours ||
-      !enrichedPlace.opening_hours.weekday_text
-    ) {
+    if (!place.opening_hours || !place.opening_hours.weekday_text) {
       return <p className="text-gray-400">Opening hours not available.</p>;
     }
 
-    return enrichedPlace.opening_hours.weekday_text.map((dayText, idx) => {
+    return place.opening_hours.weekday_text.map((dayText, idx) => {
       const parts = dayText.split(": ");
       const day = parts[0];
       const hours = parts[1] || "Closed";
@@ -710,18 +648,15 @@ export default function PlaceDetails({
   };
 
   const nextPhoto = () => {
-    if (enrichedPlace.photos && selectedPhotoIndex !== null) {
-      setSelectedPhotoIndex(
-        (selectedPhotoIndex + 1) % enrichedPlace.photos.length
-      );
+    if (place.photos && selectedPhotoIndex !== null) {
+      setSelectedPhotoIndex((selectedPhotoIndex + 1) % place.photos.length);
     }
   };
 
   const prevPhoto = () => {
-    if (enrichedPlace.photos && selectedPhotoIndex !== null) {
+    if (place.photos && selectedPhotoIndex !== null) {
       setSelectedPhotoIndex(
-        (selectedPhotoIndex - 1 + enrichedPlace.photos.length) %
-          enrichedPlace.photos.length
+        (selectedPhotoIndex - 1 + place.photos.length) % place.photos.length
       );
     }
   };
@@ -872,10 +807,10 @@ export default function PlaceDetails({
               </div>
               <div className="flex-1 min-w-0">
                 <h2 className="text-lg font-bold text-white leading-tight truncate">
-                  {enrichedPlace.name}
+                  {place.name}
                 </h2>
                 <p className="text-sm text-gray-400 mt-0.5 truncate">
-                  {enrichedPlace.formatted_address || enrichedPlace.address}
+                  {place.formatted_address || place.address}
                 </p>
               </div>
             </div>
@@ -885,10 +820,7 @@ export default function PlaceDetails({
             {onAddToTrip && (
               <Button
                 onClick={() => {
-                  console.log(
-                    "[PlaceDetails] Add to Trip clicked:",
-                    enrichedPlace
-                  );
+                  console.log("[PlaceDetails] Add to Trip clicked:", place);
                   onAddToTrip();
                 }}
                 className="bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white px-4 py-2 h-10 text-sm font-bold rounded-xl shadow-lg shadow-emerald-500/25 transition-all hover:scale-105 border-0"
@@ -908,14 +840,14 @@ export default function PlaceDetails({
         </div>
 
         <div className="space-y-3">
-          {enrichedPlace.rating && (
+          {place.rating && (
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-1">
                 {[...Array(5)].map((_, i) => (
                   <Star
                     key={i}
                     className={`w-4 h-4 ${
-                      i < Math.floor(enrichedPlace.rating || 0)
+                      i < Math.floor(place.rating || 0)
                         ? "fill-yellow-500 text-yellow-500"
                         : "text-gray-600"
                     }`}
@@ -923,9 +855,7 @@ export default function PlaceDetails({
                 ))}
               </div>
               <span className="text-sm font-semibold text-white">
-                {enrichedPlace.rating
-                  ? parseFloat(enrichedPlace.rating).toFixed(1)
-                  : "N/A"}
+                {place.rating ? parseFloat(place.rating).toFixed(1) : "N/A"}
               </span>
               <span className="text-sm text-gray-500">
                 ({googleRatingsTotal.toLocaleString()} reviews)
@@ -983,17 +913,15 @@ export default function PlaceDetails({
               <div className="flex items-center gap-2 mb-3">
                 <Clock className="w-5 h-5 text-blue-400" />
                 <h3 className="font-semibold text-white">Opening Hours</h3>
-                {enrichedPlace.opening_hours?.open_now !== undefined && (
+                {place.opening_hours?.open_now !== undefined && (
                   <span
                     className={`text-xs px-2 py-1 rounded-full ${
-                      enrichedPlace.opening_hours.open_now
+                      place.opening_hours.open_now
                         ? "bg-green-500/20 text-green-400"
                         : "bg-red-500/20 text-red-400"
                     }`}
                   >
-                    {enrichedPlace.opening_hours.open_now
-                      ? "Open now"
-                      : "Closed"}
+                    {place.opening_hours.open_now ? "Open now" : "Closed"}
                   </span>
                 )}
               </div>
@@ -1003,30 +931,29 @@ export default function PlaceDetails({
             <div className="bg-[#111827] rounded-xl p-4 border border-[#1F1F1F]">
               <h3 className="font-semibold text-white mb-2">About</h3>
               <p className="text-gray-300 text-sm leading-relaxed">
-                {enrichedPlace.description ||
+                {place.description ||
                   "A wonderful place to visit with stunning views and great atmosphere. Perfect for spending quality time with family and friends."}
               </p>
             </div>
 
-            {(enrichedPlace.formatted_phone_number ||
-              enrichedPlace.website) && (
+            {(place.formatted_phone_number || place.website) && (
               <div className="bg-[#111827] rounded-xl p-4 border border-[#1F1F1F]">
                 <h3 className="font-semibold text-white mb-3">
                   Contact Information
                 </h3>
                 <div className="space-y-2">
-                  {enrichedPlace.formatted_phone_number && (
+                  {place.formatted_phone_number && (
                     <a
-                      href={`tel:${enrichedPlace.formatted_phone_number}`}
+                      href={`tel:${place.formatted_phone_number}`}
                       className="flex items-center gap-2 text-sm text-blue-400 hover:text-blue-300"
                     >
                       <Phone className="w-4 h-4" />
-                      {enrichedPlace.formatted_phone_number}
+                      {place.formatted_phone_number}
                     </a>
                   )}
-                  {enrichedPlace.website && (
+                  {place.website && (
                     <a
-                      href={enrichedPlace.website}
+                      href={place.website}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="flex items-center gap-2 text-sm text-blue-400 hover:text-blue-300"
@@ -1039,11 +966,11 @@ export default function PlaceDetails({
               </div>
             )}
 
-            {enrichedPlace.photos && enrichedPlace.photos.length > 0 && (
+            {place.photos && place.photos.length > 0 && (
               <div>
                 <h3 className="font-semibold text-white mb-3">Photos</h3>
                 <div className="grid grid-cols-2 gap-2">
-                  {enrichedPlace.photos.slice(0, 4).map((photo, idx) => (
+                  {place.photos.slice(0, 4).map((photo, idx) => (
                     <button
                       key={idx}
                       onClick={() => setActiveTab("photos")}
@@ -1054,7 +981,7 @@ export default function PlaceDetails({
                       ) : (
                         <img
                           src={photo}
-                          alt={`${enrichedPlace.name} ${idx + 1}`}
+                          alt={`${place.name} ${idx + 1}`}
                           className="w-full h-full object-cover"
                           onError={() => handleImageError(idx)}
                         />
@@ -1308,9 +1235,9 @@ export default function PlaceDetails({
 
         {activeTab === "photos" && (
           <div className="p-6">
-            {enrichedPlace.photos && enrichedPlace.photos.length > 0 ? (
+            {place.photos && place.photos.length > 0 ? (
               <div className="grid grid-cols-2 gap-3">
-                {enrichedPlace.photos.map((photo, idx) => (
+                {place.photos.map((photo, idx) => (
                   <button
                     key={idx}
                     onClick={() => openPhotoModal(idx)}
@@ -1321,7 +1248,7 @@ export default function PlaceDetails({
                     ) : (
                       <img
                         src={photo}
-                        alt={`${enrichedPlace.name} ${idx + 1}`}
+                        alt={`${place.name} ${idx + 1}`}
                         className="w-full h-full object-cover"
                         onError={() => handleImageError(idx)}
                       />
@@ -1415,9 +1342,7 @@ export default function PlaceDetails({
               <Button
                 onClick={() => {
                   const destination = encodeURIComponent(
-                    enrichedPlace.formatted_address ||
-                      enrichedPlace.address ||
-                      enrichedPlace.name
+                    place.formatted_address || place.address || place.name
                   );
                   const travelModeMap = {
                     walking: "walking",
@@ -1485,7 +1410,7 @@ export default function PlaceDetails({
                   Your favorites help us provide better recommendations and will
                   appear automatically when you create new trips to{" "}
                   {trip?.destination?.split(",")[0] ||
-                    enrichedPlace.formatted_address?.split(",")[1]?.trim() ||
+                    place.formatted_address?.split(",")[1]?.trim() ||
                     "this city"}
                   .
                 </p>
@@ -1495,7 +1420,7 @@ export default function PlaceDetails({
         )}
       </div>
 
-      {selectedPhotoIndex !== null && enrichedPlace.photos && (
+      {selectedPhotoIndex !== null && place.photos && (
         <div
           className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm"
           onClick={closePhotoModal}
@@ -1511,10 +1436,10 @@ export default function PlaceDetails({
           </button>
 
           <div className="absolute top-6 left-6 px-3 py-1.5 rounded-full bg-black/40 backdrop-blur-md text-white font-medium text-xs border border-white/10">
-            {selectedPhotoIndex + 1} / {enrichedPlace.photos.length}
+            {selectedPhotoIndex + 1} / {place.photos.length}
           </div>
 
-          {enrichedPlace.photos.length > 1 && (
+          {place.photos.length > 1 && (
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -1539,7 +1464,7 @@ export default function PlaceDetails({
             </button>
           )}
 
-          {enrichedPlace.photos.length > 1 && (
+          {place.photos.length > 1 && (
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -1574,8 +1499,8 @@ export default function PlaceDetails({
               </div>
             ) : (
               <img
-                src={enrichedPlace.photos[selectedPhotoIndex]}
-                alt={`${enrichedPlace.name} ${selectedPhotoIndex + 1}`}
+                src={place.photos[selectedPhotoIndex]}
+                alt={`${place.name} ${selectedPhotoIndex + 1}`}
                 className="max-w-full max-h-[90vh] object-contain rounded-xl shadow-2xl"
                 onError={() => handleImageError(selectedPhotoIndex)}
               />
@@ -1583,7 +1508,7 @@ export default function PlaceDetails({
           </div>
 
           <div className="absolute bottom-6 left-1/2 -translate-x-1/2 px-4 py-2 rounded-full bg-black/40 backdrop-blur-md text-white font-medium text-sm border border-white/10">
-            {enrichedPlace.name}
+            {place.name}
           </div>
         </div>
       )}

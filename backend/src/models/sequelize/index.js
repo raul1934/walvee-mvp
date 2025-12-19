@@ -9,6 +9,9 @@ const TripLike = require("./TripLike");
 const Follow = require("./Follow");
 const TripSteal = require("./TripSteal");
 const Review = require("./Review");
+const PlaceReview = require("./PlaceReview");
+const TripReview = require("./TripReview");
+const CityReview = require("./CityReview");
 const TripComment = require("./TripComment");
 const Country = require("./Country");
 const City = require("./City");
@@ -75,15 +78,32 @@ TripSteal.belongsTo(User, {
 });
 TripSteal.belongsTo(User, { foreignKey: "new_user_id", as: "newUser" });
 
+// Old Review associations (to be deprecated)
 Trip.hasMany(Review, { foreignKey: "trip_id", as: "reviews" });
 Review.belongsTo(Trip, { foreignKey: "trip_id" });
-
-Trip.hasMany(TripComment, { foreignKey: "trip_id", as: "comments" });
-TripComment.belongsTo(Trip, { foreignKey: "trip_id" });
-
 User.hasMany(Review, { foreignKey: "reviewer_id", as: "reviews" });
 Review.belongsTo(User, { foreignKey: "reviewer_id", as: "reviewer" });
 
+// New Review associations
+// PlaceReview associations
+User.hasMany(PlaceReview, { foreignKey: "reviewer_id", as: "placeReviews" });
+PlaceReview.belongsTo(User, { foreignKey: "reviewer_id", as: "reviewer" });
+
+// TripReview associations
+Trip.hasMany(TripReview, { foreignKey: "trip_id", as: "tripReviews" });
+TripReview.belongsTo(Trip, { foreignKey: "trip_id", as: "trip" });
+User.hasMany(TripReview, { foreignKey: "reviewer_id", as: "tripReviews" });
+TripReview.belongsTo(User, { foreignKey: "reviewer_id", as: "reviewer" });
+
+// CityReview associations
+City.hasMany(CityReview, { foreignKey: "city_id", as: "cityReviews" });
+CityReview.belongsTo(City, { foreignKey: "city_id", as: "city" });
+User.hasMany(CityReview, { foreignKey: "reviewer_id", as: "cityReviews" });
+CityReview.belongsTo(User, { foreignKey: "reviewer_id", as: "reviewer" });
+
+// Trip Comments
+Trip.hasMany(TripComment, { foreignKey: "trip_id", as: "comments" });
+TripComment.belongsTo(Trip, { foreignKey: "trip_id" });
 User.hasMany(TripComment, { foreignKey: "user_id", as: "comments" });
 TripComment.belongsTo(User, { foreignKey: "user_id", as: "commenter" });
 
@@ -101,8 +121,14 @@ CityPhoto.belongsTo(City, { foreignKey: "city_id", as: "city" });
 TripPlace.belongsTo(Place, { foreignKey: "place_id", as: "placeDetails" });
 Place.hasMany(TripPlace, { foreignKey: "place_id", as: "tripPlaces" });
 
-TripItineraryActivity.belongsTo(Place, { foreignKey: "place_id", as: "placeDetails" });
-Place.hasMany(TripItineraryActivity, { foreignKey: "place_id", as: "itineraryActivities" });
+TripItineraryActivity.belongsTo(Place, {
+  foreignKey: "place_id",
+  as: "placeDetails",
+});
+Place.hasMany(TripItineraryActivity, {
+  foreignKey: "place_id",
+  as: "itineraryActivities",
+});
 
 module.exports = {
   sequelize,
@@ -115,7 +141,10 @@ module.exports = {
   TripLike,
   Follow,
   TripSteal,
-  Review,
+  Review, // Old model - to be deprecated
+  PlaceReview,
+  TripReview,
+  CityReview,
   TripComment,
   Country,
   City,

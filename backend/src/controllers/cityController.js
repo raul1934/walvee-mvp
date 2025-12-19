@@ -1,4 +1,4 @@
-const { City, Country } = require("../models/sequelize");
+const { City, Country, CityReview } = require("../models/sequelize");
 const { Op } = require("sequelize");
 const {
   buildSuccessResponse,
@@ -101,7 +101,9 @@ const searchCities = async (req, res, next) => {
               [country] = await Country.findOrCreate({
                 where: { code: placeDetails.country_code.toUpperCase() },
                 defaults: {
-                  name: placeDetails.country_name || placeDetails.country_code.toUpperCase(),
+                  name:
+                    placeDetails.country_name ||
+                    placeDetails.country_code.toUpperCase(),
                   code: placeDetails.country_code.toUpperCase(),
                 },
               });
@@ -149,7 +151,9 @@ const searchCities = async (req, res, next) => {
         }
       }
 
-      console.log(`[City Search] Saved ${savedCities.length} new cities to database`);
+      console.log(
+        `[City Search] Saved ${savedCities.length} new cities to database`
+      );
     } catch (googleError) {
       console.error(
         "[City Search] Error fetching from Google Maps:",
@@ -185,7 +189,16 @@ const searchCities = async (req, res, next) => {
  */
 const getOrCreateCity = async (req, res, next) => {
   try {
-    const { name, country_code, country_name, google_maps_id, state, latitude, longitude, timezone } = req.body;
+    const {
+      name,
+      country_code,
+      country_name,
+      google_maps_id,
+      state,
+      latitude,
+      longitude,
+      timezone,
+    } = req.body;
 
     if (!google_maps_id && !name) {
       return res
@@ -224,7 +237,9 @@ const getOrCreateCity = async (req, res, next) => {
 
     if (google_maps_id && (!name || !country_code)) {
       try {
-        console.log(`[Get or Create City] Fetching place details from Google Maps for ${google_maps_id}`);
+        console.log(
+          `[Get or Create City] Fetching place details from Google Maps for ${google_maps_id}`
+        );
         const placeDetails = await getPlaceDetails(google_maps_id);
 
         // Merge with provided data (provided data takes precedence)
@@ -242,14 +257,23 @@ const getOrCreateCity = async (req, res, next) => {
         // Get timezone if we have coordinates and timezone not provided
         if (!timezone && placeData.latitude && placeData.longitude) {
           try {
-            const tzInfo = await getTimezone(placeData.latitude, placeData.longitude);
+            const tzInfo = await getTimezone(
+              placeData.latitude,
+              placeData.longitude
+            );
             placeData.timezone = tzInfo.timezone_id;
           } catch (tzError) {
-            console.warn(`[Get or Create City] Could not fetch timezone:`, tzError.message);
+            console.warn(
+              `[Get or Create City] Could not fetch timezone:`,
+              tzError.message
+            );
           }
         }
       } catch (googleError) {
-        console.error(`[Get or Create City] Error fetching from Google Maps:`, googleError.message);
+        console.error(
+          `[Get or Create City] Error fetching from Google Maps:`,
+          googleError.message
+        );
         return res
           .status(400)
           .json(
@@ -306,7 +330,9 @@ const getOrCreateCity = async (req, res, next) => {
       if (placeData.google_maps_id && !existingCity.google_maps_id) {
         await existingCity.update({ google_maps_id: placeData.google_maps_id });
       }
-      console.log(`[Get or Create City] City already exists: ${existingCity.name}`);
+      console.log(
+        `[Get or Create City] City already exists: ${existingCity.name}`
+      );
       return res.json(buildSuccessResponse(existingCity));
     }
 
@@ -326,7 +352,9 @@ const getOrCreateCity = async (req, res, next) => {
       include: [{ model: Country, as: "country" }],
     });
 
-    console.log(`[Get or Create City] Created new city: ${cityWithCountry.name}, ${country.name}`);
+    console.log(
+      `[Get or Create City] Created new city: ${cityWithCountry.name}, ${country.name}`
+    );
     res.status(201).json(buildSuccessResponse(cityWithCountry));
   } catch (error) {
     next(error);
@@ -401,9 +429,61 @@ const getCitiesByCountry = async (req, res, next) => {
   }
 };
 
+/**
+ * Get AI review for a city (returns first AI review if exists)
+ * GET /v1/cities/:cityId/reviews/ai
+ */
+const getCityAiReview = async (req, res, next) => {
+  try {
+    const { cityId } = req.params;
+
+    if (!cityId) {
+      return res
+        .status(400)
+        .json(buildErrorResponse("INVALID_INPUT", "cityId is required"));
+    }
+
+    // Find the AI review for this city
+    const aiReview = await CityReview.findOne({
+      where: {
+        city_id: cityId,
+        is_ai_generated: true,
+      },
+      attributes: ["id", "city_id", "rating", "comment", "created_at"],
+    });
+
+    if (!aiReview) {
+      return res
+        .status(404)
+        .json(
+          buildErrorResponse("NOT_FOUND", "No AI review found for this city")
+        );
+    }
+
+    console.log(`[Get City AI Review] Found AI review for city: ${cityId}`);
+
+    return res.json(
+      buildSuccessResponse(
+        {
+          id: aiReview.id,
+          city_id: aiReview.city_id,
+          rating: aiReview.rating,
+          text: aiReview.comment,
+          created_at: aiReview.created_at,
+        },
+        "AI review retrieved successfully"
+      )
+    );
+  } catch (error) {
+    console.error("[Get City AI Review] Error:", error);
+    next(error);
+  }
+};
+
 module.exports = {
   searchCities,
   getOrCreateCity,
   getCityById,
   getCitiesByCountry,
+  getCityAiReview,
 };

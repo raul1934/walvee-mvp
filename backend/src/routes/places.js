@@ -4,12 +4,12 @@ const {
   searchPlaces,
   getTripPlacesEnriched,
   getPlaceById,
-  getAiReview,
+  getPlaceReviews,
 } = require("../controllers/placeController");
 
 // Public routes
 router.get("/search", searchPlaces);
-router.get("/ai-review/:placeId", getAiReview);
+router.get("/:placeId/reviews", getPlaceReviews);
 router.get("/:id", getPlaceById);
 
 module.exports = router;

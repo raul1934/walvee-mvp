@@ -7,6 +7,7 @@ const {
   TripItineraryActivity,
   TripLike,
   TripSteal,
+  TripReview,
   Place,
 } = require("../models/sequelize");
 const { Op } = require("sequelize");
@@ -818,6 +819,57 @@ const getTripDerivations = async (req, res, next) => {
   }
 };
 
+/**
+ * Get AI review for a trip (returns first AI review if exists)
+ * GET /v1/trips/:tripId/reviews/ai
+ */
+const getTripAiReview = async (req, res, next) => {
+  try {
+    const { tripId } = req.params;
+
+    if (!tripId) {
+      return res
+        .status(400)
+        .json(buildErrorResponse("INVALID_INPUT", "tripId is required"));
+    }
+
+    // Find the AI review for this trip
+    const aiReview = await TripReview.findOne({
+      where: {
+        trip_id: tripId,
+        is_ai_generated: true,
+      },
+      attributes: ["id", "trip_id", "rating", "comment", "created_at"],
+    });
+
+    if (!aiReview) {
+      return res
+        .status(404)
+        .json(
+          buildErrorResponse("NOT_FOUND", "No AI review found for this trip")
+        );
+    }
+
+    console.log(`[Get Trip AI Review] Found AI review for trip: ${tripId}`);
+
+    return res.json(
+      buildSuccessResponse(
+        {
+          id: aiReview.id,
+          trip_id: aiReview.trip_id,
+          rating: aiReview.rating,
+          text: aiReview.comment,
+          created_at: aiReview.created_at,
+        },
+        "AI review retrieved successfully"
+      )
+    );
+  } catch (error) {
+    console.error("[Get Trip AI Review] Error:", error);
+    next(error);
+  }
+};
+
 module.exports = {
   getTrips,
   getTripById,
@@ -827,4 +879,5 @@ module.exports = {
   getTripLikes,
   getTripReviews,
   getTripDerivations,
+  getTripAiReview,
 };
