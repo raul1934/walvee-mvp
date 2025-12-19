@@ -4,54 +4,53 @@ import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 
 export default function ResetLikes() {
-  const [status, setStatus] = useState('resetting');
+  const [status, setStatus] = useState("resetting");
   const [result, setResult] = useState(null);
   const navigate = useNavigate();
 
   useEffect(() => {
     const resetLikes = async () => {
       try {
-        setStatus('deleting-likes');
-        
+        setStatus("deleting-likes");
+
         // 1. Get all like records
         const allLikes = await TripLike.list();
-        
+
         // 2. Delete all like records
         for (const like of allLikes) {
           await TripLike.delete(like.id);
         }
-        
-        setStatus('updating-trips');
-        
+
+        setStatus("updating-trips");
+
         // 3. Reset all trips likes to 0
         const allTrips = await Trip.list();
-        
+
         for (const trip of allTrips) {
           await Trip.update(trip.id, { likes: 0 });
         }
-        
+
         setResult({
           success: true,
           deletedRecords: allLikes.length,
-          updatedTrips: allTrips.length
+          updatedTrips: allTrips.length,
         });
-        setStatus('complete');
-        
+        setStatus("complete");
+
         // Redirect after 2 seconds
         setTimeout(() => {
           navigate(createPageUrl("Home"));
         }, 2000);
-        
       } catch (error) {
-        console.error('[Reset Likes] ❌ Error:', error);
+        console.error("[Reset Likes] ❌ Error:", error);
         setResult({
           success: false,
-          error: error.message
+          error: error.message,
         });
-        setStatus('error');
+        setStatus("error");
       }
     };
-    
+
     resetLikes();
   }, [navigate]);
 
@@ -61,33 +60,45 @@ export default function ResetLikes() {
         <h1 className="text-2xl font-bold text-white mb-6 text-center">
           Reset All Likes
         </h1>
-        
-        {status === 'resetting' && (
+
+        {status === "resetting" && (
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-500 border-t-transparent mx-auto mb-4" />
             <p className="text-gray-300">Iniciando reset...</p>
           </div>
         )}
-        
-        {status === 'deleting-likes' && (
+
+        {status === "deleting-likes" && (
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-500 border-t-transparent mx-auto mb-4" />
             <p className="text-gray-300">Deletando registros de likes...</p>
           </div>
         )}
-        
-        {status === 'updating-trips' && (
+
+        {status === "updating-trips" && (
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-500 border-t-transparent mx-auto mb-4" />
-            <p className="text-gray-300">Atualizando contadores das viagens...</p>
+            <p className="text-gray-300">
+              Atualizando contadores das viagens...
+            </p>
           </div>
         )}
-        
-        {status === 'complete' && result?.success && (
+
+        {status === "complete" && result?.success && (
           <div className="text-center">
             <div className="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-4">
-              <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              <svg
+                className="w-10 h-10 text-white"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M5 13l4 4L19 7"
+                />
               </svg>
             </div>
             <p className="text-green-400 font-semibold mb-2">Reset completo!</p>
@@ -102,17 +113,27 @@ export default function ResetLikes() {
             </p>
           </div>
         )}
-        
-        {status === 'error' && (
+
+        {status === "error" && (
           <div className="text-center">
             <div className="w-16 h-16 bg-red-500 rounded-full flex items-center justify-center mx-auto mb-4">
-              <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              <svg
+                className="w-10 h-10 text-white"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M6 18L18 6M6 6l12 12"
+                />
               </svg>
             </div>
             <p className="text-red-400 font-semibold mb-2">Erro no reset</p>
             <p className="text-gray-400 text-sm">
-              {result?.error || 'Erro desconhecido'}
+              {result?.error || "Erro desconhecido"}
             </p>
             <button
               onClick={() => navigate(createPageUrl("Home"))}

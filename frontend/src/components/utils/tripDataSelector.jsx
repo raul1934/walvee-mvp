@@ -12,18 +12,26 @@
  */
 export function normalizeDayPlaces(places, dayIndex, tripId) {
   if (!places || !Array.isArray(places)) {
-    console.warn('[TripDataSelector] Invalid places array:', { dayIndex, tripId });
+    console.warn("[TripDataSelector] Invalid places array:", {
+      dayIndex,
+      tripId,
+    });
     return [];
   }
 
   return places
     .map((place, placeIndex) => {
       if (!place.name) {
-        console.error('[TripDataSelector] Place missing name:', { tripId, dayIndex, placeIndex });
+        console.error("[TripDataSelector] Place missing name:", {
+          tripId,
+          dayIndex,
+          placeIndex,
+        });
         return null;
       }
 
-      const placeInstanceId = place.placeInstanceId || 
+      const placeInstanceId =
+        place.placeInstanceId ||
         generatePlaceInstanceId(tripId, dayIndex, placeIndex, place.place_id);
 
       return {
@@ -31,10 +39,10 @@ export function normalizeDayPlaces(places, dayIndex, tripId) {
         placeInstanceId,
         order: place.order !== undefined ? place.order : placeIndex,
         dayIndex,
-        tripId
+        tripId,
       };
     })
-    .filter(place => place !== null)
+    .filter((place) => place !== null)
     .sort(comparePlaces);
 }
 
@@ -45,7 +53,12 @@ function comparePlaces(a, b) {
   return a.placeInstanceId.localeCompare(b.placeInstanceId);
 }
 
-function generatePlaceInstanceId(tripId, dayIndex, placeIndex, googlePlaceId = null) {
+function generatePlaceInstanceId(
+  tripId,
+  dayIndex,
+  placeIndex,
+  googlePlaceId = null
+) {
   const base = `${tripId}-d${dayIndex}-p${placeIndex}`;
   if (googlePlaceId) {
     const hash = simpleHash(googlePlaceId);
@@ -58,7 +71,7 @@ function simpleHash(str) {
   let hash = 0;
   for (let i = 0; i < str.length; i++) {
     const char = str.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
+    hash = (hash << 5) - hash + char;
     hash = hash & hash;
   }
   return Math.abs(hash).toString(36).substring(0, 6);
@@ -66,7 +79,10 @@ function simpleHash(str) {
 
 export function selectTripDayPlaces({ trip, dayIndex }) {
   if (!trip?.itinerary || !trip.itinerary[dayIndex]) {
-    console.warn('[TripDataSelector] Invalid trip or day:', { tripId: trip?.id, dayIndex });
+    console.warn("[TripDataSelector] Invalid trip or day:", {
+      tripId: trip?.id,
+      dayIndex,
+    });
     return [];
   }
 
@@ -76,7 +92,9 @@ export function selectTripDayPlaces({ trip, dayIndex }) {
 
 export function normalizeTripItinerary(trip) {
   if (!trip?.itinerary) {
-    console.warn('[TripDataSelector] Trip has no itinerary:', { tripId: trip?.id });
+    console.warn("[TripDataSelector] Trip has no itinerary:", {
+      tripId: trip?.id,
+    });
     return trip;
   }
 
@@ -84,22 +102,22 @@ export function normalizeTripItinerary(trip) {
     ...trip,
     itinerary: trip.itinerary.map((day, dayIndex) => ({
       ...day,
-      places: normalizeDayPlaces(day.places, dayIndex, trip.id)
-    }))
+      places: normalizeDayPlaces(day.places, dayIndex, trip.id),
+    })),
   };
 }
 
 export function auditPlaceConsistency(homePlaces, detailPlaces, context = {}) {
-  const homeIds = homePlaces.map(p => p.placeInstanceId);
-  const detailIds = detailPlaces.map(p => p.placeInstanceId);
-  
+  const homeIds = homePlaces.map((p) => p.placeInstanceId);
+  const detailIds = detailPlaces.map((p) => p.placeInstanceId);
+
   const mismatch = JSON.stringify(homeIds) !== JSON.stringify(detailIds);
-  
-  const missingInHome = detailIds.filter(id => !homeIds.includes(id));
-  const missingInDetail = homeIds.filter(id => !detailIds.includes(id));
-  const extraInHome = homeIds.filter(id => !detailIds.includes(id));
-  const extraInDetail = detailIds.filter(id => !homeIds.includes(id));
-  
+
+  const missingInHome = detailIds.filter((id) => !homeIds.includes(id));
+  const missingInDetail = homeIds.filter((id) => !detailIds.includes(id));
+  const extraInHome = homeIds.filter((id) => !detailIds.includes(id));
+  const extraInDetail = detailIds.filter((id) => !homeIds.includes(id));
+
   const result = {
     ...context,
     homeOrder: homeIds,
@@ -109,8 +127,8 @@ export function auditPlaceConsistency(homePlaces, detailPlaces, context = {}) {
     missingInDetail,
     extraInHome,
     extraInDetail,
-    consistent: !mismatch
+    consistent: !mismatch,
   };
-  
+
   return result;
 }

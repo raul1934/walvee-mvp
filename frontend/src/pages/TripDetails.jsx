@@ -371,7 +371,6 @@ export default function TripDetails() {
       if (!tripData || !currentUser) throw new Error("Not authenticated");
       if (!isFollowing) throw new Error("Not following");
 
-
       return await Follow.unfollow(tripData.created_by);
     },
     onMutate: async () => {
@@ -436,8 +435,6 @@ export default function TripDetails() {
       alert("Couldn't unfollow now. Please try again.");
     },
     onSuccess: async () => {
-
-
       queryClient.setQueryData(
         ["followStatus", tripData?.created_by, currentUser?.id],
         null
@@ -471,8 +468,6 @@ export default function TripDetails() {
       if (!currentUser || !tripId) throw new Error("Not authenticated");
       if (tripData.created_by === currentUser.id)
         throw new Error("Cannot like your own trip.");
-
-
 
       // TripLike.create expects a single `tripId` string
       return await TripLike.create(tripId);
@@ -540,8 +535,6 @@ export default function TripDetails() {
       alert("Couldn't like now. Please try again.");
     },
     onSuccess: async (data) => {
-
-
       queryClient.setQueryData(["likeStatus", tripId, currentUser?.id], data);
       sessionStorage.setItem(
         `likeStatus_${tripId}_${currentUser.id}`,
@@ -566,8 +559,6 @@ export default function TripDetails() {
       if (!likeStatus || likeStatus.id === "optimistic-like") {
         throw new Error("Not liked or optimistic state");
       }
-
-
 
       return await TripLike.delete(likeStatus.id);
     },
@@ -625,8 +616,6 @@ export default function TripDetails() {
       alert("Couldn't unlike now. Please try again.");
     },
     onSuccess: async () => {
-
-
       queryClient.setQueryData(["likeStatus", tripId, currentUser?.id], null);
       sessionStorage.setItem(
         `likeStatus_${tripId}_${currentUser.id}`,

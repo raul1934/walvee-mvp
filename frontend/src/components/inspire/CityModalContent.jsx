@@ -157,13 +157,11 @@ export default function CityModalContent({ cityName, user, onAddToTrip }) {
   }, [topPlaces, placeCategory]);
 
   const handlePlaceClick = (place) => {
-    console.log('[CityModalContent] Place clicked:', place);
     setSelectedPlace(place);
     setIsPlaceModalOpen(true);
   };
 
   const handleClosePlaceModal = () => {
-    console.log('[CityModalContent] Closing PlaceModal');
     setIsPlaceModalOpen(false);
     setTimeout(() => setSelectedPlace(null), 300);
   };

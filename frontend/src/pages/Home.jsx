@@ -20,8 +20,7 @@ export default function Home({ user, userLoading }) {
   const queryClient = useQueryClient();
 
   // Debug: Track hover state changes
-  useEffect(() => {
-  }, [isHoveringCards]);
+  useEffect(() => {}, [isHoveringCards]);
 
   // Reset all trip cards to default state when component mounts
   useEffect(() => {
@@ -60,10 +59,8 @@ export default function Home({ user, userLoading }) {
     refetchOnMount: false,
     refetchOnWindowFocus: false,
     retry: 2,
-    onError: (err) => {
-    },
-    onSuccess: (data) => {
-    },
+    onError: (err) => {},
+    onSuccess: (data) => {},
   });
 
   // Fetch ALL user's likes in a SINGLE query to avoid rate limit

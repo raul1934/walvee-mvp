@@ -1,15 +1,23 @@
-
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from "react";
 import { invokeLLM } from "@/api/llmService";
-import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronRight, Loader2, X, MapPin, Star, Sparkles, Filter, Globe } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import FiltersModal from '../components/inspire/FiltersModal';
-import CitiesModal from '../components/inspire/CitiesModal';
-import MiniCardGrid from '../components/inspire/MiniCardGrid';
-import RecommendationModal from '../components/inspire/RecommendationModal';
-import UserAvatar from '../components/common/UserAvatar';
-import PlaceDetails from '../components/trip/PlaceDetails';
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  ChevronRight,
+  Loader2,
+  X,
+  MapPin,
+  Star,
+  Sparkles,
+  Filter,
+  Globe,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import FiltersModal from "../components/inspire/FiltersModal";
+import CitiesModal from "../components/inspire/CitiesModal";
+import MiniCardGrid from "../components/inspire/MiniCardGrid";
+import RecommendationModal from "../components/inspire/RecommendationModal";
+import UserAvatar from "../components/common/UserAvatar";
+import PlaceDetails from "../components/trip/PlaceDetails";
 
 const EXAMPLE_PROMPTS = [
   "Scuba trip through Southeast Asia on a budget.",
@@ -21,15 +29,15 @@ const EXAMPLE_PROMPTS = [
 
 /**
  * ⚠️ CRITICAL - Normalize city name to avoid duplicates
- * 
+ *
  * Handles various formats:
- * - "Miami, Estados Unidos" 
+ * - "Miami, Estados Unidos"
  * - "Miami, Estados Unidos, United States"
  * - "Miami, United States"
  * - "Miami"
- * 
+ *
  * Always returns: "city, country" (normalized, lowercase) or "city" if no country specified.
- * 
+ *
  * EXAMPLES:
  * ✓ "Miami, Estados Unidos" → "miami, estados unidos"
  * ✓ "Miami, Estados Unidos, United States" → "miami, estados unidos"
@@ -37,40 +45,40 @@ const EXAMPLE_PROMPTS = [
  * ✓ "Miami" → "miami"
  */
 const normalizeCityName = (cityName) => {
-  if (!cityName) return '';
-  
+  if (!cityName) return "";
+
   // Normalize: lowercase and trim
   const normalized = cityName.toLowerCase().trim();
-  
+
   // Split by comma
   const parts = normalized
-    .split(',')
-    .map(p => p.trim())
-    .filter(p => p.length > 0);
-  
-  if (parts.length === 0) return '';
-  
+    .split(",")
+    .map((p) => p.trim())
+    .filter((p) => p.length > 0);
+
+  if (parts.length === 0) return "";
+
   // If only city name (no country)
   if (parts.length === 1) {
     return parts[0];
   }
-  
+
   // If has city + country (or more)
   // Always use first part (city) + last part (country)
   const cityPart = parts[0];
   const countryPart = parts[parts.length - 1];
-  
+
   const result = `${cityPart}, ${countryPart}`;
   return result;
 };
 
 /**
  * ⚠️ CRITICAL - Check if city already exists in tabs
- * 
+ *
  * Uses smart comparison to detect duplicates even with different formats:
  * - "Miami, Estados Unidos" vs "Miami, Estados Unidos, United States" → DUPLICATE
  * - "Miami, Estados Unidos" vs "Miami, United States" → DUPLICATE (if country names are considered similar)
- * 
+ *
  * LOGIC:
  * 1. Normalize both city names to get 'city' and 'country' parts.
  * 2. Compare the CITY part (first segment) - must match.
@@ -82,53 +90,68 @@ const isCityInTabs = (cityName, existingTabs) => {
   if (!cityName || !existingTabs || existingTabs.length === 0) {
     return false;
   }
-  
+
   const normalizedInput = normalizeCityName(cityName);
-  const inputParts = normalizedInput.split(',').map(p => p.trim());
+  const inputParts = normalizedInput.split(",").map((p) => p.trim());
   const inputCity = inputParts[0];
-  const inputCountry = inputParts.length > 1 ? inputParts[inputParts.length - 1] : '';
-  
+  const inputCountry =
+    inputParts.length > 1 ? inputParts[inputParts.length - 1] : "";
+
   for (const tab of existingTabs) {
     const normalizedTab = normalizeCityName(tab.name);
-    const tabParts = normalizedTab.split(',').map(p => p.trim());
+    const tabParts = normalizedTab.split(",").map((p) => p.trim());
     const tabCity = tabParts[0];
-    const tabCountry = tabParts.length > 1 ? tabParts[tabParts.length - 1] : '';
-    
+    const tabCountry = tabParts.length > 1 ? tabParts[tabParts.length - 1] : "";
+
     // Cities must match exactly
     if (inputCity !== tabCity) {
       continue;
     }
-    
+
     // If cities match, check countries
     // Case 1: Both are city-only, or both are city,country and countries match
     if (inputParts.length === 1 && tabParts.length === 1) {
       // Both are city only, and cities match
       return true;
-    } else if (inputParts.length > 1 && tabParts.length > 1 && inputCountry === tabCountry) {
+    } else if (
+      inputParts.length > 1 &&
+      tabParts.length > 1 &&
+      inputCountry === tabCountry
+    ) {
       // Both have country, and countries match exactly
       return true;
-    } else if ((inputParts.length === 1 && tabParts.length > 1) || (inputParts.length > 1 && tabParts.length === 1)) {
-        // One is "City" and the other is "City, Country". If cities match, consider it a duplicate.
-        // This handles cases like input "Miami" and existing tab "Miami, United States", or vice-versa.
-        return true;
+    } else if (
+      (inputParts.length === 1 && tabParts.length > 1) ||
+      (inputParts.length > 1 && tabParts.length === 1)
+    ) {
+      // One is "City" and the other is "City, Country". If cities match, consider it a duplicate.
+      // This handles cases like input "Miami" and existing tab "Miami, United States", or vice-versa.
+      return true;
     }
-    
+
     // Case 2: Countries don't match exactly, but might be translations/synonyms
-    if (inputCountry && tabCountry) { // Only attempt this if both have country parts
-        const countryWords1 = inputCountry.split(' ').filter(word => word.length > 2);
-        const countryWords2 = tabCountry.split(' ').filter(word => word.length > 2);
-        
-        // Check if they share significant words
-        const sharedWords = countryWords1.filter(word1 => 
-            countryWords2.some(word2 => word1.includes(word2) || word2.includes(word1))
-        );
-        
-        if (sharedWords.length > 0) {
-            return true;
-        }
+    if (inputCountry && tabCountry) {
+      // Only attempt this if both have country parts
+      const countryWords1 = inputCountry
+        .split(" ")
+        .filter((word) => word.length > 2);
+      const countryWords2 = tabCountry
+        .split(" ")
+        .filter((word) => word.length > 2);
+
+      // Check if they share significant words
+      const sharedWords = countryWords1.filter((word1) =>
+        countryWords2.some(
+          (word2) => word1.includes(word2) || word2.includes(word1)
+        )
+      );
+
+      if (sharedWords.length > 0) {
+        return true;
+      }
     }
   }
-  
+
   return false;
 };
 
@@ -165,14 +188,21 @@ const isCityRecommendation = (rec) => {
   // Accept both English and Portuguese types
   // ==========================================
   const typeNormalized = rec.type?.toLowerCase().trim();
-  
+
   // City types (English and Portuguese)
-  if (typeNormalized === 'city' || typeNormalized === 'cidade') {
+  if (typeNormalized === "city" || typeNormalized === "cidade") {
     return true;
   }
 
   // Place types (English and Portuguese)
-  const placeTypes = ['place', 'activity', 'business', 'lugar', 'atividade', 'negócio'];
+  const placeTypes = [
+    "place",
+    "activity",
+    "business",
+    "lugar",
+    "atividade",
+    "negócio",
+  ];
   if (placeTypes.includes(typeNormalized)) {
     return false;
   }
@@ -190,27 +220,44 @@ const isCityRecommendation = (rec) => {
   // PRIORITY 3: Check name for common place keywords
   // ==========================================
   const placeKeywords = [
-    'park', 'parque',
-    'museum', 'museu',
-    'beach', 'praia',
-    'restaurant', 'restaurante',
-    'bar', 'cafe', 'café',
-    'hotel',
-    'mall', 'shopping',
-    'market', 'mercado',
-    'avenue', 'avenida',
-    'street', 'rua',
-    'square', 'praça',
-    'garden', 'jardim',
-    'tower', 'torre',
-    'palace', 'palácio',
-    'cathedral', 'catedral',
-    'church', 'igreja',
-    'temple', 'templo'
+    "park",
+    "parque",
+    "museum",
+    "museu",
+    "beach",
+    "praia",
+    "restaurant",
+    "restaurante",
+    "bar",
+    "cafe",
+    "café",
+    "hotel",
+    "mall",
+    "shopping",
+    "market",
+    "mercado",
+    "avenue",
+    "avenida",
+    "street",
+    "rua",
+    "square",
+    "praça",
+    "garden",
+    "jardim",
+    "tower",
+    "torre",
+    "palace",
+    "palácio",
+    "cathedral",
+    "catedral",
+    "church",
+    "igreja",
+    "temple",
+    "templo",
   ];
   const nameLower = rec.name.toLowerCase();
 
-  if (placeKeywords.some(keyword => nameLower.includes(keyword))) {
+  if (placeKeywords.some((keyword) => nameLower.includes(keyword))) {
     return false;
   }
 
@@ -221,7 +268,7 @@ const isCityRecommendation = (rec) => {
 };
 
 export default function InspirePrompt({ user }) {
-  const [inputValue, setInputValue] = useState('');
+  const [inputValue, setInputValue] = useState("");
   const [isFocused, setIsFocused] = useState(false);
 
   // Conversation & Recommendations
@@ -240,7 +287,7 @@ export default function InspirePrompt({ user }) {
     budget: null,
     pace: null,
     companions: null,
-    season: null
+    season: null,
   });
 
   // Recommendation Modal State
@@ -268,22 +315,25 @@ export default function InspirePrompt({ user }) {
         {
           number: "1",
           title: "Start from the essence.",
-          description: "Everything in Walvee begins with cities — living places where every journey takes shape. Describe your trip in your own words, and Walvee's AI will translate your ideas into destinations that match your spirit of adventure.",
-          color: "violet"
+          description:
+            "Everything in Walvee begins with cities — living places where every journey takes shape. Describe your trip in your own words, and Walvee's AI will translate your ideas into destinations that match your spirit of adventure.",
+          color: "violet",
         },
         {
           number: "2",
           title: "Explore in depth.",
-          description: "Each city becomes a living space — a tab where you can talk, explore, and design your journey. Find hidden spots, experiences, and people — and choose what truly belongs in your story.",
-          color: "blue"
+          description:
+            "Each city becomes a living space — a tab where you can talk, explore, and design your journey. Find hidden spots, experiences, and people — and choose what truly belongs in your story.",
+          color: "blue",
         },
         {
           number: "3",
           title: "Let it unfold naturally.",
-          description: "Forget about schedules for now. When you're ready, Walvee organizes it all — days, paths, stays, and connections — turning your vision into a real itinerary.",
-          color: "cyan"
-        }
-      ]
+          description:
+            "Forget about schedules for now. When you're ready, Walvee organizes it all — days, paths, stays, and connections — turning your vision into a real itinerary.",
+          color: "cyan",
+        },
+      ],
     },
     pt: {
       hero: "Criar viagem com a gente é diferente.",
@@ -291,36 +341,39 @@ export default function InspirePrompt({ user }) {
         {
           number: "1",
           title: "Comece pela essência.",
-          description: "Tudo na Walvee começa com cidades — lugares vivos onde cada jornada toma forma. Descreva sua viagem com suas próprias palavras e a IA da Walvee vai traduzir suas ideias em destinos que combinam com seu espírito de aventura.",
-          color: "violet"
+          description:
+            "Tudo na Walvee começa com cidades — lugares vivos onde cada jornada toma forma. Descreva sua viagem com suas próprias palavras e a IA da Walvee vai traduzir suas ideias em destinos que combinam com seu espírito de aventura.",
+          color: "violet",
         },
         {
           number: "2",
           title: "Explore em profundidade.",
-          description: "Cada cidade se torna um espaço vivo — uma aba onde você pode conversar, explorar e desenhar sua jornada. Encontre lugares escondidos, experiências e pessoas — e escolha o que realmente pertence à sua história.",
-          color: "blue"
+          description:
+            "Cada cidade se torna um espaço vivo — uma aba onde você pode conversar, explorar e desenhar sua jornada. Encontre lugares escondidos, experiências e pessoas — e escolha o que realmente pertence à sua história.",
+          color: "blue",
         },
         {
           number: "3",
           title: "Deixe acontecer naturalmente.",
-          description: "Esqueça os horários por enquanto. Quando estiver pronta, a Walvee organiza tudo — dias, caminhos, hospedagens e conexões — transformando sua visão em um roteiro real.",
-          color: "cyan"
-        }
-      ]
-    }
+          description:
+            "Esqueça os horários por enquanto. Quando estiver pronta, a Walvee organiza tudo — dias, caminhos, hospedagens e conexões — transformando sua visão em um roteiro real.",
+          color: "cyan",
+        },
+      ],
+    },
   };
 
   // Detect user language
-  const userLanguage = messages.some(m =>
-    /[àáâãéêíóôõúç]/i.test(m.content)
-  ) ? 'pt' : 'en';
+  const userLanguage = messages.some((m) => /[àáâãéêíóôõúç]/i.test(m.content))
+    ? "pt"
+    : "en";
 
   const content = welcomeContent[userLanguage];
 
   // Auto scroll to bottom when new messages
   useEffect(() => {
     if (messages.length > 0) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }
   }, [messages]);
 
@@ -340,7 +393,7 @@ export default function InspirePrompt({ user }) {
     }
 
     exampleIntervalRef.current = setInterval(() => {
-      setCurrentExampleIndex(prev => (prev + 1) % EXAMPLE_PROMPTS.length);
+      setCurrentExampleIndex((prev) => (prev + 1) % EXAMPLE_PROMPTS.length);
     }, 4000);
 
     return () => {
@@ -356,7 +409,7 @@ export default function InspirePrompt({ user }) {
     }
 
     const interval = setInterval(() => {
-      setLoadingPhrase(prev => (prev + 1) % 3);
+      setLoadingPhrase((prev) => (prev + 1) % 3);
     }, 3000);
 
     return () => clearInterval(interval);
@@ -365,18 +418,24 @@ export default function InspirePrompt({ user }) {
   // Helper for price level display
   const getPriceRangeInfo = (priceLevel) => {
     switch (priceLevel) {
-      case 0: return { symbol: 'Free', level: 0 };
-      case 1: return { symbol: '$', level: 1 };
-      case 2: return { symbol: '$$', level: 2 };
-      case 3: return { symbol: '$$$', level: 3 };
-      case 4: return { symbol: '$$$$', level: 4 };
-      default: return null;
+      case 0:
+        return { symbol: "Free", level: 0 };
+      case 1:
+        return { symbol: "$", level: 1 };
+      case 2:
+        return { symbol: "$$", level: 2 };
+      case 3:
+        return { symbol: "$$$", level: 3 };
+      case 4:
+        return { symbol: "$$$$", level: 4 };
+      default:
+        return null;
     }
   };
 
   /**
    * ⚠️ CRITICAL HANDLER - ADD CITY TO TABS ⚠️
-   * 
+   *
    * Prevents duplicate cities from being added
    * Uses isCityInTabs() for smart duplicate detection
    */
@@ -389,81 +448,101 @@ export default function InspirePrompt({ user }) {
     if (isCityInTabs(cityName, cityTabs)) {
       let foundExistingTab = null;
       const normalizedInput = normalizeCityName(cityName);
-      const inputParts = normalizedInput.split(',').map(p => p.trim());
+      const inputParts = normalizedInput.split(",").map((p) => p.trim());
       const inputCity = inputParts[0];
-      const inputCountry = inputParts.length > 1 ? inputParts[inputParts.length - 1] : '';
+      const inputCountry =
+        inputParts.length > 1 ? inputParts[inputParts.length - 1] : "";
 
       for (const tab of cityTabs) {
         const normalizedTab = normalizeCityName(tab.name);
-        const tabParts = normalizedTab.split(',').map(p => p.trim());
+        const tabParts = normalizedTab.split(",").map((p) => p.trim());
         const tabCity = tabParts[0];
-        const tabCountry = tabParts.length > 1 ? tabParts[tabParts.length - 1] : '';
+        const tabCountry =
+          tabParts.length > 1 ? tabParts[tabParts.length - 1] : "";
 
         if (inputCity !== tabCity) {
           continue;
         }
 
         if (inputParts.length === 1 && tabParts.length === 1) {
-            foundExistingTab = tab;
-            break;
-        } else if (inputParts.length > 1 && tabParts.length > 1 && inputCountry === tabCountry) {
-            foundExistingTab = tab;
-            break;
-        } else if ((inputParts.length === 1 && tabParts.length > 1) || (inputParts.length > 1 && tabParts.length === 1)) {
-            foundExistingTab = tab;
-            break;
+          foundExistingTab = tab;
+          break;
+        } else if (
+          inputParts.length > 1 &&
+          tabParts.length > 1 &&
+          inputCountry === tabCountry
+        ) {
+          foundExistingTab = tab;
+          break;
+        } else if (
+          (inputParts.length === 1 && tabParts.length > 1) ||
+          (inputParts.length > 1 && tabParts.length === 1)
+        ) {
+          foundExistingTab = tab;
+          break;
         }
-        
+
         if (inputCountry && tabCountry) {
-            const countryWords1 = inputCountry.split(' ').filter(word => word.length > 2);
-            const countryWords2 = tabCountry.split(' ').filter(word => word.length > 2);
-            const sharedWords = countryWords1.filter(word1 => 
-                countryWords2.some(word2 => word1.includes(word2) || word2.includes(word1))
-            );
-            if (sharedWords.length > 0) {
-                foundExistingTab = tab;
-                break;
-            }
+          const countryWords1 = inputCountry
+            .split(" ")
+            .filter((word) => word.length > 2);
+          const countryWords2 = tabCountry
+            .split(" ")
+            .filter((word) => word.length > 2);
+          const sharedWords = countryWords1.filter((word1) =>
+            countryWords2.some(
+              (word2) => word1.includes(word2) || word2.includes(word1)
+            )
+          );
+          if (sharedWords.length > 0) {
+            foundExistingTab = tab;
+            break;
+          }
         }
       }
-      
+
       if (foundExistingTab) {
         setActiveCity(foundExistingTab.name);
-        setInputValue('');
+        setInputValue("");
         inputRef.current?.focus();
       } else {
-        console.warn('[handleAddCityToTrip] isCityInTabs returned true, but no specific matching existingTab found to activate. This scenario should be rare.');
+        console.warn(
+          "[handleAddCityToTrip] isCityInTabs returned true, but no specific matching existingTab found to activate. This scenario should be rare."
+        );
       }
       return;
     }
-    
+
     // Determine user's language for AI's response for the new city message
-    const userLanguageForAI = messages.some(m =>
+    const userLanguageForAI = messages.some((m) =>
       /[àáâãéêíóôõúç]/i.test(m.content)
-    ) ? 'pt' : 'en';
+    )
+      ? "pt"
+      : "en";
 
     const newTab = {
       name: cityName,
       places: [],
-      createdAt: Date.now()
+      createdAt: Date.now(),
     };
-    
-    setCityTabs(prev => [...prev, newTab]);
+
+    setCityTabs((prev) => [...prev, newTab]);
     setActiveCity(cityName);
-    
+
     // Re-add the city focus message for the new tab
     const cityFocusMessage = {
-      role: 'assistant',
-      content: userLanguageForAI === 'pt'
-        ? `Ótimo! Agora que você escolheu ${cityName}, vamos focar nossa conversa nesta cidade. 🌟\n\nVocê pode me contar sobre seus interesses, o que você gosta de fazer, que tipo de lugares procura, e eu vou sugerir locais, atividades e experiências específicas em ${cityName}.\n\nO que você gostaria de explorar nesta cidade?`
-        : `Great! Now that you've chosen ${cityName}, let's focus our conversation on this city. 🌟\n\nYou can tell me about your interests, what you like to do, what kind of places you're looking for, and I'll suggest specific places, activities and experiences in ${cityName}.\n\nWhat would you like to explore in this city?`,
+      role: "assistant",
+      content:
+        userLanguageForAI === "pt"
+          ? `Ótimo! Agora que você escolheu ${cityName}, vamos focar nossa conversa nesta cidade. 🌟\n\nVocê pode me contar sobre seus interesses, o que você gosta de fazer, que tipo de lugares procura, e eu vou sugerir locais, atividades e experiências específicas em ${cityName}.\n\nO que você gostaria de explorar nesta cidade?`
+          : `Great! Now that you've chosen ${cityName}, let's focus our conversation on this city. 🌟\n\nYou can tell me about your interests, what you like to do, what kind of places you're looking for, and I'll suggest specific places, activities and experiences in ${cityName}.\n\nWhat would you like to explore in this city?`,
       cityContext: cityName, // This ties the message to the new city tab
-      timestamp: Date.now()
+      timestamp: Date.now(),
     };
 
-    setMessages(prev => [...prev, cityFocusMessage]);
+    setMessages((prev) => [...prev, cityFocusMessage]);
 
-    setInputValue('');
+    setInputValue("");
     setTimeout(() => inputRef.current?.focus(), 100);
   };
 
@@ -476,64 +555,82 @@ export default function InspirePrompt({ user }) {
       cityName = place.city;
     } else if (place.address) {
       // Attempt to extract city from address if no explicit city/country
-      const addressParts = place.address.split(',').map(p => p.trim());
+      const addressParts = place.address.split(",").map((p) => p.trim());
       if (addressParts.length >= 2) {
         // Assume last part is country, second to last is city if available
-        cityName = `${addressParts[addressParts.length - 2]}, ${addressParts[addressParts.length - 1]}`;
+        cityName = `${addressParts[addressParts.length - 2]}, ${
+          addressParts[addressParts.length - 1]
+        }`;
       } else {
         cityName = addressParts[0]; // Just the first part
       }
     } else {
-      cityName = 'Unknown City';
+      cityName = "Unknown City";
     }
 
     const normalizedNewCityName = normalizeCityName(cityName);
 
-    setCityTabs(prevTabs => {
+    setCityTabs((prevTabs) => {
       // Find existing tab using the robust isCityInTabs logic.
       let existingTab = null;
-      const inputParts = normalizedNewCityName.split(',').map(p => p.trim());
+      const inputParts = normalizedNewCityName.split(",").map((p) => p.trim());
       const inputCity = inputParts[0];
-      const inputCountry = inputParts.length > 1 ? inputParts[inputParts.length - 1] : '';
+      const inputCountry =
+        inputParts.length > 1 ? inputParts[inputParts.length - 1] : "";
 
       for (const tab of prevTabs) {
         const normalizedTab = normalizeCityName(tab.name);
-        const tabParts = normalizedTab.split(',').map(p => p.trim());
+        const tabParts = normalizedTab.split(",").map((p) => p.trim());
         const tabCity = tabParts[0];
-        const tabCountry = tabParts.length > 1 ? tabParts[tabParts.length - 1] : '';
+        const tabCountry =
+          tabParts.length > 1 ? tabParts[tabParts.length - 1] : "";
 
         if (inputCity !== tabCity) {
           continue;
         }
 
         if (inputParts.length === 1 && tabParts.length === 1) {
-            existingTab = tab;
-            break;
-        } else if (inputParts.length > 1 && tabParts.length > 1 && inputCountry === tabCountry) {
-            existingTab = tab;
-            break;
-        } else if ((inputParts.length === 1 && tabParts.length > 1) || (inputParts.length > 1 && tabParts.length === 1)) {
-            existingTab = tab;
-            break;
+          existingTab = tab;
+          break;
+        } else if (
+          inputParts.length > 1 &&
+          tabParts.length > 1 &&
+          inputCountry === tabCountry
+        ) {
+          existingTab = tab;
+          break;
+        } else if (
+          (inputParts.length === 1 && tabParts.length > 1) ||
+          (inputParts.length > 1 && tabParts.length === 1)
+        ) {
+          existingTab = tab;
+          break;
         }
 
         if (inputCountry && tabCountry) {
-            const countryWords1 = inputCountry.split(' ').filter(word => word.length > 2);
-            const countryWords2 = tabCountry.split(' ').filter(word => word.length > 2);
-            const sharedWords = countryWords1.filter(word1 => 
-                countryWords2.some(word2 => word1.includes(word2) || word2.includes(word1))
-            );
-            if (sharedWords.length > 0) {
-                existingTab = tab;
-                break;
-            }
+          const countryWords1 = inputCountry
+            .split(" ")
+            .filter((word) => word.length > 2);
+          const countryWords2 = tabCountry
+            .split(" ")
+            .filter((word) => word.length > 2);
+          const sharedWords = countryWords1.filter((word1) =>
+            countryWords2.some(
+              (word2) => word1.includes(word2) || word2.includes(word1)
+            )
+          );
+          if (sharedWords.length > 0) {
+            existingTab = tab;
+            break;
+          }
         }
       }
 
       if (existingTab) {
-        const placeExistsInTab = existingTab.places.some(p =>
-          (p.place_id && p.place_id === place.place_id) ||
-          (p.name === place.name && p.address === place.address)
+        const placeExistsInTab = existingTab.places.some(
+          (p) =>
+            (p.place_id && p.place_id === place.place_id) ||
+            (p.name === place.name && p.address === place.address)
         );
 
         if (placeExistsInTab) {
@@ -541,59 +638,67 @@ export default function InspirePrompt({ user }) {
           return prevTabs;
         }
 
-        const updatedTabs = prevTabs.map(tab => {
-          if (tab.name === existingTab.name) { // Match by original tab name to update
+        const updatedTabs = prevTabs.map((tab) => {
+          if (tab.name === existingTab.name) {
+            // Match by original tab name to update
             return {
               ...tab,
-              places: [...tab.places, {
-                name: place.name,
-                address: place.address,
-                rating: place.rating,
-                price_level: place.price_level,
-                place_id: place.place_id,
-                photos: place.photos || [],
-                types: place.types || [],
-                addedAt: Date.now()
-              }]
+              places: [
+                ...tab.places,
+                {
+                  name: place.name,
+                  address: place.address,
+                  rating: place.rating,
+                  price_level: place.price_level,
+                  place_id: place.place_id,
+                  photos: place.photos || [],
+                  types: place.types || [],
+                  addedAt: Date.now(),
+                },
+              ],
             };
           }
           return tab;
         });
         setActiveCity(existingTab.name);
         return updatedTabs;
-
       } else {
-        const userLanguageForAI = messages.some(m =>
+        const userLanguageForAI = messages.some((m) =>
           /[àáâãéêíóôõúç]/i.test(m.content)
-        ) ? 'pt' : 'en';
+        )
+          ? "pt"
+          : "en";
 
         const newTab = {
           name: cityName,
-          places: [{
-            name: place.name,
-            address: place.address,
-            rating: place.rating,
-            price_level: place.price_level,
-            place_id: place.place_id,
-            photos: place.photos || [],
-            types: place.types || [],
-            addedAt: Date.now()
-          }],
-          createdAt: Date.now()
+          places: [
+            {
+              name: place.name,
+              address: place.address,
+              rating: place.rating,
+              price_level: place.price_level,
+              place_id: place.place_id,
+              photos: place.photos || [],
+              types: place.types || [],
+              addedAt: Date.now(),
+            },
+          ],
+          createdAt: Date.now(),
         };
 
         const updatedTabs = [...prevTabs, newTab];
         setActiveCity(cityName);
 
         const cityFocusMessage = {
-          role: 'assistant',
-          content: userLanguageForAI === 'pt'
-            ? `Ótimo! Adicionei ${place.name} ao seu roteiro em ${cityName}. 🎉\n\nVocê pode me contar mais sobre o que gostaria de fazer nesta cidade e eu vou sugerir outros locais e atividades.\n\nO que mais você gostaria de explorar?`
-            : `Great! I've added ${place.name} to your itinerary in ${cityName}. 🎉\n\nYou can tell me more about what you'd like to do in this city and I'll suggest other places and activities.\n\nWhat else would you like to explore?`,
+          role: "assistant",
+          content:
+            userLanguageForAI === "pt"
+              ? `Ótimo! Adicionei ${place.name} ao seu roteiro em ${cityName}. 🎉\n\nVocê pode me contar mais sobre o que gostaria de fazer nesta cidade e eu vou sugerir outros locais e atividades.\n\nO que mais você gostaria de explorar?`
+              : `Great! I've added ${place.name} to your itinerary in ${cityName}. 🎉\n\nYou can tell me more about what you'd like to do in this city and I'll suggest other places and activities.\n\nWhat else would you like to explore?`,
           cityContext: cityName,
-          timestamp: Date.now()
+          timestamp: Date.now(),
         };
-        setMessages(prev => [...prev, cityFocusMessage]);
+        setMessages((prev) => [...prev, cityFocusMessage]);
 
         return updatedTabs;
       }
@@ -601,27 +706,29 @@ export default function InspirePrompt({ user }) {
 
     setIsModalOpen(false);
     setSelectedRecommendation(null);
-    setInputValue('');
+    setInputValue("");
     setTimeout(() => inputRef.current?.focus(), 100);
   };
 
   // Handle removing place from trip
   const handleRemovePlace = (cityName, placeName) => {
-    setCityTabs(prevTabs => prevTabs.map(tab => {
-      if (tab.name === cityName) {
-        return {
-          ...tab,
-          places: (tab.places || []).filter(p => p.name !== placeName)
-        };
-      }
-      return tab;
-    }));
+    setCityTabs((prevTabs) =>
+      prevTabs.map((tab) => {
+        if (tab.name === cityName) {
+          return {
+            ...tab,
+            places: (tab.places || []).filter((p) => p.name !== placeName),
+          };
+        }
+        return tab;
+      })
+    );
   };
 
   // Handle removing city tab
   const handleRemoveCityTab = (cityName, e) => {
     e.stopPropagation();
-    setCityTabs(prev => prev.filter(tab => tab.name !== cityName));
+    setCityTabs((prev) => prev.filter((tab) => tab.name !== cityName));
 
     if (activeCity === cityName) {
       setActiveCity(null);
@@ -654,9 +761,10 @@ export default function InspirePrompt({ user }) {
   };
 
   // Get filtered messages based on active city
-  const filteredMessages = activeCity === null
-    ? messages.filter(m => !m.cityContext)
-    : messages.filter(m => m.cityContext === activeCity);
+  const filteredMessages =
+    activeCity === null
+      ? messages.filter((m) => !m.cityContext)
+      : messages.filter((m) => m.cityContext === activeCity);
 
   // Handle input submission
   const handleSubmit = async (e) => {
@@ -665,22 +773,22 @@ export default function InspirePrompt({ user }) {
     if (!inputValue.trim() || isLoadingResponse) return;
 
     const userMessage = {
-      role: 'user',
+      role: "user",
       content: inputValue,
       cityContext: activeCity,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     };
-    setMessages(prev => [...prev, userMessage]);
+    setMessages((prev) => [...prev, userMessage]);
 
     const currentInput = inputValue;
-    setInputValue('');
+    setInputValue("");
     setIsLoadingResponse(true);
 
     try {
       // Build context from filters
-      let filterContext = '';
+      let filterContext = "";
       if (selectedFilters.interests.length > 0) {
-        filterContext += `\nInterests: ${selectedFilters.interests.join(', ')}`;
+        filterContext += `\nInterests: ${selectedFilters.interests.join(", ")}`;
       }
       if (selectedFilters.budget) {
         filterContext += `\nBudget: ${selectedFilters.budget}`;
@@ -697,20 +805,23 @@ export default function InspirePrompt({ user }) {
 
       // Build conversation history
       const conversationHistory = filteredMessages
-        .map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`)
-        .join('\n');
+        .map((m) => `${m.role === "user" ? "User" : "Assistant"}: ${m.content}`)
+        .join("\n");
 
       // Determine user's language for AI's response
       const detectLanguage = (text) => {
-        const portuguesePatterns = /\b(roteiro|viagem|praia|mergulho|hotel|cidade|país|dia|semana|mês|ano|quero|gostaria|preciso|ajuda|brasil|portugal)\b/i;
-        return portuguesePatterns.test(text) ? 'pt' : 'en';
+        const portuguesePatterns =
+          /\b(roteiro|viagem|praia|mergulho|hotel|cidade|país|dia|semana|mês|ano|quero|gostaria|preciso|ajuda|brasil|portugal)\b/i;
+        return portuguesePatterns.test(text) ? "pt" : "en";
       };
 
       const userLanguageForAI = detectLanguage(currentInput);
 
       let systemPrompt = `You are a travel planning assistant for Walvee, helping users create personalized trip itineraries.
 
-IMPORTANT: Always check grammar and spelling in your responses. Ensure all text is grammatically correct in ${userLanguageForAI === 'pt' ? 'Portuguese' : 'English'}.`;
+IMPORTANT: Always check grammar and spelling in your responses. Ensure all text is grammatically correct in ${
+        userLanguageForAI === "pt" ? "Portuguese" : "English"
+      }.`;
 
       // Add city context if active
       if (activeCity) {
@@ -723,33 +834,53 @@ IMPORTANT: Always check grammar and spelling in your responses. Ensure all text 
 CONVERSATION HISTORY:
 ${conversationHistory}
 
-USER FILTERS:${filterContext || ' None specified yet'}
+USER FILTERS:${filterContext || " None specified yet"}
 
 CURRENT USER MESSAGE: "${currentInput}"
 
 INSTRUCTIONS:
 1. **Check grammar and spelling** in all your responses
-2. **Always provide recommendations** - ${activeCity ? 'places, beaches, activities, or businesses IN ' + activeCity : 'cities, places, activities, or businesses'}
+2. **Always provide recommendations** - ${
+          activeCity
+            ? "places, beaches, activities, or businesses IN " + activeCity
+            : "cities, places, activities, or businesses"
+        }
 3. **Return structured data** with a conversational message AND recommendations
-4. ${activeCity ? '**IMPORTANT: Only recommend places WITHIN ' + activeCity + '**' : '**City Detection**: Identify if user mentioned a specific city'}
-5. ${!activeCity ? '**If NO city mentioned AND no active city**: Suggest 3-4 destination cities' : ''}
+4. ${
+          activeCity
+            ? "**IMPORTANT: Only recommend places WITHIN " + activeCity + "**"
+            : "**City Detection**: Identify if user mentioned a specific city"
+        }
+5. ${
+          !activeCity
+            ? "**If NO city mentioned AND no active city**: Suggest 3-4 destination cities"
+            : ""
+        }
 
 **Response Format:**
 {
   "message": "Warm, friendly response (2-3 sentences, use 1-2 emojis). ENSURE PERFECT GRAMMAR.",
   "recommendations": [
     {
-      "name": "${activeCity ? 'Place/Activity/Business Name' : 'Place/City Name'}",
-      "type": "${activeCity ? '\"place\" | \"activity\" | \"business\"' : '\"city\" | \"place\" | \"activity\" | \"business\" | \"cidade\" | \"lugar\" | \"atividade\" | \"negócio\"'}",
+      "name": "${
+        activeCity ? "Place/Activity/Business Name" : "Place/City Name"
+      }",
+      "type": "${
+        activeCity
+          ? '"place" | "activity" | "business"'
+          : '"city" | "place" | "activity" | "business" | "cidade" | "lugar" | "atividade" | "negócio"'
+      }",
       "description": "Brief description",
-      "city": "${activeCity || 'City name (if applicable)'}",
+      "city": "${activeCity || "City name (if applicable)"}",
       "country": "Country",
       "why": "Why it matches"
     }
   ]
 }
 
-Provide 9-15 recommendations. Respond in ${userLanguageForAI === 'pt' ? 'Portuguese' : 'English'}.`,
+Provide 9-15 recommendations. Respond in ${
+          userLanguageForAI === "pt" ? "Portuguese" : "English"
+        }.`,
         response_json_schema: {
           type: "object",
           properties: {
@@ -764,36 +895,36 @@ Provide 9-15 recommendations. Respond in ${userLanguageForAI === 'pt' ? 'Portugu
                   description: { type: "string" },
                   city: { type: "string" },
                   country: { type: "string" },
-                  why: { type: "string" }
-                }
-              }
-            }
-          }
-        }
+                  why: { type: "string" },
+                },
+              },
+            },
+          },
+        },
       });
 
       // Add AI message with recommendations
       const aiMessage = {
-        role: 'assistant',
+        role: "assistant",
         content: response.message || response,
         recommendations: response.recommendations || [],
         cityContext: activeCity,
-        timestamp: Date.now()
+        timestamp: Date.now(),
       };
-      setMessages(prev => [...prev, aiMessage]);
+      setMessages((prev) => [...prev, aiMessage]);
 
       setShowAllRecommendations(false);
-
     } catch (error) {
-      console.error('[InspirePrompt] Error:', error);
+      console.error("[InspirePrompt] Error:", error);
       const errorMessage = {
-        role: 'assistant',
-        content: 'Sorry, I had trouble processing that. Could you try rephrasing your request?',
+        role: "assistant",
+        content:
+          "Sorry, I had trouble processing that. Could you try rephrasing your request?",
         recommendations: [],
         cityContext: activeCity,
-        timestamp: Date.now()
+        timestamp: Date.now(),
       };
-      setMessages(prev => [...prev, errorMessage]);
+      setMessages((prev) => [...prev, errorMessage]);
     } finally {
       setIsLoadingResponse(false);
       inputRef.current?.focus();
@@ -816,14 +947,14 @@ Provide 9-15 recommendations. Respond in ${userLanguageForAI === 'pt' ? 'Portugu
   const loadingPhrases = [
     "Navigating digital seas and searching for information about your trip...",
     "School of cities and places spotted, we're close...",
-    "Arriving at a place just for you in this infomare!"
+    "Arriving at a place just for you in this infomare!",
   ];
 
-  const activeCityPlaces = cityTabs.find(tab => tab.name === activeCity)?.places || [];
+  const activeCityPlaces =
+    cityTabs.find((tab) => tab.name === activeCity)?.places || [];
 
   // Placeholder function for opening login modal
-  const openLoginModal = () => {
-  };
+  const openLoginModal = () => {};
 
   return (
     <div className="inspire-container">
@@ -1730,7 +1861,9 @@ Provide 9-15 recommendations. Respond in ${userLanguageForAI === 'pt' ? 'Portugu
         <div className="city-tabs-container">
           {/* Main Chat Tab - Always first */}
           <button
-            className={`city-tab main-chat ${activeCity === null ? 'active' : ''}`}
+            className={`city-tab main-chat ${
+              activeCity === null ? "active" : ""
+            }`}
             onClick={() => setActiveCity(null)}
           >
             <Sparkles className="w-4 h-4" />
@@ -1741,7 +1874,7 @@ Provide 9-15 recommendations. Respond in ${userLanguageForAI === 'pt' ? 'Portugu
           {cityTabs.map((tab) => (
             <button
               key={tab.name}
-              className={`city-tab ${activeCity === tab.name ? 'active' : ''}`}
+              className={`city-tab ${activeCity === tab.name ? "active" : ""}`}
               onClick={() => setActiveCity(tab.name)}
             >
               <MapPin className="w-4 h-4" />
@@ -1764,9 +1897,12 @@ Provide 9-15 recommendations. Respond in ${userLanguageForAI === 'pt' ? 'Portugu
         {activeCity && (
           <aside className="places-sidebar open">
             <div className="places-sidebar-header">
-              <h3 className="text-base font-bold text-white mb-1">Your Places</h3>
+              <h3 className="text-base font-bold text-white mb-1">
+                Your Places
+              </h3>
               <p className="text-sm text-gray-400">
-                {activeCityPlaces.length} {activeCityPlaces.length === 1 ? 'place' : 'places'} added
+                {activeCityPlaces.length}{" "}
+                {activeCityPlaces.length === 1 ? "place" : "places"} added
               </p>
             </div>
 
@@ -1776,25 +1912,40 @@ Provide 9-15 recommendations. Respond in ${userLanguageForAI === 'pt' ? 'Portugu
                   <div className="w-16 h-16 mx-auto mb-4 bg-gray-800/50 rounded-full flex items-center justify-center">
                     <MapPin className="w-8 h-8 text-gray-600" />
                   </div>
-                  <p className="text-sm text-gray-400 mb-2">No places added yet</p>
-                  <p className="text-xs text-gray-500">Start exploring and add places to build your itinerary</p>
+                  <p className="text-sm text-gray-400 mb-2">
+                    No places added yet
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    Start exploring and add places to build your itinerary
+                  </p>
                 </div>
               ) : (
                 <div>
                   {activeCityPlaces.map((place, idx) => {
-                    const priceInfo = place.price_level ? getPriceRangeInfo(place.price_level) : null;
+                    const priceInfo = place.price_level
+                      ? getPriceRangeInfo(place.price_level)
+                      : null;
 
                     return (
-                      <div key={`${place.name}-${idx}`} className="place-sidebar-item">
+                      <div
+                        key={`${place.name}-${idx}`}
+                        className="place-sidebar-item"
+                      >
                         <div className="place-sidebar-item-header">
                           <div className="place-sidebar-item-icon">
                             <MapPin className="w-5 h-5 text-blue-400" />
                           </div>
                           <div className="place-sidebar-item-content">
-                            <div className="place-sidebar-item-name" title={place.name}>
+                            <div
+                              className="place-sidebar-item-name"
+                              title={place.name}
+                            >
                               {place.name}
                             </div>
-                            <div className="place-sidebar-item-address" title={place.address}>
+                            <div
+                              className="place-sidebar-item-address"
+                              title={place.address}
+                            >
                               {place.address}
                             </div>
                           </div>
@@ -1818,7 +1969,9 @@ Provide 9-15 recommendations. Respond in ${userLanguageForAI === 'pt' ? 'Portugu
 
                         <button
                           className="place-sidebar-item-remove"
-                          onClick={() => handleRemovePlace(activeCity, place.name)}
+                          onClick={() =>
+                            handleRemovePlace(activeCity, place.name)
+                          }
                           title="Remove from trip"
                           aria-label="Remove place"
                         >
@@ -1854,9 +2007,7 @@ Provide 9-15 recommendations. Respond in ${userLanguageForAI === 'pt' ? 'Portugu
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.6, delay: 0.1 }}
                   >
-                    <h1 className="welcome-hero-title">
-                      {content.hero}
-                    </h1>
+                    <h1 className="welcome-hero-title">{content.hero}</h1>
                   </motion.div>
 
                   {/* Feature cards - Horizontal Grid */}
@@ -1870,12 +2021,14 @@ Provide 9-15 recommendations. Respond in ${userLanguageForAI === 'pt' ? 'Portugu
                         transition={{
                           duration: 0.6,
                           delay: 0.3 + index * 0.15,
-                          ease: [0.4, 0, 0.2, 1]
+                          ease: [0.4, 0, 0.2, 1],
                         }}
                       >
                         <div className="feature-number">{feature.number}</div>
                         <h3 className="feature-title">{feature.title}</h3>
-                        <p className="feature-description">{feature.description}</p>
+                        <p className="feature-description">
+                          {feature.description}
+                        </p>
                       </motion.div>
                     ))}
                   </div>
@@ -1917,8 +2070,12 @@ Provide 9-15 recommendations. Respond in ${userLanguageForAI === 'pt' ? 'Portugu
                 >
                   {filteredMessages.map((msg, idx) => (
                     <div key={idx} className={`message ${msg.role}`}>
-                      <div className={`message-avatar ${msg.role === 'assistant' ? 'ai' : 'user'}`}>
-                        {msg.role === 'assistant' ? (
+                      <div
+                        className={`message-avatar ${
+                          msg.role === "assistant" ? "ai" : "user"
+                        }`}
+                      >
+                        {msg.role === "assistant" ? (
                           <img
                             src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/68e82e0380ac6e4a26051c6f/dda6b4bec_LogoWalvee.png"
                             alt="Walvee"
@@ -1926,41 +2083,52 @@ Provide 9-15 recommendations. Respond in ${userLanguageForAI === 'pt' ? 'Portugu
                         ) : (
                           <UserAvatar
                             src={user?.photo_url || user?.picture}
-                            name={user?.preferred_name || user?.full_name || 'You'}
+                            name={
+                              user?.preferred_name || user?.full_name || "You"
+                            }
                             size="md"
                           />
                         )}
                       </div>
 
                       <div className="message-content-wrapper">
-                        {msg.role === 'user' && (
+                        {msg.role === "user" && (
                           <div className="message-header">
                             <span className="message-user-name">
-                              {user?.preferred_name || user?.full_name || 'You'}
+                              {user?.preferred_name || user?.full_name || "You"}
                             </span>
                           </div>
                         )}
 
                         <div className="message-content">{msg.content}</div>
 
-                        {msg.role === 'assistant' && msg.recommendations && (
+                        {msg.role === "assistant" && msg.recommendations && (
                           <>
                             <MiniCardGrid
-                              recommendations={msg.recommendations.slice(0, showAllRecommendations ? msg.recommendations.length : 6)}
+                              recommendations={msg.recommendations.slice(
+                                0,
+                                showAllRecommendations
+                                  ? msg.recommendations.length
+                                  : 6
+                              )}
                               onCardClick={handleRecommendationClick}
                             />
 
-                            {msg.recommendations.length > 6 && !showAllRecommendations && (
-                              <div className="show-more-container">
-                                <Button
-                                  onClick={() => setShowAllRecommendations(true)}
-                                  variant="outline"
-                                  className="bg-gray-800/50 hover:bg-gray-700 border-gray-700 text-white"
-                                >
-                                  Show {msg.recommendations.length - 6} more recommendations
-                                </Button>
-                              </div>
-                            )}
+                            {msg.recommendations.length > 6 &&
+                              !showAllRecommendations && (
+                                <div className="show-more-container">
+                                  <Button
+                                    onClick={() =>
+                                      setShowAllRecommendations(true)
+                                    }
+                                    variant="outline"
+                                    className="bg-gray-800/50 hover:bg-gray-700 border-gray-700 text-white"
+                                  >
+                                    Show {msg.recommendations.length - 6} more
+                                    recommendations
+                                  </Button>
+                                </div>
+                              )}
                           </>
                         )}
                       </div>
@@ -2020,7 +2188,7 @@ Provide 9-15 recommendations. Respond in ${userLanguageForAI === 'pt' ? 'Portugu
                 onBlur={() => setIsFocused(false)}
                 disabled={isLoadingResponse}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
+                  if (e.key === "Enter" && !e.shiftKey) {
                     e.preventDefault();
                     handleSubmit();
                   }
@@ -2034,13 +2202,16 @@ Provide 9-15 recommendations. Respond in ${userLanguageForAI === 'pt' ? 'Portugu
                 className="prompt-action-btn"
                 onClick={() => setShowFilters(true)}
                 disabled={isLoadingResponse}
-                style={{ position: 'relative' }}
+                style={{ position: "relative" }}
               >
                 Filters
-                {(selectedFilters.interests.length > 0 || selectedFilters.budget ||
-                  selectedFilters.pace || selectedFilters.companions || selectedFilters.season) && (
-                    <span className="filter-active-dot" />
-                  )}
+                {(selectedFilters.interests.length > 0 ||
+                  selectedFilters.budget ||
+                  selectedFilters.pace ||
+                  selectedFilters.companions ||
+                  selectedFilters.season) && (
+                  <span className="filter-active-dot" />
+                )}
               </button>
 
               <button
@@ -2093,11 +2264,13 @@ Provide 9-15 recommendations. Respond in ${userLanguageForAI === 'pt' ? 'Portugu
               }}
               recommendation={selectedRecommendation}
               user={user}
-              onAddToTrip={() => handleAddCityToTrip(
-                selectedRecommendation.country
-                  ? `${selectedRecommendation.name}, ${selectedRecommendation.country}`
-                  : selectedRecommendation.name
-              )}
+              onAddToTrip={() =>
+                handleAddCityToTrip(
+                  selectedRecommendation.country
+                    ? `${selectedRecommendation.name}, ${selectedRecommendation.country}`
+                    : selectedRecommendation.name
+                )
+              }
             />
           ) : (
             <div className="place-modal-container">
@@ -2111,7 +2284,11 @@ Provide 9-15 recommendations. Respond in ${userLanguageForAI === 'pt' ? 'Portugu
               <div className="place-modal-content">
                 <PlaceDetails
                   place={selectedRecommendation}
-                  trip={{ destination: selectedRecommendation.city || selectedRecommendation.address }}
+                  trip={{
+                    destination:
+                      selectedRecommendation.city ||
+                      selectedRecommendation.address,
+                  }}
                   onClose={() => {
                     setIsModalOpen(false);
                     setSelectedRecommendation(null);

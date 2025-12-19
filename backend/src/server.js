@@ -126,8 +126,7 @@ const startServer = async () => {
     await sequelize.sync({ alter: false });
 
     // Start listening
-    app.listen(config.port, () => {
-    });
+    app.listen(config.port, () => {});
   } catch (error) {
     console.error("Failed to start server:", error);
     process.exit(1);
