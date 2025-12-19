@@ -236,6 +236,7 @@ export const endpoints = {
   places: {
     search: "/places/search",
     getById: (id) => `/places/${id}`,
+    getReviews: (id) => `/places/${id}/reviews`,
   },
 
   // Search

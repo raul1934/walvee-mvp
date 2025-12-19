@@ -165,6 +165,8 @@ export default function PlaceDetails({
   console.log("[PlaceDetails] ===== RENDER =====");
   console.log("[PlaceDetails] Props:", {
     placeName: place?.name,
+    placeId: place?.place_id,
+    fullPlace: place,
     hasUser: !!user,
     userId: user?.id,
     hasOpenLoginModal: !!openLoginModal,
@@ -189,7 +191,7 @@ export default function PlaceDetails({
   const [isLoadingAiReview, setIsLoadingAiReview] = useState(false);
 
   const [googleRatingsTotal, setGoogleRatingsTotal] = useState(
-    place.user_ratings_total || place.reviews_count || 0
+    enrichedPlace.user_ratings_total || enrichedPlace.reviews_count || 0
   );
 
   const [expandedSections, setExpandedSections] = useState({
@@ -204,15 +206,15 @@ export default function PlaceDetails({
   const tabsRef = useRef(null);
   const scrollRef = useRef(null);
 
-  const priceLevel = place.price_level || 0;
-  const priceInfo = getPriceRangeInfo(place.price_level);
+  const priceLevel = enrichedPlace.price_level || 0;
+  const priceInfo = getPriceRangeInfo(enrichedPlace.price_level);
 
   const { isFavorited, toggleFavorite, isToggling } = useFavorites(user);
 
-  const isFavorite = isFavorited(place.name);
+  const isFavorite = isFavorited(enrichedPlace.name);
 
   console.log("[PlaceDetails] Favorites state:", {
-    placeName: place.name,
+    placeName: enrichedPlace.name,
     isFavorite,
     isToggling,
     hasUser: !!user,
@@ -221,24 +223,35 @@ export default function PlaceDetails({
   });
 
   const { data: userReviews = [] } = useQuery({
-    queryKey: ["reviews", "place", place.place_id],
+    queryKey: ["reviews", "place", enrichedPlace.place_id],
     queryFn: async () => {
-      if (!place.place_id) return [];
-      const response = await Review.list({
-        placeId: place.place_id,
-      });
-      return response || [];
+      console.log("[PlaceDetails] Query enabled, enrichedPlace:", enrichedPlace);
+      console.log("[PlaceDetails] place_id:", enrichedPlace.place_id);
+      console.log("[PlaceDetails] activeTab:", activeTab);
+      
+      if (!enrichedPlace.place_id) {
+        console.warn("[PlaceDetails] No place_id found, returning empty array");
+        return [];
+      }
+      
+      console.log("[PlaceDetails] Fetching reviews for place:", enrichedPlace.place_id);
+      const response = await apiClient.get(
+        `/places/${enrichedPlace.place_id}/reviews`
+      );
+      console.log("[PlaceDetails] Reviews response:", response);
+      return response.data || [];
     },
-    enabled: !!place.place_id && activeTab === "reviews",
+    enabled: !!enrichedPlace.place_id && activeTab === "reviews",
   });
 
   const handleFavoriteToggle = async () => {
     try {
       // If not authenticated, the API call will trigger 401 and show login modal
       const placeDataForToggle = {
-        ...place,
-        city: place.city || trip?.destination?.split(",")[0],
-        country: place.country || trip?.destination?.split(",")[1]?.trim(),
+        ...enrichedPlace,
+        city: enrichedPlace.city || trip?.destination?.split(",")[0],
+        country:
+          enrichedPlace.country || trip?.destination?.split(",")[1]?.trim(),
       };
 
       await toggleFavorite(placeDataForToggle, trip?.destination);
@@ -251,7 +264,7 @@ export default function PlaceDetails({
   const addReviewMutation = useMutation({
     mutationFn: async (reviewData) => {
       return Review.create({
-        placeId: place.place_id,
+        placeId: enrichedPlace.place_id,
         rating: reviewData.rating,
         priceOpinion: reviewData.price_opinion || null,
         comment: reviewData.comment,
@@ -259,7 +272,7 @@ export default function PlaceDetails({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: ["reviews", "place", place.place_id],
+        queryKey: ["reviews", "place", enrichedPlace.place_id],
       });
       setReviewRating(0);
       setReviewPriceOpinion("");
@@ -296,7 +309,7 @@ export default function PlaceDetails({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: ["reviews", "place", place.place_id],
+        queryKey: ["reviews", "place", enrichedPlace.place_id],
       });
     },
   });
@@ -337,7 +350,7 @@ export default function PlaceDetails({
   }, [place]);
 
   const googleReviewsList = enrichedPlace.reviews
-    ? place.reviews.map((review, idx) => ({
+    ? enrichedPlace.reviews.map((review, idx) => ({
         id: review.time + "-" + idx,
         author_name: review.author_name,
         author_photo: review.profile_photo_url,
@@ -350,34 +363,14 @@ export default function PlaceDetails({
     : [];
 
   useEffect(() => {
-    if (place.user_ratings_total !== undefined) {
-      setGoogleRatingsTotal(place.user_ratings_total);
-    } else if (place.reviews) {
-      setGoogleRatingsTotal(place.reviews.length);
+    if (enrichedPlace.user_ratings_total !== undefined) {
+      setGoogleRatingsTotal(enrichedPlace.user_ratings_total);
+    } else if (enrichedPlace.reviews) {
+      setGoogleRatingsTotal(enrichedPlace.reviews.length);
     } else {
       setGoogleRatingsTotal(0);
     }
-  }, [place.user_ratings_total, place.reviews]);
-
-  // Separate AI review from user reviews
-  const aiReviewFromList = userReviews.find((review) => review.is_ai_generated);
-  const actualUserReviews = userReviews.filter(
-    (review) => !review.is_ai_generated
-  );
-
-  // Set AI review in state when it arrives
-  useEffect(() => {
-    if (aiReviewFromList && place.place_id) {
-      const placeKey = place.place_id || place.name;
-      setAiReviews((prev) => ({
-        ...prev,
-        [placeKey]: {
-          rating: aiReviewFromList.rating,
-          text: aiReviewFromList.comment,
-        },
-      }));
-    }
-  }, [aiReviewFromList, place.place_id, place.name]);
+  }, [enrichedPlace.user_ratings_total, enrichedPlace.reviews]);
 
   const formatReviewDate = (timestamp) => {
     if (!timestamp) return "Unknown date";
@@ -411,47 +404,30 @@ export default function PlaceDetails({
     });
   };
 
-  const placeKey = place.place_id || place.name;
-  const currentPlaceAiReview = aiReviews[placeKey];
-
-  const formattedUserReviews = actualUserReviews.map((review) => ({
-    id: `walvee-${review.id}`,
-    author_name:
-      review.reviewer?.preferred_name ||
-      review.reviewer?.full_name ||
-      review.created_by,
-    author_photo: review.reviewer?.photo_url || null,
-    time: review.created_at,
+  // Format all reviews from the endpoint (AI review is already first)
+  const formattedUserReviews = userReviews.map((review) => ({
+    id: review.is_ai_generated ? "ai-walvee" : `walvee-${review.id}`,
+    author_name: review.is_ai_generated
+      ? "Walvee AI"
+      : review.reviewer?.preferred_name ||
+        review.reviewer?.full_name ||
+        review.created_by,
+    author_photo: review.is_ai_generated
+      ? "https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/68e82e0380ac6e4a26051c6f/0ec4e7e41_LogoWalvee.png"
+      : review.reviewer?.photo_url || null,
+    time: review.is_ai_generated ? "Recently" : review.created_at,
     rating: review.rating,
     text: review.comment,
     price_opinion: review.price_opinion,
-    source: "walvee",
+    source: review.is_ai_generated ? "ai" : "walvee",
     isOwn:
+      !review.is_ai_generated &&
       user &&
       (review.reviewer_id === user.id || review.created_by === user.email),
     originalId: review.id,
   }));
 
-  const aiCuratedSummary = currentPlaceAiReview
-    ? [
-        {
-          id: "ai-walvee",
-          author_name: "Walvee",
-          author_photo:
-            "https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/68e82e0380ac6e4a26051c6f/0ec4e7e41_LogoWalvee.png",
-          time: "Recently",
-          rating: currentPlaceAiReview.rating,
-          text: currentPlaceAiReview.text,
-          source: "ai",
-        },
-      ]
-    : [];
-
-  const allReviewsForAvg = [
-    ...googleReviewsList,
-    ...formattedUserReviews,
-    ...aiCuratedSummary,
-  ];
+  const allReviewsForAvg = [...googleReviewsList, ...formattedUserReviews];
   const totalReviews = allReviewsForAvg.length;
   const averageRating =
     totalReviews > 0
@@ -1022,116 +998,16 @@ export default function PlaceDetails({
               </div>
             </div>
 
-            {isLoadingAiReview && !currentPlaceAiReview && (
-              <div className="flex flex-col items-center justify-center py-4 gap-2">
-                <div className="animate-spin rounded-full h-6 w-6 border-2 border-purple-500 border-t-transparent" />
-                <p className="text-sm text-gray-400">
-                  Generating AI summary...
+            {formattedUserReviews.length > 0 ? (
+              <div className="space-y-3">
+                {formattedUserReviews.map(renderReviewCard)}
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-8 gap-2">
+                <p className="text-sm text-gray-400">No reviews yet</p>
+                <p className="text-xs text-gray-500">
+                  Be the first to review this place!
                 </p>
-              </div>
-            )}
-
-            {aiCuratedSummary.length > 0 && (
-              <div className="space-y-3">
-                <h4 className="text-sm font-semibold text-purple-400 flex items-center gap-2">
-                  <svg
-                    className="w-4 h-4"
-                    fill="currentColor"
-                    viewBox="0 0 20 20"
-                  >
-                    <path d="M10 2a8 8 0 100 16 8 8 0 000-16zM9 9V5h2v4H9zm0 4v-2h2v2H9z" />
-                  </svg>
-                  Curated by Walvee AI
-                </h4>
-                <div className="space-y-3">
-                  {aiCuratedSummary.map(renderReviewCard)}
-                </div>
-              </div>
-            )}
-
-            {isEnriching && !googleReviewsList.length && (
-              <div className="flex flex-col items-center justify-center py-4 gap-2">
-                <div className="animate-spin rounded-full h-6 w-6 border-2 border-blue-500 border-t-transparent" />
-                <p className="text-sm text-gray-400">
-                  Loading Google reviews...
-                </p>
-              </div>
-            )}
-            {googleReviewsList.length > 0 && (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-sm font-semibold text-blue-400 flex items-center gap-2">
-                    <svg
-                      className="w-4 h-4"
-                      fill="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z" />
-                    </svg>
-                    From Google ({googleReviewsList.length})
-                  </h4>
-                  {googleReviewsList.length > 3 && (
-                    <button
-                      onClick={() => toggleSection("google")}
-                      className="text-xs text-gray-400 hover:text-white flex items-center gap-1"
-                    >
-                      {expandedSections.google ? (
-                        <>
-                          Show less <ChevronUp className="w-3 h-3" />
-                        </>
-                      ) : (
-                        <>
-                          Show more <ChevronDown className="w-3 h-3" />
-                        </>
-                      )}
-                    </button>
-                  )}
-                </div>
-                <div className="space-y-3">
-                  {(expandedSections.google
-                    ? googleReviewsList
-                    : googleReviewsList.slice(0, 3)
-                  ).map(renderReviewCard)}
-                </div>
-              </div>
-            )}
-
-            {formattedUserReviews.length > 0 && (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-sm font-semibold text-blue-400 flex items-center gap-2">
-                    <svg
-                      className="w-4 h-4"
-                      fill="currentColor"
-                      viewBox="0 0 20 20"
-                    >
-                      <path d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" />
-                    </svg>
-                    From Walvee Travelers ({formattedUserReviews.length})
-                  </h4>
-                  {formattedUserReviews.length > 3 && (
-                    <button
-                      onClick={() => toggleSection("walvee")}
-                      className="text-xs text-gray-400 hover:text-white flex items-center gap-1"
-                    >
-                      {expandedSections.walvee ? (
-                        <>
-                          Show less <ChevronUp className="w-3 h-3" />
-                        </>
-                      ) : (
-                        <>
-                          Show more <ChevronDown className="w-3 h-3" />
-                        </>
-                      )}
-                    </button>
-                  )}
-                </div>
-                <div className="space-y-3">
-                  {(expandedSections.walvee
-                    ? formattedUserReviews
-                    : formattedUserReviews.slice(0, 3)
-                  ).map(renderReviewCard)}
-                </div>
               </div>
             )}
 
