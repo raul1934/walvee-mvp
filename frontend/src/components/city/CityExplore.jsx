@@ -189,7 +189,7 @@ export default function CityExplore({
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
             {featuredLocals.map((local, idx) => (
               <motion.div
-                key={local.id}
+                key={`local-${local.id}-${idx}`}
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: idx * 0.05 }}

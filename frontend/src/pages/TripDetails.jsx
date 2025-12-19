@@ -223,11 +223,7 @@ export default function TripDetails() {
       }
 
       try {
-        const likes = await TripLike.filter({
-          trip_id: tripId,
-          liker_id: currentUser.id,
-        });
-        const result = likes.length > 0 ? likes[0] : null;
+        const result = await TripLike.check(tripId);
 
         sessionStorage.setItem(
           `likeStatus_${tripId}_${currentUser.id}`,

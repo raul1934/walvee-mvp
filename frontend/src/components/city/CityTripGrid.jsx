@@ -87,6 +87,7 @@ export default function CityTripGrid({ trips, isLoading, currentUserId }) {
                       cities={cities}
                       className="text-xs"
                       makeLinks={false}
+                      showSeparators={true}
                     />
                   </div>
                 </div>
