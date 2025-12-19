@@ -392,7 +392,9 @@ export default function PlaceDetails({
         // First, try to fetch saved AI review from backend
         if (enrichedPlace.place_id) {
           try {
-            const response = await fetch(`/v1/places/ai-review/${enrichedPlace.place_id}`);
+            const response = await fetch(
+              `/v1/places/ai-review/${enrichedPlace.place_id}`
+            );
             if (response.ok) {
               const data = await response.json();
               if (data.data && data.data.rating && data.data.text) {
@@ -409,7 +411,10 @@ export default function PlaceDetails({
               }
             }
           } catch (error) {
-            console.warn("[PlaceDetails] Error fetching saved AI review:", error);
+            console.warn(
+              "[PlaceDetails] Error fetching saved AI review:",
+              error
+            );
             // Continue to generate new one
           }
         }
@@ -918,7 +923,9 @@ export default function PlaceDetails({
                 ))}
               </div>
               <span className="text-sm font-semibold text-white">
-                {enrichedPlace.rating ? parseFloat(enrichedPlace.rating).toFixed(1) : "N/A"}
+                {enrichedPlace.rating
+                  ? parseFloat(enrichedPlace.rating).toFixed(1)
+                  : "N/A"}
               </span>
               <span className="text-sm text-gray-500">
                 ({googleRatingsTotal.toLocaleString()} reviews)
@@ -1325,7 +1332,9 @@ export default function PlaceDetails({
             ) : (
               <div className="flex flex-col items-center justify-center h-64 text-center">
                 <ImageIcon className="w-16 h-16 text-gray-600 mb-4" />
-                <p className="text-gray-400 text-lg font-medium">No photos available</p>
+                <p className="text-gray-400 text-lg font-medium">
+                  No photos available
+                </p>
                 <p className="text-gray-500 text-sm mt-2">
                   This place doesn't have any photos yet
                 </p>

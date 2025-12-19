@@ -19,7 +19,12 @@ import {
   MessageSquare,
   Edit,
 } from "lucide-react";
-import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import {
+  Link,
+  useNavigate,
+  useParams,
+  useSearchParams,
+} from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import UserAvatar from "../components/common/UserAvatar";
 import { useDragScroll } from "../components/hooks/useDragScroll";
@@ -1122,12 +1127,14 @@ export default function TripDetails() {
         const data = await apiClient.get(`/places/${activity.placeDetails.id}`);
         if (data.success && data.data?.photos) {
           // Update with full photo URLs from backend
-          const fullPhotos = data.data.photos.map(photo =>
-            photo.url_medium || photo.url_large || photo.url_small
-          ).filter(Boolean);
+          const fullPhotos = data.data.photos
+            .map(
+              (photo) => photo.url_medium || photo.url_large || photo.url_small
+            )
+            .filter(Boolean);
 
           if (fullPhotos.length > 0) {
-            setSelectedPlaceDetails(prev => ({
+            setSelectedPlaceDetails((prev) => ({
               ...prev,
               photos: fullPhotos,
               ...data.data, // Include other enriched data like opening_hours, etc.
@@ -1280,7 +1287,9 @@ export default function TripDetails() {
       return currentDay.activities.map((activity) => {
         // Find matching place in places array to get photo
         const matchingPlace = currentDay.places?.find(
-          (p) => p.name === activity.name || p.address === activity.placeDetails?.address
+          (p) =>
+            p.name === activity.name ||
+            p.address === activity.placeDetails?.address
         );
 
         return {
@@ -1800,8 +1809,7 @@ export default function TripDetails() {
                           Day {String(day.day || idx + 1).padStart(2, "0")}
                         </div>
                         <div className="text-xs opacity-80">
-                          {day.activities?.length || 0}{" "}
-                          places
+                          {day.activities?.length || 0} places
                         </div>
                         {selectedDay === idx && (
                           <div className="absolute bottom-0 left-0 right-0 h-1 bg-blue-600 rounded-t-full"></div>

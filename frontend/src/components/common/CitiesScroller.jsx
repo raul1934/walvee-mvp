@@ -3,7 +3,11 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Link } from "react-router-dom";
 import { createLegacyCityUrl } from "@/utils";
 
-export default function CitiesScroller({ cities, className = "", makeLinks = false }) {
+export default function CitiesScroller({
+  cities,
+  className = "",
+  makeLinks = false,
+}) {
   const scrollRef = useRef(null);
   const [showLeftArrow, setShowLeftArrow] = useState(false);
   const [showRightArrow, setShowRightArrow] = useState(false);
@@ -22,23 +26,23 @@ export default function CitiesScroller({ cities, className = "", makeLinks = fal
     checkScroll();
     const element = scrollRef.current;
     if (element) {
-      element.addEventListener('scroll', checkScroll);
-      window.addEventListener('resize', checkScroll);
+      element.addEventListener("scroll", checkScroll);
+      window.addEventListener("resize", checkScroll);
     }
 
     return () => {
       if (element) {
-        element.removeEventListener('scroll', checkScroll);
+        element.removeEventListener("scroll", checkScroll);
       }
-      window.removeEventListener('resize', checkScroll);
+      window.removeEventListener("resize", checkScroll);
     };
   }, [cities]);
 
   const scroll = (direction) => {
     if (scrollRef.current) {
       scrollRef.current.scrollBy({
-        left: direction === 'left' ? -100 : 100,
-        behavior: 'smooth'
+        left: direction === "left" ? -100 : 100,
+        behavior: "smooth",
       });
     }
   };
@@ -68,7 +72,7 @@ export default function CitiesScroller({ cities, className = "", makeLinks = fal
           onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();
-            scroll('left');
+            scroll("left");
           }}
           className="absolute left-0 z-10 w-5 h-5 flex items-center justify-center bg-[#1A1B23]/95 hover:bg-[#2A2B35] rounded-full transition-all shadow-lg"
         >
@@ -79,7 +83,7 @@ export default function CitiesScroller({ cities, className = "", makeLinks = fal
       <div
         ref={scrollRef}
         className={`flex items-center gap-1.5 overflow-x-auto scrollbar-hide scroll-smooth ${className}`}
-        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+        style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
       >
         {cities.map((city, idx) => (
           <React.Fragment key={idx}>
@@ -106,7 +110,7 @@ export default function CitiesScroller({ cities, className = "", makeLinks = fal
           onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();
-            scroll('right');
+            scroll("right");
           }}
           className="absolute right-0 z-10 w-5 h-5 flex items-center justify-center bg-[#1A1B23]/95 hover:bg-[#2A2B35] rounded-full transition-all shadow-lg"
         >

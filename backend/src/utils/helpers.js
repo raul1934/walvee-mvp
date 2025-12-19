@@ -11,11 +11,11 @@ const generateUUID = () => {
  */
 const getFullImageUrl = (imagePath) => {
   if (!imagePath) return null;
-  if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+  if (imagePath.startsWith("http://") || imagePath.startsWith("https://")) {
     return imagePath; // Already a full URL
   }
-  const baseUrl = process.env.BACKEND_URL || 'http://localhost:3000';
-  return `${baseUrl}${imagePath.startsWith('/') ? '' : '/'}${imagePath}`;
+  const baseUrl = process.env.BACKEND_URL || "http://localhost:3000";
+  return `${baseUrl}${imagePath.startsWith("/") ? "" : "/"}${imagePath}`;
 };
 
 const paginate = (page = 1, limit = 20, maxLimit = 100) => {

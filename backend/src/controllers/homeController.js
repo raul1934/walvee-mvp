@@ -1,4 +1,14 @@
-const { Trip, User, City, Country, CityPhoto, Place, PlacePhoto, TripItineraryDay, TripItineraryActivity } = require("../models/sequelize");
+const {
+  Trip,
+  User,
+  City,
+  Country,
+  CityPhoto,
+  Place,
+  PlacePhoto,
+  TripItineraryDay,
+  TripItineraryActivity,
+} = require("../models/sequelize");
 const { Op } = require("sequelize");
 const { sequelize } = require("../database/sequelize");
 const {
@@ -60,12 +70,25 @@ const getHomeTrips = async (req, res) => {
             {
               model: TripItineraryActivity,
               as: "activities",
-              attributes: ["place_id", "time", "name", "location", "description", "activity_order"],
+              attributes: [
+                "place_id",
+                "time",
+                "name",
+                "location",
+                "description",
+                "activity_order",
+              ],
               include: [
                 {
                   model: Place,
                   as: "placeDetails",
-                  attributes: ["id", "name", "address", "rating", "price_level"],
+                  attributes: [
+                    "id",
+                    "name",
+                    "address",
+                    "rating",
+                    "price_level",
+                  ],
                   include: [
                     {
                       model: PlacePhoto,
@@ -87,30 +110,33 @@ const getHomeTrips = async (req, res) => {
     const formattedTrips = trips.map((trip) => {
       // Collect all images: cover + city photos + place photos
       const images = [];
-      
+
       // Add cover image first
       if (trip.cover_image) {
         images.push(getFullImageUrl(trip.cover_image));
       }
-      
+
       // Add city photos
       if (trip.destinationCity?.photos) {
-        trip.destinationCity.photos.forEach(photo => {
+        trip.destinationCity.photos.forEach((photo) => {
           if (photo.url_medium) {
             images.push(getFullImageUrl(photo.url_medium));
           }
         });
       }
-      
+
       // Add place photos from itinerary days and activities
       if (trip.itineraryDays) {
         const addedPlaceIds = new Set();
-        trip.itineraryDays.forEach(day => {
+        trip.itineraryDays.forEach((day) => {
           if (day.activities) {
-            day.activities.forEach(activity => {
-              if (activity.placeDetails?.photos && !addedPlaceIds.has(activity.placeDetails.id)) {
+            day.activities.forEach((activity) => {
+              if (
+                activity.placeDetails?.photos &&
+                !addedPlaceIds.has(activity.placeDetails.id)
+              ) {
                 addedPlaceIds.add(activity.placeDetails.id);
-                activity.placeDetails.photos.forEach(photo => {
+                activity.placeDetails.photos.forEach((photo) => {
                   if (photo.url_medium) {
                     images.push(getFullImageUrl(photo.url_medium));
                   }
@@ -138,7 +164,9 @@ const getHomeTrips = async (req, res) => {
         views: trip.views_count || 0,
         created_at: trip.created_at,
         author_name:
-          trip.author?.preferred_name || trip.author?.full_name || "Unknown User",
+          trip.author?.preferred_name ||
+          trip.author?.full_name ||
+          "Unknown User",
         author_photo: getFullImageUrl(trip.author?.photo_url),
         author_id: trip.author?.id,
         itinerary: trip.itineraryDays

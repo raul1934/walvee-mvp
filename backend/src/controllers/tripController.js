@@ -600,7 +600,7 @@ async function formatTripResponse(trip) {
 
   // Add city photos
   if (tripData.destinationCity?.photos) {
-    tripData.destinationCity.photos.forEach(photo => {
+    tripData.destinationCity.photos.forEach((photo) => {
       if (photo.url_medium) {
         images.push(getFullImageUrl(photo.url_medium));
       }
@@ -610,12 +610,15 @@ async function formatTripResponse(trip) {
   // Add place photos from itinerary days and activities
   if (tripData.itineraryDays) {
     const addedPlaceIds = new Set();
-    tripData.itineraryDays.forEach(day => {
+    tripData.itineraryDays.forEach((day) => {
       if (day.activities) {
-        day.activities.forEach(activity => {
-          if (activity.placeDetails?.photos && !addedPlaceIds.has(activity.placeDetails.id)) {
+        day.activities.forEach((activity) => {
+          if (
+            activity.placeDetails?.photos &&
+            !addedPlaceIds.has(activity.placeDetails.id)
+          ) {
             addedPlaceIds.add(activity.placeDetails.id);
-            activity.placeDetails.photos.forEach(photo => {
+            activity.placeDetails.photos.forEach((photo) => {
               if (photo.url_medium) {
                 images.push(getFullImageUrl(photo.url_medium));
               }

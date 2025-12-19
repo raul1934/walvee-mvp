@@ -17,10 +17,7 @@ import { apiClient, endpoints } from "@/api/apiClient";
 
 console.log("[City Page] ===== MODULE LOADED =====");
 
-export default function City({
-  cityNameOverride,
-  isModal = false,
-}) {
+export default function City({ cityNameOverride, isModal = false }) {
   // Get user from auth context
   const { user, openLoginModal } = useAuth();
 
@@ -37,9 +34,10 @@ export default function City({
   // Extract cityId from route params (for /:countryId/:cityId route)
   const { countryId, cityId: cityIdParam } = useParams();
   const [searchParams] = useSearchParams();
-  
+
   // Support both ID format and legacy query params
-  const legacyCityName = cityNameOverride || searchParams.get("name") || searchParams.get("city");
+  const legacyCityName =
+    cityNameOverride || searchParams.get("name") || searchParams.get("city");
   const cityId = cityIdParam;
 
   const [activeTab, setActiveTab] = useState("all");
@@ -98,14 +96,11 @@ export default function City({
   }, [activeTab]);
 
   // Fetch city data by ID
-  const {
-    data: cityData,
-    isLoading: isCityLoading,
-  } = useQuery({
+  const { data: cityData, isLoading: isCityLoading } = useQuery({
     queryKey: ["cityData", cityId],
     queryFn: async () => {
       if (!cityId) return null;
-      
+
       try {
         const response = await apiClient.get(endpoints.cities.getById(cityId));
         if (response.success && response.data) {
@@ -125,7 +120,7 @@ export default function City({
   // Determine city name from either cityData or legacy URL params (memoized to prevent infinite loops)
   const cityName = React.useMemo(() => {
     if (cityData) {
-      return `${cityData.name}, ${cityData.country?.name || ''}`;
+      return `${cityData.name}, ${cityData.country?.name || ""}`;
     }
     return legacyCityName;
   }, [cityData, legacyCityName]);
@@ -139,7 +134,10 @@ export default function City({
     queryFn: async () => {
       if (!cityName) return [];
 
-      const allTrips = await Trip.list({ sortBy: "likes_count", order: "desc" });
+      const allTrips = await Trip.list({
+        sortBy: "likes_count",
+        order: "desc",
+      });
 
       const normalizedCityName = cityName.toLowerCase().trim();
       const cityNameOnly = normalizedCityName.split(",")[0].trim();
@@ -179,10 +177,12 @@ export default function City({
     }
 
     const newTrips = trips.slice(0, offset + LIMIT);
-    setAllTrips(prev => {
+    setAllTrips((prev) => {
       // Only update if the content actually changed
-      if (prev.length === newTrips.length &&
-          prev.every((trip, index) => trip.id === newTrips[index]?.id)) {
+      if (
+        prev.length === newTrips.length &&
+        prev.every((trip, index) => trip.id === newTrips[index]?.id)
+      ) {
         return prev;
       }
       return newTrips;
@@ -466,10 +466,7 @@ export default function City({
         }
       `}</style>
 
-      <CityHeader
-        cityName={cityName}
-        user={user}
-      />
+      <CityHeader cityName={cityName} user={user} />
 
       <CityNavigation
         activeTab={activeTab}
