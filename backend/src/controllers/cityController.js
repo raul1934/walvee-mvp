@@ -431,10 +431,20 @@ const getCityTrips = async (req, res, next) => {
     const cityNameOnly = cityName.toLowerCase().trim();
 
     // Import required models
-    const { Trip, User, TripTag, TripPlace, Place } = require("../models/sequelize");
+    const {
+      Trip,
+      User,
+      TripTag,
+      TripPlace,
+      Place,
+    } = require("../models/sequelize");
     const { paginate, buildPaginationMeta } = require("../utils/helpers");
 
-    const { page: pageNum, limit: limitNum, offset } = paginate(page, limit, 100);
+    const {
+      page: pageNum,
+      limit: limitNum,
+      offset,
+    } = paginate(page, limit, 100);
 
     // Get all public trips (we'll filter by city in memory for now)
     // TODO: Optimize with database query when destination_city_id is properly populated
@@ -474,12 +484,7 @@ const getCityTrips = async (req, res, next) => {
             {
               model: Place,
               as: "placeDetails",
-              attributes: [
-                "id",
-                "latitude",
-                "longitude",
-                "google_place_id",
-              ],
+              attributes: ["id", "latitude", "longitude", "google_place_id"],
             },
           ],
         },
@@ -518,14 +523,17 @@ const getCityTrips = async (req, res, next) => {
     // Helper function to extract cities with IDs from trip data
     const extractCitiesWithIds = async (trip) => {
       const cityMap = new Map();
-      
+
       // Add main destination city
       const destination = trip.destination || "";
       const destCityName = destination.split(",")[0].trim();
       if (destCityName) {
-        cityMap.set(destCityName.toLowerCase(), { name: destination, id: null });
+        cityMap.set(destCityName.toLowerCase(), {
+          name: destination,
+          id: null,
+        });
       }
-      
+
       // Add cities from places
       if (trip.places && trip.places.length > 0) {
         for (const place of trip.places) {
@@ -534,35 +542,37 @@ const getCityTrips = async (req, res, next) => {
           if (parts.length > 0) {
             const placeCityName = parts[0].trim();
             if (placeCityName) {
-              cityMap.set(placeCityName.toLowerCase(), { 
-                name: address, 
-                id: null 
+              cityMap.set(placeCityName.toLowerCase(), {
+                name: address,
+                id: null,
               });
             }
           }
         }
       }
-      
+
       // Look up city IDs from database
       const cityNames = Array.from(cityMap.keys());
       if (cityNames.length > 0) {
         const cities = await City.findAll({
           where: {
             name: {
-              [require("sequelize").Op.in]: cityNames.map(name => 
-                name.charAt(0).toUpperCase() + name.slice(1)
-              )
-            }
+              [require("sequelize").Op.in]: cityNames.map(
+                (name) => name.charAt(0).toUpperCase() + name.slice(1)
+              ),
+            },
           },
           attributes: ["id", "name"],
-          include: [{
-            model: require("../models/sequelize").Country,
-            as: "country",
-            attributes: ["name"]
-          }]
+          include: [
+            {
+              model: require("../models/sequelize").Country,
+              as: "country",
+              attributes: ["name"],
+            },
+          ],
         });
-        
-        cities.forEach(cityObj => {
+
+        cities.forEach((cityObj) => {
           const key = cityObj.name.toLowerCase();
           if (cityMap.has(key)) {
             const existing = cityMap.get(key);
@@ -571,7 +581,7 @@ const getCityTrips = async (req, res, next) => {
           }
         });
       }
-      
+
       return Array.from(cityMap.values());
     };
 
@@ -579,7 +589,7 @@ const getCityTrips = async (req, res, next) => {
     const formattedTrips = await Promise.all(
       paginatedTrips.map(async (trip) => {
         const cities = await extractCitiesWithIds(trip);
-        
+
         return {
           id: trip.id,
           title: trip.title,
@@ -613,7 +623,7 @@ const getCityTrips = async (req, res, next) => {
               }
             : null,
           tags: trip.tags?.map((t) => t.tag) || [],
-          locations: cities.map(c => c.name),
+          locations: cities.map((c) => c.name),
           cities: cities,
           places: trip.places || [],
         };

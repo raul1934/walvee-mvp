@@ -87,7 +87,9 @@ export default function CityTopPlaces({
                 <div className="relative aspect-[16/9] overflow-hidden bg-gradient-to-br from-purple-600/20 to-pink-600/20">
                   {place.photo?.url_medium || place.photos?.[0]?.url_medium ? (
                     <img
-                      src={place.photo?.url_medium || place.photos?.[0]?.url_medium}
+                      src={
+                        place.photo?.url_medium || place.photos?.[0]?.url_medium
+                      }
                       alt={place.name}
                       className="w-full h-full object-cover"
                       onError={() => handleImageError(placeId)}
