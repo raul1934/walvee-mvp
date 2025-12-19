@@ -13,20 +13,14 @@ export default function TravelerCarousel() {
     queryKey: ["homeTravelers"],
     queryFn: async () => {
       try {
-        console.log("[TravelerCarousel] Fetching travelers from home endpoint");
         const response = await apiClient.get(endpoints.home.travelers);
 
         if (response.success && response.data) {
-          console.log(
-            "[TravelerCarousel] Travelers loaded:",
-            response.data.length
-          );
           return response.data;
         }
 
         return [];
       } catch (error) {
-        console.error("[TravelerCarousel] Error loading travelers:", error);
         return [];
       }
     },

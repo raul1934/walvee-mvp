@@ -13,19 +13,11 @@ export function createProfileUrl(userId?: string) {
 }
 
 /**
- * Create city URL using country and city IDs
- * Example: (1, 42) -> "/1/42"
+ * Create city URL using city ID
+ * Example: 42 -> "/city/42"
  */
-export function createCityUrl(countryId: number | string, cityId: number | string): string {
-    return `/${countryId}/${cityId}`;
-}
-
-/**
- * Create legacy city URL using city name (for backward compatibility)
- * Example: "San Diego, United States" -> "/City?name=San%20Diego%2C%20United%20States"
- */
-export function createLegacyCityUrl(cityName: string): string {
-    return `/City?name=${encodeURIComponent(cityName)}`;
+export function createCityUrl(cityId: number | string): string {
+    return `/city/${cityId}`;
 }
 
 /**

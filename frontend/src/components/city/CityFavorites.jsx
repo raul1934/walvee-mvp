@@ -4,25 +4,26 @@ import { MapPin, Star, Heart } from "lucide-react";
 import { useFavorites } from "../hooks/useFavorites";
 import { getPriceRangeInfo } from "../utils/priceFormatter";
 
-export default function CityFavorites({ cityName, onPlaceClick, user, openLoginModal }) {
-  console.log('[CityFavorites] Render:', { cityName, hasUser: !!user });
-
+export default function CityFavorites({
+  cityName,
+  onPlaceClick,
+  user,
+  openLoginModal,
+}) {
   const { favorites, isLoading: isFavoritesLoading } = useFavorites(user);
 
   // Filter favorites for this city
   const cityFavorites = React.useMemo(() => {
     if (!cityName || !favorites.length) return [];
-    
+
     const normalizedCityName = cityName.toLowerCase().trim();
-    const cityNameOnly = normalizedCityName.split(',')[0].trim();
-    
-    return favorites.filter(fav => {
-      const favCity = (fav.city || '').toLowerCase().trim();
+    const cityNameOnly = normalizedCityName.split(",")[0].trim();
+
+    return favorites.filter((fav) => {
+      const favCity = (fav.city || "").toLowerCase().trim();
       return favCity === cityNameOnly || favCity === normalizedCityName;
     });
   }, [favorites, cityName]);
-
-  console.log('[CityFavorites] Filtered favorites:', cityFavorites.length);
 
   if (!user) {
     return (
@@ -30,7 +31,9 @@ export default function CityFavorites({ cityName, onPlaceClick, user, openLoginM
         <div className="w-16 h-16 bg-gradient-to-br from-pink-600/20 to-purple-600/20 rounded-2xl flex items-center justify-center mb-4">
           <Heart className="w-8 h-8 text-pink-400" />
         </div>
-        <h3 className="text-xl font-bold text-white mb-2">Your Favorite Places</h3>
+        <h3 className="text-xl font-bold text-white mb-2">
+          Your Favorite Places
+        </h3>
         <p className="text-gray-400 text-center max-w-md mb-6">
           Save your favorite spots in {cityName} to quickly find them later.
         </p>
@@ -60,7 +63,8 @@ export default function CityFavorites({ cityName, onPlaceClick, user, openLoginM
         </div>
         <h3 className="text-xl font-bold text-white mb-2">No favorites yet</h3>
         <p className="text-gray-400 text-center max-w-md">
-          Start saving your favorite places in {cityName} to quickly find them later when planning trips!
+          Start saving your favorite places in {cityName} to quickly find them
+          later when planning trips!
         </p>
       </div>
     );
@@ -77,19 +81,21 @@ export default function CityFavorites({ cityName, onPlaceClick, user, openLoginM
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {cityFavorites.map((favorite) => {
           const priceInfo = getPriceRangeInfo(favorite.price_level);
-          
+
           return (
             <button
               key={favorite.id}
-              onClick={() => onPlaceClick({
-                name: favorite.place_name,
-                address: favorite.place_address,
-                place_id: favorite.place_id,
-                rating: favorite.rating,
-                price_level: favorite.price_level,
-                photos: favorite.photo_url ? [favorite.photo_url] : [],
-                types: favorite.category ? [favorite.category] : []
-              })}
+              onClick={() =>
+                onPlaceClick({
+                  name: favorite.place_name,
+                  address: favorite.place_address,
+                  place_id: favorite.place_id,
+                  rating: favorite.rating,
+                  price_level: favorite.price_level,
+                  photos: favorite.photo_url ? [favorite.photo_url] : [],
+                  types: favorite.category ? [favorite.category] : [],
+                })
+              }
               className="bg-[#1A1B23] rounded-xl p-4 hover:bg-[#2A2B35] transition-all text-left group"
             >
               <div className="flex items-start gap-3">
@@ -130,9 +136,13 @@ export default function CityFavorites({ cityName, onPlaceClick, user, openLoginM
 
                     {priceInfo && (
                       <>
-                        {favorite.rating && <span className="text-xs text-gray-600">•</span>}
+                        {favorite.rating && (
+                          <span className="text-xs text-gray-600">•</span>
+                        )}
                         <div className="flex items-center gap-1">
-                          <span className={`text-sm font-bold ${priceInfo.color}`}>
+                          <span
+                            className={`text-sm font-bold ${priceInfo.color}`}
+                          >
                             {priceInfo.symbol}
                           </span>
                           <span className="text-xs text-gray-400">

@@ -32,13 +32,6 @@ export default React.memo(
     onFavoriteToggle,
     isLoadingLikes = false,
   }) {
-    // Debug: Track re-renders
-    console.log(
-      "[TripCard] Rendering trip:",
-      trip.id,
-      trip.title?.slice(0, 30)
-    );
-
     const [currentImageIndex, setCurrentImageIndex] = React.useState(0);
     const [viewMode, setViewMode] = React.useState("photos");
     const [imageErrors, setImageErrors] = React.useState(new Set());
@@ -78,22 +71,13 @@ export default React.memo(
 
     const likeMutation = useMutation({
       mutationFn: async (shouldLike) => {
-        console.log("[TripCard] Like mutation started:", {
-          tripId: trip.id,
-          shouldLike,
-          currentUserId,
-        });
-
         if (shouldLike) {
           // Criar like
           await TripLike.create(trip.id);
-          console.log("[TripCard] Like created");
 
-          // Atualizar contador no Trip
           await Trip.update(trip.id, {
             likes: likesCount + 1,
           });
-          console.log("[TripCard] Trip likes updated:", likesCount + 1);
         } else {
           // Buscar e deletar like existente
           const likes = await TripLike.filter({
@@ -102,37 +86,23 @@ export default React.memo(
           });
           if (likes.length > 0) {
             await TripLike.delete(likes[0].id);
-            console.log("[TripCard] Like deleted");
 
             // Atualizar contador no Trip
             await Trip.update(trip.id, {
               likes: Math.max(0, likesCount - 1),
             });
-            console.log(
-              "[TripCard] Trip likes updated:",
-              Math.max(0, likesCount - 1)
-            );
           }
         }
       },
       onSuccess: () => {
-        console.log(
-          "[TripCard] Like mutation successful, invalidating queries"
-        );
-
-        // Invalidar queries para refetch
         queryClient.invalidateQueries({ queryKey: ["trips"] });
         queryClient.invalidateQueries({
           queryKey: ["userLikes", currentUserId],
         });
 
-        // Notificar parent para refetch likes
         if (onFavoriteToggle) {
           onFavoriteToggle();
         }
-      },
-      onError: (error) => {
-        console.error("[TripCard] Like mutation error:", error);
       },
     });
 
@@ -222,7 +192,7 @@ export default React.memo(
           setShowShareTooltip(false);
         }, 1500);
       } catch (error) {
-        console.error("Error copying to clipboard:", error);
+        console.error("Failed to copy link to clipboard:", error);
       }
     };
 
@@ -242,7 +212,10 @@ export default React.memo(
 
     return (
       <>
-        <Link to={`${createPageUrl("TripDetails")}/${trip.id}`} className="block mb-8">
+        <Link
+          to={`${createPageUrl("TripDetails")}/${trip.id}`}
+          className="block mb-8"
+        >
           <div className="bg-[#1A1B23] rounded-3xl overflow-hidden border border-[#2A2B35] hover:border-blue-500/30 transition-all duration-300">
             {/* User Info Header */}
             <div className="flex items-center justify-between p-4 border-b border-[#2A2B35]">
@@ -434,25 +407,6 @@ export default React.memo(
       prevProps.currentUserId === nextProps.currentUserId &&
       prevProps.isLoadingLikes === nextProps.isLoadingLikes &&
       prevProps.userLikedTripIds === nextProps.userLikedTripIds;
-
-    // Debug: Log when props change
-    if (!shouldNotRerender) {
-      console.log("[TripCard] Props changed for trip:", nextProps.trip.id, {
-        tripId: prevProps.trip.id !== nextProps.trip.id,
-        likes: prevProps.trip.likes !== nextProps.trip.likes,
-        steals: prevProps.trip.steals !== nextProps.trip.steals,
-        shares: prevProps.trip.shares !== nextProps.trip.shares,
-        isLoggedIn: prevProps.isLoggedIn !== nextProps.isLoggedIn,
-        currentUserId: prevProps.currentUserId !== nextProps.currentUserId,
-        isLoadingLikes: prevProps.isLoadingLikes !== nextProps.isLoadingLikes,
-        userLikedTripIds:
-          prevProps.userLikedTripIds !== nextProps.userLikedTripIds,
-        onRestrictedAction:
-          prevProps.onRestrictedAction !== nextProps.onRestrictedAction,
-        onFavoriteToggle:
-          prevProps.onFavoriteToggle !== nextProps.onFavoriteToggle,
-      });
-    }
 
     return shouldNotRerender;
   }

@@ -23,16 +23,8 @@ export default function TripItinerary({ trip, onPlaceClick }) {
   const daysScrollRef = useRef(null);
   const navigate = useNavigate();
 
-  // Debug: log places data
   React.useEffect(() => {
-    if (trip?.itinerary?.[selectedDay]?.places) {
-      console.log(
-        "[TripItinerary] Places for day",
-        selectedDay,
-        ":",
-        trip.itinerary[selectedDay].places
-      );
-    }
+    // no-op: kept for potential side-effects in the future
   }, [selectedDay, trip]);
 
   if (!trip.itinerary || trip.itinerary.length === 0) {

@@ -3,16 +3,21 @@
  * Used to identify a specific place occurrence in a trip itinerary
  * Even if the same place appears multiple times in different days
  */
-export function generatePlaceInstanceId(tripId, dayIndex, placeIndex, googlePlaceId = null) {
+export function generatePlaceInstanceId(
+  tripId,
+  dayIndex,
+  placeIndex,
+  googlePlaceId = null
+) {
   // Create a stable ID based on trip, day, and position
   const base = `${tripId}-d${dayIndex}-p${placeIndex}`;
-  
+
   // If we have a Google Place ID, include a hash of it for extra uniqueness
   if (googlePlaceId) {
     const hash = simpleHash(googlePlaceId);
     return `${base}-g${hash}`;
   }
-  
+
   return base;
 }
 
@@ -21,14 +26,14 @@ export function generatePlaceInstanceId(tripId, dayIndex, placeIndex, googlePlac
  */
 export function parsePlaceInstanceId(placeInstanceId) {
   const match = placeInstanceId.match(/^(.+)-d(\d+)-p(\d+)(?:-g(\w+))?$/);
-  
+
   if (!match) return null;
-  
+
   return {
     tripId: match[1],
     dayIndex: parseInt(match[2], 10),
     placeIndex: parseInt(match[3], 10),
-    googlePlaceHash: match[4] || null
+    googlePlaceHash: match[4] || null,
   };
 }
 
@@ -39,7 +44,7 @@ function simpleHash(str) {
   let hash = 0;
   for (let i = 0; i < str.length; i++) {
     const char = str.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
+    hash = (hash << 5) - hash + char;
     hash = hash & hash; // Convert to 32-bit integer
   }
   return Math.abs(hash).toString(36).substring(0, 6);
@@ -53,7 +58,7 @@ export function findPlaceInTrip(trip, { day, placeId, gpid }) {
 
   let targetDay = null;
   let targetPlaceIndex = null;
-  let strategy = 'none';
+  let strategy = "none";
 
   // Strategy 1: Use placeInstanceId (most reliable)
   if (placeId) {
@@ -63,7 +68,7 @@ export function findPlaceInTrip(trip, { day, placeId, gpid }) {
       if (dayData?.places?.[parsed.placeIndex]) {
         targetDay = parsed.dayIndex;
         targetPlaceIndex = parsed.placeIndex;
-        strategy = 'placeInstanceId';
+        strategy = "placeInstanceId";
       }
     }
   }
@@ -73,11 +78,11 @@ export function findPlaceInTrip(trip, { day, placeId, gpid }) {
     const dayIndex = parseInt(day, 10) - 1; // Convert 1-based to 0-based
     const dayData = trip.itinerary[dayIndex];
     if (dayData?.places) {
-      const placeIndex = dayData.places.findIndex(p => p.place_id === gpid);
+      const placeIndex = dayData.places.findIndex((p) => p.place_id === gpid);
       if (placeIndex !== -1) {
         targetDay = dayIndex;
         targetPlaceIndex = placeIndex;
-        strategy = 'day+gpid';
+        strategy = "day+gpid";
       }
     }
   }
@@ -87,11 +92,11 @@ export function findPlaceInTrip(trip, { day, placeId, gpid }) {
     for (let dayIdx = 0; dayIdx < trip.itinerary.length; dayIdx++) {
       const dayData = trip.itinerary[dayIdx];
       if (dayData?.places) {
-        const placeIndex = dayData.places.findIndex(p => p.place_id === gpid);
+        const placeIndex = dayData.places.findIndex((p) => p.place_id === gpid);
         if (placeIndex !== -1) {
           targetDay = dayIdx;
           targetPlaceIndex = placeIndex;
-          strategy = 'gpid';
+          strategy = "gpid";
           break;
         }
       }
@@ -107,30 +112,25 @@ export function findPlaceInTrip(trip, { day, placeId, gpid }) {
       if (dayData?.places?.[parsed.placeIndex]) {
         targetDay = dayIndex;
         targetPlaceIndex = parsed.placeIndex;
-        strategy = 'day+placeIndex';
+        strategy = "day+placeIndex";
       }
     }
   }
 
   if (targetDay !== null && targetPlaceIndex !== null) {
-    console.log('[PlaceNav] Place resolved:', {
-      tripId: trip.id,
-      day: day || (targetDay + 1),
-      placeId,
-      gpid,
-      resolvedDay: targetDay,
-      resolvedPlaceIndex: targetPlaceIndex,
-      strategy
-    });
-
     return {
       dayIndex: targetDay,
       placeIndex: targetPlaceIndex,
       place: trip.itinerary[targetDay].places[targetPlaceIndex],
-      strategy
+      strategy,
     };
   }
 
-  console.warn('[PlaceNav] Place not found:', { tripId: trip.id, day, placeId, gpid });
+  console.warn("[PlaceNav] Place not found:", {
+    tripId: trip.id,
+    day,
+    placeId,
+    gpid,
+  });
   return null;
 }

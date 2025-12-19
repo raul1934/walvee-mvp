@@ -72,7 +72,6 @@ function getFileExtension(url) {
 async function ensureCityHasPhotos(city) {
   try {
     if (!city.google_maps_id) {
-      console.log(`[Photo Checker] City ${city.name} has no google_maps_id`);
       return false;
     }
 
@@ -82,19 +81,13 @@ async function ensureCityHasPhotos(city) {
     });
 
     if (existingPhotos > 0) {
-      console.log(
-        `[Photo Checker] City ${city.name} already has ${existingPhotos} photos`
-      );
       return false;
     }
-
-    console.log(`[Photo Checker] Fetching photos for city: ${city.name}`);
 
     // Fetch city details with photos from Google Maps
     const cityDetails = await getCityDetailsWithPhotos(city.google_maps_id);
 
     if (!cityDetails.photos || cityDetails.photos.length === 0) {
-      console.log(`[Photo Checker] No photos available for city: ${city.name}`);
       return false;
     }
 
@@ -148,9 +141,6 @@ async function ensureCityHasPhotos(city) {
     const results = await Promise.all(photoPromises);
     const successCount = results.filter((r) => r !== null).length;
 
-    console.log(
-      `[Photo Checker] ✓ Downloaded and saved ${successCount} photos for city: ${city.name}`
-    );
     return successCount > 0;
   } catch (error) {
     console.error(
@@ -169,7 +159,6 @@ async function ensureCityHasPhotos(city) {
 async function ensurePlaceHasPhotos(place) {
   try {
     if (!place.google_place_id) {
-      console.log(`[Photo Checker] Place ${place.name} has no google_place_id`);
       return false;
     }
 
@@ -179,21 +168,13 @@ async function ensurePlaceHasPhotos(place) {
     });
 
     if (existingPhotos > 0) {
-      console.log(
-        `[Photo Checker] Place ${place.name} already has ${existingPhotos} photos`
-      );
       return false;
     }
-
-    console.log(`[Photo Checker] Fetching photos for place: ${place.name}`);
 
     // Fetch place details with photos from Google Maps
     const placeDetails = await getPlaceDetailsWithPhotos(place.google_place_id);
 
     if (!placeDetails.photos || placeDetails.photos.length === 0) {
-      console.log(
-        `[Photo Checker] No photos available for place: ${place.name}`
-      );
       return false;
     }
 
@@ -247,9 +228,6 @@ async function ensurePlaceHasPhotos(place) {
     const results = await Promise.all(photoPromises);
     const successCount = results.filter((r) => r !== null).length;
 
-    console.log(
-      `[Photo Checker] ✓ Downloaded and saved ${successCount} photos for place: ${place.name}`
-    );
     return successCount > 0;
   } catch (error) {
     console.error(

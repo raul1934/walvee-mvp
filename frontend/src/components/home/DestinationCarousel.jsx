@@ -15,7 +15,6 @@ export default function DestinationCarousel() {
     queryKey: ["homeCities"],
     queryFn: async () => {
       try {
-        console.log("[DestinationCarousel] Fetching cities from home endpoint");
         const response = await apiClient.get(endpoints.home.cities);
 
         if (response.success && response.data) {
@@ -28,15 +27,11 @@ export default function DestinationCarousel() {
             image: city.city_image || city.photo,
           }));
 
-          console.log(cities);
-
-          console.log("[DestinationCarousel] Cities loaded:", cities.length);
           return cities;
         }
 
         return [];
       } catch (error) {
-        console.error("[DestinationCarousel] Error loading cities:", error);
         return [];
       }
     },
@@ -102,7 +97,7 @@ export default function DestinationCarousel() {
           {cities.map((city) => (
             <Link
               key={city.name}
-              to={createCityUrl(city.country_id, city.id)}
+              to={createCityUrl(city.id)}
               className="flex-shrink-0 group cursor-pointer"
             >
               <div className="relative w-14 h-14 md:w-16 md:h-16 rounded-full overflow-hidden border-2 border-gray-700 group-hover:border-blue-500 transition-all duration-300 group-hover:scale-110">

@@ -259,6 +259,7 @@ export const endpoints = {
   // Cities
   cities: {
     getById: (id) => `/cities/${id}`,
+    getTrips: (id) => `/cities/${id}/trips`,
     search: "/cities/search",
     byCountry: "/cities/country",
   },

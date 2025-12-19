@@ -325,6 +325,32 @@ export default function PlaceDetails({
     setEnrichedPlace(place);
   }, [place]);
 
+  // Normalize photos so UI can handle both string URLs and photo objects
+  const normalizedPhotos = React.useMemo(() => {
+    const src = enrichedPlace?.photos || place?.photos || [];
+    if (!Array.isArray(src)) return [];
+
+    return src
+      .map((photo) => {
+        if (!photo) return null;
+        if (typeof photo === "string") return photo;
+        if (typeof photo === "object") {
+          return (
+            photo.url ||
+            photo.url_medium ||
+            photo.url_large ||
+            photo.url_small ||
+            photo.photo_url ||
+            photo.photo ||
+            photo.src ||
+            null
+          );
+        }
+        return null;
+      })
+      .filter(Boolean);
+  }, [enrichedPlace?.photos, place?.photos]);
+
   const googleReviewsList = enrichedPlace.reviews
     ? enrichedPlace.reviews.map((review, idx) => ({
         id: review.time + "-" + idx,
@@ -600,15 +626,16 @@ export default function PlaceDetails({
   };
 
   const nextPhoto = () => {
-    if (place.photos && selectedPhotoIndex !== null) {
-      setSelectedPhotoIndex((selectedPhotoIndex + 1) % place.photos.length);
+    if (normalizedPhotos.length > 0 && selectedPhotoIndex !== null) {
+      setSelectedPhotoIndex((selectedPhotoIndex + 1) % normalizedPhotos.length);
     }
   };
 
   const prevPhoto = () => {
-    if (place.photos && selectedPhotoIndex !== null) {
+    if (normalizedPhotos.length > 0 && selectedPhotoIndex !== null) {
       setSelectedPhotoIndex(
-        (selectedPhotoIndex - 1 + place.photos.length) % place.photos.length
+        (selectedPhotoIndex - 1 + normalizedPhotos.length) %
+          normalizedPhotos.length
       );
     }
   };
@@ -920,26 +947,7 @@ export default function PlaceDetails({
             {place.photos && place.photos.length > 0 && (
               <div>
                 <h3 className="font-semibold text-white mb-3">Photos</h3>
-                <div className="grid grid-cols-2 gap-2">
-                  {place.photos.slice(0, 4).map((photo, idx) => (
-                    <button
-                      key={idx}
-                      onClick={() => setActiveTab("photos")}
-                      className="relative aspect-square rounded-xl overflow-hidden hover:opacity-90 transition-opacity"
-                    >
-                      {imageErrors.has(idx) ? (
-                        <ImagePlaceholder type="image" />
-                      ) : (
-                        <img
-                          src={photo}
-                          alt={`${place.name} ${idx + 1}`}
-                          className="w-full h-full object-cover"
-                          onError={() => handleImageError(idx)}
-                        />
-                      )}
-                    </button>
-                  ))}
-                </div>
+                <div className="grid grid-cols-2 gap-2"></div>
               </div>
             )}
           </div>
@@ -1086,23 +1094,26 @@ export default function PlaceDetails({
 
         {activeTab === "photos" && (
           <div className="p-6">
-            {place.photos && place.photos.length > 0 ? (
+            {normalizedPhotos && normalizedPhotos.length > 0 ? (
               <div className="grid grid-cols-2 gap-3">
-                {place.photos.map((photo, idx) => (
+                {normalizedPhotos.map((photo, idx) => (
                   <button
                     key={idx}
                     onClick={() => openPhotoModal(idx)}
                     className="aspect-square rounded-xl overflow-hidden hover:opacity-90 transition-opacity"
+                    style={{
+                      backgroundImage: imageErrors.has(idx)
+                        ? "linear-gradient(to bottom right, rgba(147, 51, 234, 0.2), rgba(219, 39, 119, 0.2))"
+                        : `url(${photo})`,
+                      backgroundSize: "cover",
+                      backgroundPosition: "center",
+                      backgroundRepeat: "no-repeat",
+                    }}
                   >
-                    {imageErrors.has(idx) ? (
-                      <ImagePlaceholder type="image" />
-                    ) : (
-                      <img
-                        src={photo}
-                        alt={`${place.name} ${idx + 1}`}
-                        className="w-full h-full object-cover"
-                        onError={() => handleImageError(idx)}
-                      />
+                    {imageErrors.has(idx) && (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <ImageIcon className="w-8 h-8 text-gray-400" />
+                      </div>
                     )}
                   </button>
                 ))}
@@ -1271,7 +1282,7 @@ export default function PlaceDetails({
         )}
       </div>
 
-      {selectedPhotoIndex !== null && place.photos && (
+      {selectedPhotoIndex !== null && normalizedPhotos.length > 0 && (
         <div
           className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm"
           onClick={closePhotoModal}
@@ -1287,7 +1298,7 @@ export default function PlaceDetails({
           </button>
 
           <div className="absolute top-6 left-6 px-3 py-1.5 rounded-full bg-black/40 backdrop-blur-md text-white font-medium text-xs border border-white/10">
-            {selectedPhotoIndex + 1} / {place.photos.length}
+            {selectedPhotoIndex + 1} / {normalizedPhotos.length}
           </div>
 
           {place.photos.length > 1 && (
@@ -1350,7 +1361,7 @@ export default function PlaceDetails({
               </div>
             ) : (
               <img
-                src={place.photos[selectedPhotoIndex]}
+                src={normalizedPhotos[selectedPhotoIndex]}
                 alt={`${place.name} ${selectedPhotoIndex + 1}`}
                 className="max-w-full max-h-[90vh] object-contain rounded-xl shadow-2xl"
                 onError={() => handleImageError(selectedPhotoIndex)}

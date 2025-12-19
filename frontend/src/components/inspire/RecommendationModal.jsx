@@ -1,14 +1,18 @@
-import React from 'react';
-import { X } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
-import CityModalContent from './CityModalContent';
+import React from "react";
+import { X } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import CityModalContent from "./CityModalContent";
 
-export default function RecommendationModal({ isOpen, onClose, recommendation, user, onAddToTrip }) {
+export default function RecommendationModal({
+  isOpen,
+  onClose,
+  recommendation,
+  user,
+  onAddToTrip,
+}) {
   if (!isOpen || !recommendation) return null;
 
-  console.log('[RecommendationModal] Rendering city modal for:', recommendation.name);
-
-  const cityName = recommendation.country 
+  const cityName = recommendation.country
     ? `${recommendation.name}, ${recommendation.country}`
     : recommendation.name;
 
@@ -27,10 +31,10 @@ export default function RecommendationModal({ isOpen, onClose, recommendation, u
 
         {/* Modal - slides from right */}
         <motion.div
-          initial={{ x: '100%' }}
+          initial={{ x: "100%" }}
           animate={{ x: 0 }}
-          exit={{ x: '100%' }}
-          transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+          exit={{ x: "100%" }}
+          transition={{ type: "spring", damping: 30, stiffness: 300 }}
           className="absolute right-0 top-0 bottom-0 w-full max-w-[800px] bg-[#0C0E11] shadow-2xl overflow-hidden flex flex-col"
           onClick={(e) => e.stopPropagation()}
         >

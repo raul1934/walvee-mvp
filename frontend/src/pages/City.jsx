@@ -19,14 +19,9 @@ export default function City({ cityNameOverride, isModal = false }) {
   // Get user from auth context
   const { user, openLoginModal } = useAuth();
 
-  // Extract cityId from route params (for /:countryId/:cityId route)
-  const { countryId, cityId: cityIdParam } = useParams();
+  // Extract cityId from route params
+  const { id: cityId } = useParams();
   const [searchParams] = useSearchParams();
-
-  // Support both ID format and legacy query params
-  const legacyCityName =
-    cityNameOverride || searchParams.get("name") || searchParams.get("city");
-  const cityId = cityIdParam;
 
   const [activeTab, setActiveTab] = useState("all");
   const [placeCategory, setPlaceCategory] = useState("all");
@@ -105,54 +100,44 @@ export default function City({ cityNameOverride, isModal = false }) {
     cacheTime: 60 * 60 * 1000, // 1 hour
   });
 
-  // Determine city name from either cityData or legacy URL params (memoized to prevent infinite loops)
+  // Determine city name from cityData
   const cityName = React.useMemo(() => {
     if (cityData) {
       return `${cityData.name}, ${cityData.country?.name || ""}`;
     }
-    return legacyCityName;
-  }, [cityData, legacyCityName]);
+    return null;
+  }, [cityData]);
 
   const {
     data: trips = [],
     isLoading,
     refetch,
   } = useQuery({
-    queryKey: ["cityTrips", cityName, offset],
+    queryKey: ["cityTrips", cityId, offset],
     queryFn: async () => {
-      if (!cityName) return [];
+      if (!cityId) return [];
 
-      const allTrips = await Trip.list({
-        sortBy: "likes_count",
-        order: "desc",
-      });
+      try {
+        const response = await apiClient.get(
+          endpoints.cities.getTrips(cityId),
+          {
+            page: Math.floor(offset / LIMIT) + 1,
+            limit: 100, // Get more to support pagination
+            sortBy: "likes_count",
+            order: "desc",
+          }
+        );
 
-      const normalizedCityName = cityName.toLowerCase().trim();
-      const cityNameOnly = normalizedCityName.split(",")[0].trim();
-
-      let filtered = allTrips.filter((trip) => {
-        const destination = trip.destination?.toLowerCase().trim() || "";
-        const destinationCity = destination.split(",")[0].trim();
-
-        if (
-          destinationCity === cityNameOnly ||
-          destination === normalizedCityName
-        ) {
-          return true;
+        if (response.success && response.data) {
+          return response.data;
         }
-
-        const locations =
-          trip.locations?.map((loc) => loc.toLowerCase().trim()) || [];
-
-        return locations.some((loc) => {
-          const locCity = loc.split(",")[0].trim();
-          return locCity === cityNameOnly || loc === normalizedCityName;
-        });
-      });
-
-      return filtered;
+        return [];
+      } catch (error) {
+        console.error("[City Page] Error fetching trips:", error);
+        return [];
+      }
     },
-    enabled: !!cityName,
+    enabled: !!cityId,
     staleTime: 12 * 60 * 60 * 1000,
     cacheTime: 24 * 60 * 60 * 1000,
   });

@@ -11,22 +11,22 @@ import {
   orderBy,
   limit,
   serverTimestamp,
-  Timestamp
-} from 'firebase/firestore';
-import { db, auth } from '@/config/firebase';
+  Timestamp,
+} from "firebase/firestore";
+import { db, auth } from "@/config/firebase";
 
 // Generic CRUD operations factory
 // This maintains the same API as Base44 entities
 const createEntity = (collectionName) => ({
   async create(data) {
     const currentUser = auth.currentUser;
-    if (!currentUser) throw new Error('Not authenticated');
+    if (!currentUser) throw new Error("Not authenticated");
 
     // Convert created_date to created_at if present
     const docData = {
       ...data,
       created_by: currentUser.uid,
-      created_at: serverTimestamp()
+      created_at: serverTimestamp(),
     };
 
     // Add created_date for compatibility if not present
@@ -60,7 +60,7 @@ const createEntity = (collectionName) => ({
 
     const updateData = {
       ...data,
-      updated_at: serverTimestamp()
+      updated_at: serverTimestamp(),
     };
 
     await updateDoc(docRef, updateData);
@@ -74,13 +74,11 @@ const createEntity = (collectionName) => ({
     return { id, deleted: true };
   },
 
-  async list(orderByField = 'created_date', limitCount = 100) {
-    console.log(`[${collectionName}] list() called with orderBy: ${orderByField}, limit: ${limitCount}`);
-
+  async list(orderByField = "created_date", limitCount = 100) {
     // Handle Base44-style descending order prefix (e.g., "-created_date")
-    const isDescending = orderByField.startsWith('-');
+    const isDescending = orderByField.startsWith("-");
     const fieldName = isDescending ? orderByField.substring(1) : orderByField;
-    const direction = isDescending ? 'desc' : 'asc';
+    const direction = isDescending ? "desc" : "asc";
 
     const q = query(
       collection(db, collectionName),
@@ -89,9 +87,8 @@ const createEntity = (collectionName) => ({
     );
 
     const snapshot = await getDocs(q);
-    console.log(`[${collectionName}] list() returned ${snapshot.size} documents`);
 
-    return snapshot.docs.map(doc => {
+    return snapshot.docs.map((doc) => {
       const data = doc.data();
       const processedData = processTimestamps(data);
       return { id: doc.id, ...processedData };
@@ -101,18 +98,18 @@ const createEntity = (collectionName) => ({
   async filter(conditions) {
     // Build query constraints from conditions object
     const constraints = Object.entries(conditions).map(([field, value]) =>
-      where(field, '==', value)
+      where(field, "==", value)
     );
 
     const q = query(collection(db, collectionName), ...constraints);
     const snapshot = await getDocs(q);
 
-    return snapshot.docs.map(doc => {
+    return snapshot.docs.map((doc) => {
       const data = doc.data();
       const processedData = processTimestamps(data);
       return { id: doc.id, ...processedData };
     });
-  }
+  },
 });
 
 // Helper function to process Firestore Timestamps to ISO strings
@@ -124,11 +121,11 @@ function processTimestamps(data) {
   for (const [key, value] of Object.entries(processed)) {
     if (value instanceof Timestamp) {
       processed[key] = value.toDate().toISOString();
-    } else if (value && typeof value === 'object' && !Array.isArray(value)) {
+    } else if (value && typeof value === "object" && !Array.isArray(value)) {
       processed[key] = processTimestamps(value);
     } else if (Array.isArray(value)) {
-      processed[key] = value.map(item =>
-        item && typeof item === 'object' ? processTimestamps(item) : item
+      processed[key] = value.map((item) =>
+        item && typeof item === "object" ? processTimestamps(item) : item
       );
     }
   }
@@ -137,12 +134,12 @@ function processTimestamps(data) {
 }
 
 // Export entity services (maintaining Base44 API)
-export const Trip = createEntity('trips');
-export const TripLike = createEntity('tripLikes');
-export const Follow = createEntity('follows');
-export const Review = createEntity('reviews');
-export const TripDerivation = createEntity('tripDerivations');
+export const Trip = createEntity("trips");
+export const TripLike = createEntity("tripLikes");
+export const Follow = createEntity("follows");
+export const Review = createEntity("reviews");
+export const TripDerivation = createEntity("tripDerivations");
 
 // Aliases for compatibility
-export const Favorite = TripLike;  // Favorite is an alias for TripLike
-export const TripSteal = TripDerivation;  // TripSteal is an alias for TripDerivation
+export const Favorite = TripLike; // Favorite is an alias for TripLike
+export const TripSteal = TripDerivation; // TripSteal is an alias for TripDerivation

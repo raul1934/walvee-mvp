@@ -8,21 +8,13 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 export function useFavorites(user) {
   const queryClient = useQueryClient();
 
-  console.log("[useFavorites] Hook initialized", {
-    hasUser: !!user,
-    userId: user?.id,
-  });
-
   // Fetch user's favorites
   const { data: favorites = [], isLoading } = useQuery({
     queryKey: ["favorites", user?.id],
     queryFn: async () => {
       if (!user?.id) {
-        console.log("[useFavorites] No user, returning empty favorites");
         return [];
       }
-
-      console.log("[useFavorites] Fetching favorites for user:", user.id);
       const allFavorites = await TripLike.list({
         sortBy: "created_at",
         order: "desc",
@@ -31,7 +23,6 @@ export function useFavorites(user) {
         (fav) => fav.created_by === user.email
       );
 
-      console.log("[useFavorites] Loaded favorites:", userFavorites.length);
       return userFavorites;
     },
     enabled: !!user?.id,
@@ -42,8 +33,6 @@ export function useFavorites(user) {
   // Add favorite mutation
   const addFavoriteMutation = useMutation({
     mutationFn: async (placeData) => {
-      console.log("[useFavorites] Adding favorite:", placeData.place_name);
-
       // Note: useFavorites appears to be for place favorites, not trip likes
       // This may need different endpoint/service - using tripId for now
       // TODO: Review if this should use a different endpoint for place favorites
@@ -54,7 +43,6 @@ export function useFavorites(user) {
       return await TripLike.create(tripId);
     },
     onSuccess: (data) => {
-      console.log("[useFavorites] Favorite added successfully");
       // Invalidate and refetch
       queryClient.invalidateQueries({ queryKey: ["favorites", user?.id] });
     },
@@ -66,11 +54,9 @@ export function useFavorites(user) {
   // Remove favorite mutation
   const removeFavoriteMutation = useMutation({
     mutationFn: async (favoriteId) => {
-      console.log("[useFavorites] Removing favorite:", favoriteId);
       return await TripLike.delete(favoriteId);
     },
     onSuccess: () => {
-      console.log("[useFavorites] Favorite removed successfully");
       // Invalidate and refetch
       queryClient.invalidateQueries({ queryKey: ["favorites", user?.id] });
     },
@@ -111,7 +97,6 @@ export function useFavorites(user) {
   const toggleFavorite = useCallback(
     async (placeData, destination) => {
       if (!user) {
-        console.log("[useFavorites] No user, cannot toggle favorite");
         throw new Error("User not authenticated");
       }
 
@@ -119,11 +104,8 @@ export function useFavorites(user) {
       const existingFavorite = getFavoriteByName(placeName);
 
       if (existingFavorite) {
-        console.log("[useFavorites] Removing existing favorite");
         await removeFavoriteMutation.mutateAsync(existingFavorite.id);
       } else {
-        console.log("[useFavorites] Adding new favorite");
-
         // Extract city and country from destination or place data
         let city = placeData.city;
         let country = placeData.country;

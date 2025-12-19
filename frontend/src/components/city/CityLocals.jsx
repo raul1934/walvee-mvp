@@ -14,13 +14,10 @@ export default function CityLocals({ cityName }) {
       try {
         const isAuthenticated = await User.isAuthenticated();
         if (!isAuthenticated) {
-          console.log("[CityLocals] User not authenticated");
           return [];
         }
 
-        console.log("[CityLocals] Fetching users for city:", cityName);
         const allUsers = await User.list();
-        console.log("[CityLocals] Total users:", allUsers.length);
 
         // Normalize city name for comparison
         const normalizedCityName = cityName?.toLowerCase().trim() || "";
@@ -37,8 +34,6 @@ export default function CityLocals({ cityName }) {
             userCityOnly === cityNameOnly || userCity === normalizedCityName
           );
         });
-
-        console.log("[CityLocals] Filtered locals:", filtered.length);
 
         // Format and sort by trip count
         return filtered

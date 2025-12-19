@@ -13,7 +13,7 @@ import { useDragScroll } from "../components/hooks/useDragScroll";
 
 export default function Home({ user, userLoading }) {
   const [isHoveringCards, setIsHoveringCards] = useState(false);
-  const [isHoveringCards, setIsHoveringCards] = useState(false);
+  const [showScrollIndicator, setShowScrollIndicator] = useState(false);
   const scrollRef = React.useRef(null);
   const dragScrollRef = useDragScroll();
   const navigate = useNavigate();

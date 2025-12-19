@@ -69,8 +69,6 @@ function getFileExtension(url) {
  * Fetch and save photos for cities that don't have any photos
  */
 async function fetchMissingCityPhotos() {
-  console.log("\n=== Fetching Missing City Photos ===\n");
-
   try {
     // Find all cities that have a google_maps_id but no photos
     const citiesWithoutPhotos = await City.findAll({
@@ -90,15 +88,11 @@ async function fetchMissingCityPhotos() {
       (city) => !city.photos || city.photos.length === 0
     );
 
-    console.log(`Found ${citiesToUpdate.length} cities without photos\n`);
-
     let successCount = 0;
     let errorCount = 0;
 
     for (const city of citiesToUpdate) {
       try {
-        console.log(`Fetching photos for: ${city.name} (ID: ${city.id})`);
-
         // Fetch city details with photos from Google Maps
         const cityDetails = await getCityDetailsWithPhotos(city.google_maps_id);
 
@@ -154,12 +148,7 @@ async function fetchMissingCityPhotos() {
           const results = await Promise.all(photoPromises);
           const downloadedCount = results.filter((r) => r !== null).length;
 
-          console.log(
-            `✓ Downloaded and saved ${downloadedCount} photos for ${city.name}\n`
-          );
           successCount++;
-        } else {
-          console.log(`⚠ No photos available for ${city.name}\n`);
         }
 
         // Add delay to respect Google API rate limits
@@ -172,11 +161,6 @@ async function fetchMissingCityPhotos() {
         errorCount++;
       }
     }
-
-    console.log("\n=== City Photos Summary ===");
-    console.log(`Total cities processed: ${citiesToUpdate.length}`);
-    console.log(`Success: ${successCount}`);
-    console.log(`Errors: ${errorCount}`);
   } catch (error) {
     console.error("Error in fetchMissingCityPhotos:", error);
     throw error;
@@ -187,8 +171,6 @@ async function fetchMissingCityPhotos() {
  * Fetch and save photos for places that don't have any photos
  */
 async function fetchMissingPlacePhotos() {
-  console.log("\n=== Fetching Missing Place Photos ===\n");
-
   try {
     // Find all places that have a google_place_id but no photos
     const placesWithoutPhotos = await Place.findAll({
@@ -208,15 +190,11 @@ async function fetchMissingPlacePhotos() {
       (place) => !place.photos || place.photos.length === 0
     );
 
-    console.log(`Found ${placesToUpdate.length} places without photos\n`);
-
     let successCount = 0;
     let errorCount = 0;
 
     for (const place of placesToUpdate) {
       try {
-        console.log(`Fetching photos for: ${place.name} (ID: ${place.id})`);
-
         // Fetch place details with photos from Google Maps
         const placeDetails = await getPlaceDetailsWithPhotos(
           place.google_place_id
@@ -274,12 +252,7 @@ async function fetchMissingPlacePhotos() {
           const results = await Promise.all(photoPromises);
           const downloadedCount = results.filter((r) => r !== null).length;
 
-          console.log(
-            `✓ Downloaded and saved ${downloadedCount} photos for ${place.name}\n`
-          );
           successCount++;
-        } else {
-          console.log(`⚠ No photos available for ${place.name}\n`);
         }
 
         // Add delay to respect Google API rate limits
@@ -292,11 +265,6 @@ async function fetchMissingPlacePhotos() {
         errorCount++;
       }
     }
-
-    console.log("\n=== Place Photos Summary ===");
-    console.log(`Total places processed: ${placesToUpdate.length}`);
-    console.log(`Success: ${successCount}`);
-    console.log(`Errors: ${errorCount}`);
   } catch (error) {
     console.error("Error in fetchMissingPlacePhotos:", error);
     throw error;
@@ -307,22 +275,15 @@ async function fetchMissingPlacePhotos() {
  * Main function to run the script
  */
 async function main() {
-  console.log("=== Starting Photo Fetch Script ===");
-  console.log(`Started at: ${new Date().toISOString()}\n`);
-
   try {
     // Test database connection
     await sequelize.authenticate();
-    console.log("✓ Database connection established\n");
 
     // Fetch missing city photos
     await fetchMissingCityPhotos();
 
     // Fetch missing place photos
     await fetchMissingPlacePhotos();
-
-    console.log("\n=== Photo Fetch Script Completed ===");
-    console.log(`Finished at: ${new Date().toISOString()}`);
   } catch (error) {
     console.error("\n=== Script Failed ===");
     console.error("Error:", error.message);

@@ -1,12 +1,11 @@
 import React, { useRef, useState, useEffect } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Link } from "react-router-dom";
-import { createLegacyCityUrl } from "@/utils";
+import { createCityUrl } from "@/utils";
 
 export default function CitiesScroller({
   cities,
   className = "",
-  makeLinks = false,
 }) {
   const scrollRef = useRef(null);
   const [showLeftArrow, setShowLeftArrow] = useState(false);
@@ -51,18 +50,15 @@ export default function CitiesScroller({
 
   // If only one city
   if (cities.length === 1) {
-    if (makeLinks) {
-      return (
-        <Link
-          to={createLegacyCityUrl(cities[0])}
-          onClick={(e) => e.stopPropagation()}
-          className={`${className} hover:text-blue-400 transition-colors`}
-        >
-          {cities[0]}
-        </Link>
-      );
-    }
-    return <span className={className}>{cities[0]}</span>;
+    return (
+      <Link
+        to={createCityUrl(cities[0].id)}
+        onClick={(e) => e.stopPropagation()}
+        className={`${className} hover:text-blue-400 transition-colors`}
+      >
+        {cities[0].name}
+      </Link>
+    );
   }
 
   return (
@@ -87,17 +83,13 @@ export default function CitiesScroller({
       >
         {cities.map((city, idx) => (
           <React.Fragment key={idx}>
-            {makeLinks ? (
-              <Link
-                to={createLegacyCityUrl(city)}
-                onClick={(e) => e.stopPropagation()}
-                className="whitespace-nowrap hover:text-blue-400 transition-colors"
-              >
-                {city}
-              </Link>
-            ) : (
-              <span className="whitespace-nowrap">{city}</span>
-            )}
+            <Link
+              to={createCityUrl(city.id)}
+              onClick={(e) => e.stopPropagation()}
+              className="whitespace-nowrap hover:text-blue-400 transition-colors"
+            >
+              {city.name}
+            </Link>
             {idx < cities.length - 1 && (
               <span className="text-gray-600">•</span>
             )}

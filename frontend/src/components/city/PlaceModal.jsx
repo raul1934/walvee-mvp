@@ -4,36 +4,22 @@ import { motion, AnimatePresence } from "framer-motion";
 import PlaceDetails from "../trip/PlaceDetails";
 
 export default function PlaceModal({ place, trip, isOpen, onClose, user }) {
-  // Log on every render
-  console.log('[PlaceModal] ===== RENDER =====');
-  console.log('[PlaceModal] Props:', {
-    isOpen,
-    hasPlace: !!place,
-    placeName: place?.name,
-    hasUser: !!user,
-    userId: user?.id,
-    userEmail: user?.email
-  });
-
   if (!isOpen || !place) {
-    console.log('[PlaceModal] Not rendering - isOpen:', isOpen, 'hasPlace:', !!place);
     return null;
   }
 
-  console.log('[PlaceModal] Rendering modal for place:', place.name);
-
   const tripData = trip || {
     destination: place.address,
-    id: 'city-modal'
+    id: "city-modal",
   };
 
   return (
     <AnimatePresence>
-      <div 
+      <div
         className="fixed inset-0 z-[100] flex items-center justify-center p-4"
         onClick={onClose}
       >
-        <motion.div 
+        <motion.div
           className="absolute inset-0 bg-black/80 backdrop-blur-sm"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}

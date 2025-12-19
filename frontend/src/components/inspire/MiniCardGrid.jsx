@@ -1,47 +1,50 @@
-
-import React from 'react';
-import { motion } from 'framer-motion';
-import { MapPin, Star, Building2, Compass } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import React from "react";
+import { motion } from "framer-motion";
+import { MapPin, Star, Building2, Compass } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 // Category configuration
 const CATEGORY_CONFIG = {
   city: {
     icon: MapPin,
-    color: 'text-blue-400',
-    bgColor: 'bg-blue-500/20'
+    color: "text-blue-400",
+    bgColor: "bg-blue-500/20",
   },
   place: {
     icon: Compass,
-    color: 'text-purple-400',
-    bgColor: 'bg-purple-500/20'
+    color: "text-purple-400",
+    bgColor: "bg-purple-500/20",
   },
   activity: {
     icon: Compass,
-    color: 'text-green-400',
-    bgColor: 'bg-green-500/20'
+    color: "text-green-400",
+    bgColor: "bg-green-500/20",
   },
   business: {
     icon: Building2,
-    color: 'text-orange-400',
-    bgColor: 'bg-orange-500/20'
-  }
+    color: "text-orange-400",
+    bgColor: "bg-orange-500/20",
+  },
 };
 
 // Card size patterns for masonry layout
 const SIZE_PATTERNS = [
   // Pattern repeats every 9 cards
-  'small', 'tall', 'small', 
-  'small', 'small', 'tall',
-  'tall', 'small', 'small'
+  "small",
+  "tall",
+  "small",
+  "small",
+  "small",
+  "tall",
+  "tall",
+  "small",
+  "small",
 ];
 
 export default function MiniCardGrid({ recommendations, onCardClick }) {
   if (!recommendations || recommendations.length === 0) {
     return null;
   }
-
-  console.log('[MiniCardGrid] Rendering recommendations:', recommendations.map(r => ({ name: r.name, type: r.type })));
 
   return (
     <div className="mini-card-grid-wrapper">
@@ -189,14 +192,13 @@ export default function MiniCardGrid({ recommendations, onCardClick }) {
 
           // Mock data - in production, fetch from Google Places
           const mockRating = (4.2 + Math.random() * 0.8).toFixed(1);
-          const mockPrice = ['$', '$$', '$$$'][Math.floor(Math.random() * 3)];
+          const mockPrice = ["$", "$$", "$$$"][Math.floor(Math.random() * 3)];
 
           return (
             <motion.button
               key={idx}
               className={`mini-card ${sizeClass}`}
               onClick={() => {
-                console.log('[MiniCardGrid] Card clicked:', { name: rec.name, type: rec.type });
                 onCardClick(rec);
               }}
               type="button"
@@ -205,14 +207,20 @@ export default function MiniCardGrid({ recommendations, onCardClick }) {
               transition={{ duration: 0.2, delay: idx * 0.03 }}
             >
               {/* Placeholder image - replace with actual image from Google Places */}
-              <div className="mini-card-image" style={{
-                background: `linear-gradient(135deg, ${
-                  category.color.includes('blue') ? '#1E40AF' :
-                  category.color.includes('purple') ? '#7C3AED' :
-                  category.color.includes('green') ? '#059669' :
-                  '#EA580C'
-                }, #000)`
-              }} />
+              <div
+                className="mini-card-image"
+                style={{
+                  background: `linear-gradient(135deg, ${
+                    category.color.includes("blue")
+                      ? "#1E40AF"
+                      : category.color.includes("purple")
+                      ? "#7C3AED"
+                      : category.color.includes("green")
+                      ? "#059669"
+                      : "#EA580C"
+                  }, #000)`,
+                }}
+              />
 
               <div className="mini-card-overlay">
                 <div className={`mini-card-category ${category.bgColor}`}>

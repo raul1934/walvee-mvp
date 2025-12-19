@@ -61,24 +61,14 @@ const searchCities = async (req, res, next) => {
 
     // STEP 2: If we have 5 or more results, return them immediately
     if (existingCities.length >= 5) {
-      console.log(
-        `[City Search] Found ${existingCities.length} cities in database, returning them`
-      );
       return res.json(buildSuccessResponse(existingCities));
     }
 
     // STEP 3: We have less than 5 results, fetch from Google Maps API
-    console.log(
-      `[City Search] Only ${existingCities.length} cities in database, fetching from Google Maps`
-    );
 
     try {
       // Fetch city predictions from Google Maps
       const googleCities = await searchCitiesFromGoogle(query, 5);
-
-      console.log(
-        `[City Search] Found ${googleCities.length} cities from Google Maps`
-      );
 
       // STEP 4: Save new cities to database (only those not already in our DB)
       const savedCities = [];
@@ -138,9 +128,6 @@ const searchCities = async (req, res, next) => {
             });
 
             savedCities.push(newCity);
-            console.log(
-              `[City Search] Saved new city: ${newCity.name}, ${country?.name}`
-            );
           }
         } catch (saveError) {
           console.error(
@@ -150,10 +137,6 @@ const searchCities = async (req, res, next) => {
           // Continue with next city even if one fails
         }
       }
-
-      console.log(
-        `[City Search] Saved ${savedCities.length} new cities to database`
-      );
     } catch (googleError) {
       console.error(
         "[City Search] Error fetching from Google Maps:",
@@ -173,9 +156,6 @@ const searchCities = async (req, res, next) => {
       order: [["name", "ASC"]],
     });
 
-    console.log(
-      `[City Search] Returning ${finalCities.length} total cities after Google Maps fetch`
-    );
     return res.json(buildSuccessResponse(finalCities));
   } catch (error) {
     next(error);
@@ -237,9 +217,6 @@ const getOrCreateCity = async (req, res, next) => {
 
     if (google_maps_id && (!name || !country_code)) {
       try {
-        console.log(
-          `[Get or Create City] Fetching place details from Google Maps for ${google_maps_id}`
-        );
         const placeDetails = await getPlaceDetails(google_maps_id);
 
         // Merge with provided data (provided data takes precedence)
@@ -330,9 +307,6 @@ const getOrCreateCity = async (req, res, next) => {
       if (placeData.google_maps_id && !existingCity.google_maps_id) {
         await existingCity.update({ google_maps_id: placeData.google_maps_id });
       }
-      console.log(
-        `[Get or Create City] City already exists: ${existingCity.name}`
-      );
       return res.json(buildSuccessResponse(existingCity));
     }
 
@@ -352,9 +326,6 @@ const getOrCreateCity = async (req, res, next) => {
       include: [{ model: Country, as: "country" }],
     });
 
-    console.log(
-      `[Get or Create City] Created new city: ${cityWithCountry.name}, ${country.name}`
-    );
     res.status(201).json(buildSuccessResponse(cityWithCountry));
   } catch (error) {
     next(error);
@@ -430,6 +401,239 @@ const getCitiesByCountry = async (req, res, next) => {
 };
 
 /**
+ * Get trips for a specific city
+ * GET /cities/:id/trips
+ */
+const getCityTrips = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const {
+      page = 1,
+      limit = 20,
+      sortBy = "likes_count",
+      order = "desc",
+    } = req.query;
+
+    // Verify city exists
+    const city = await City.findByPk(id, {
+      include: [{ model: Country, as: "country" }],
+    });
+
+    if (!city) {
+      return res
+        .status(404)
+        .json(buildErrorResponse("RESOURCE_NOT_FOUND", "City not found"));
+    }
+
+    const cityName = city.name;
+    const countryName = city.country?.name || "";
+    const fullCityName = `${cityName}, ${countryName}`.toLowerCase().trim();
+    const cityNameOnly = cityName.toLowerCase().trim();
+
+    // Import required models
+    const { Trip, User, TripTag, TripPlace, Place } = require("../models/sequelize");
+    const { paginate, buildPaginationMeta } = require("../utils/helpers");
+
+    const { page: pageNum, limit: limitNum, offset } = paginate(page, limit, 100);
+
+    // Get all public trips (we'll filter by city in memory for now)
+    // TODO: Optimize with database query when destination_city_id is properly populated
+    const { count: totalCount, rows: allTrips } = await Trip.findAndCountAll({
+      where: {
+        is_public: true,
+      },
+      include: [
+        {
+          model: User,
+          as: "author",
+          attributes: [
+            "id",
+            "full_name",
+            "preferred_name",
+            "photo_url",
+            "email",
+          ],
+        },
+        {
+          model: TripTag,
+          as: "tags",
+          attributes: ["tag"],
+        },
+        {
+          model: TripPlace,
+          as: "places",
+          attributes: [
+            "name",
+            "address",
+            "rating",
+            "price_level",
+            "types",
+            "description",
+          ],
+          include: [
+            {
+              model: Place,
+              as: "placeDetails",
+              attributes: [
+                "id",
+                "latitude",
+                "longitude",
+                "google_place_id",
+              ],
+            },
+          ],
+        },
+      ],
+      order: [[sortBy, order.toUpperCase()]],
+    });
+
+    // Filter trips by city
+    const filteredTrips = allTrips.filter((trip) => {
+      const destination = trip.destination?.toLowerCase().trim() || "";
+      const destinationCity = destination.split(",")[0].trim();
+
+      // Check if main destination matches
+      if (
+        destinationCity === cityNameOnly ||
+        destination === fullCityName ||
+        destination.includes(cityNameOnly)
+      ) {
+        return true;
+      }
+
+      // Check if any places in the trip are in this city
+      if (trip.places && trip.places.length > 0) {
+        return trip.places.some((place) => {
+          const placeAddress = place.address?.toLowerCase().trim() || "";
+          return placeAddress.includes(cityNameOnly);
+        });
+      }
+
+      return false;
+    });
+
+    // Apply pagination to filtered results
+    const paginatedTrips = filteredTrips.slice(offset, offset + limitNum);
+
+    // Helper function to extract cities with IDs from trip data
+    const extractCitiesWithIds = async (trip) => {
+      const cityMap = new Map();
+      
+      // Add main destination city
+      const destination = trip.destination || "";
+      const destCityName = destination.split(",")[0].trim();
+      if (destCityName) {
+        cityMap.set(destCityName.toLowerCase(), { name: destination, id: null });
+      }
+      
+      // Add cities from places
+      if (trip.places && trip.places.length > 0) {
+        for (const place of trip.places) {
+          const address = place.address || "";
+          const parts = address.split(",");
+          if (parts.length > 0) {
+            const placeCityName = parts[0].trim();
+            if (placeCityName) {
+              cityMap.set(placeCityName.toLowerCase(), { 
+                name: address, 
+                id: null 
+              });
+            }
+          }
+        }
+      }
+      
+      // Look up city IDs from database
+      const cityNames = Array.from(cityMap.keys());
+      if (cityNames.length > 0) {
+        const cities = await City.findAll({
+          where: {
+            name: {
+              [require("sequelize").Op.in]: cityNames.map(name => 
+                name.charAt(0).toUpperCase() + name.slice(1)
+              )
+            }
+          },
+          attributes: ["id", "name"],
+          include: [{
+            model: require("../models/sequelize").Country,
+            as: "country",
+            attributes: ["name"]
+          }]
+        });
+        
+        cities.forEach(cityObj => {
+          const key = cityObj.name.toLowerCase();
+          if (cityMap.has(key)) {
+            const existing = cityMap.get(key);
+            const fullName = `${cityObj.name}, ${cityObj.country?.name || ""}`;
+            cityMap.set(key, { name: fullName, id: cityObj.id });
+          }
+        });
+      }
+      
+      return Array.from(cityMap.values());
+    };
+
+    // Format response with city IDs
+    const formattedTrips = await Promise.all(
+      paginatedTrips.map(async (trip) => {
+        const cities = await extractCitiesWithIds(trip);
+        
+        return {
+          id: trip.id,
+          title: trip.title,
+          destination: trip.destination,
+          description: trip.description,
+          duration: trip.duration,
+          budget: trip.budget,
+          transportation: trip.transportation,
+          accommodation: trip.accommodation,
+          best_time_to_visit: trip.best_time_to_visit,
+          difficulty_level: trip.difficulty_level,
+          trip_type: trip.trip_type,
+          cover_image: trip.cover_image,
+          author_id: trip.author_id,
+          destination_lat: trip.destination_lat,
+          destination_lng: trip.destination_lng,
+          is_public: trip.is_public,
+          is_featured: trip.is_featured,
+          likes_count: trip.likes_count,
+          views_count: trip.views_count,
+          created_at: trip.created_at,
+          updated_at: trip.updated_at,
+          author: trip.author
+            ? {
+                id: trip.author.id,
+                name:
+                  trip.author.preferred_name ||
+                  trip.author.full_name ||
+                  trip.author.email?.split("@")[0],
+                photo: trip.author.photo_url,
+              }
+            : null,
+          tags: trip.tags?.map((t) => t.tag) || [],
+          locations: cities.map(c => c.name),
+          cities: cities,
+          places: trip.places || [],
+        };
+      })
+    );
+
+    const pagination = buildPaginationMeta(
+      pageNum,
+      limitNum,
+      filteredTrips.length
+    );
+
+    res.json(buildSuccessResponse(formattedTrips, pagination));
+  } catch (error) {
+    console.error("[Get City Trips] Error:", error);
+    next(error);
+  }
+};
+
+/**
  * Get AI review for a city (returns first AI review if exists)
  * GET /v1/cities/:cityId/reviews/ai
  */
@@ -460,8 +664,6 @@ const getCityAiReview = async (req, res, next) => {
         );
     }
 
-    console.log(`[Get City AI Review] Found AI review for city: ${cityId}`);
-
     return res.json(
       buildSuccessResponse(
         {
@@ -486,4 +688,5 @@ module.exports = {
   getCityById,
   getCitiesByCountry,
   getCityAiReview,
+  getCityTrips,
 };

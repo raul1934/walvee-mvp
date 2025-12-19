@@ -39,18 +39,11 @@ async function findOrCreateCityFromPlace(placeDetails) {
     });
 
     if (city) {
-      console.log(
-        `[Place City Lookup] Found existing city: ${city.name}, ID: ${city.id}`
-      );
       return city.id;
     }
 
     // If city doesn't exist and we have enough info, create it
     if (placeDetails.latitude && placeDetails.longitude) {
-      console.log(
-        `[Place City Lookup] City not found, attempting to create: ${placeDetails.city_name}`
-      );
-
       // Search for the city to get its google_maps_id
       const cityResults = await searchCitiesFromGoogle(
         placeDetails.city_name,
@@ -74,9 +67,6 @@ async function findOrCreateCityFromPlace(placeDetails) {
               code: cityGoogleData.country_code,
               name: cityGoogleData.country_name,
             });
-            console.log(
-              `[Place City Lookup] Created new country: ${country.name}`
-            );
           }
         }
 
@@ -108,9 +98,6 @@ async function findOrCreateCityFromPlace(placeDetails) {
           timezone,
         });
 
-        console.log(
-          `[Place City Lookup] Created new city: ${city.name}, ID: ${city.id}`
-        );
         return city.id;
       }
     }
@@ -146,10 +133,6 @@ const searchPlaces = async (req, res, next) => {
         );
     }
 
-    console.log(
-      `[Place Search] Searching for: "${query}" in destination: "${destination}"`
-    );
-
     // STEP 1: Search existing place in database
     const whereClause = {
       name: { [Op.like]: `%${query}%` },
@@ -177,14 +160,10 @@ const searchPlaces = async (req, res, next) => {
       existingPlace.photos &&
       existingPlace.photos.length > 0
     ) {
-      console.log(
-        `[Place Search] Found cached place: ${existingPlace.name} with ${existingPlace.photos.length} photos`
-      );
       return res.json(buildSuccessResponse(existingPlace));
     }
 
     // STEP 3: Fetch from Google Maps API
-    console.log(`[Place Search] Not in cache, fetching from Google Maps API`);
 
     const googleResult = await searchPlace(query, destination);
 
@@ -196,10 +175,6 @@ const searchPlaces = async (req, res, next) => {
 
     // STEP 4: Get detailed place information with photos
     const placeDetails = await getPlaceDetailsWithPhotos(googleResult.place_id);
-
-    console.log(
-      `[Place Search] Fetched place details: ${placeDetails.name} with ${placeDetails.photos.length} photos`
-    );
 
     // Find or create city if we have city information
     let resolvedCityId = city_id;
@@ -225,16 +200,9 @@ const searchPlaces = async (req, res, next) => {
         website: placeDetails.website,
         opening_hours: placeDetails.opening_hours,
       });
-
-      console.log(
-        `[Place Search] Saved new place to database: ${newPlace.name}`
-      );
     } catch (error) {
       // If duplicate, fetch existing
       if (error.name === "SequelizeUniqueConstraintError") {
-        console.log(
-          `[Place Search] Place already exists, fetching from database`
-        );
         newPlace = await Place.findOne({
           where: { google_place_id: placeDetails.place_id },
         });
@@ -266,7 +234,6 @@ const searchPlaces = async (req, res, next) => {
       );
 
       await Promise.all(photoPromises);
-      console.log(`[Place Search] Saved ${placeDetails.photos.length} photos`);
     }
 
     // STEP 7: Return complete data with photos
@@ -295,10 +262,6 @@ const searchPlaces = async (req, res, next) => {
 const getTripPlacesEnriched = async (req, res, next) => {
   try {
     const { id } = req.params;
-
-    console.log(
-      `[Trip Places Enriched] Fetching enriched places for trip: ${id}`
-    );
 
     const trip = await Trip.findByPk(id, {
       include: [
@@ -339,10 +302,6 @@ const getTripPlacesEnriched = async (req, res, next) => {
       } else if (tripPlace.name) {
         // Need to fetch and cache
         try {
-          console.log(
-            `[Trip Places Enriched] Enriching place: ${tripPlace.name}`
-          );
-
           const googleResult = await searchPlace(
             tripPlace.name,
             trip.destination
@@ -429,10 +388,6 @@ const getTripPlacesEnriched = async (req, res, next) => {
         enrichedPlaces.push(tripPlace);
       }
     }
-
-    console.log(
-      `[Trip Places Enriched] Enriched ${enrichedPlaces.length} places`
-    );
 
     return res.json(buildSuccessResponse(enrichedPlaces));
   } catch (error) {
@@ -599,10 +554,6 @@ const getPlaceReviews = async (req, res, next) => {
 
     // If AI review not found, generate new one
     if (!aiReview) {
-      console.log(
-        `[Get Place Reviews] No existing AI review found, generating new one for place: ${placeId}`
-      );
-
       // Get place details
       const place = await Place.findByPk(placeId);
       if (place) {
@@ -625,10 +576,6 @@ const getPlaceReviews = async (req, res, next) => {
               comment: aiGeneratedReview.text,
               is_ai_generated: true,
             });
-
-            console.log(
-              `[Get Place Reviews] Created and saved new AI review for place: ${placeId}`
-            );
           }
         } catch (genError) {
           console.error(

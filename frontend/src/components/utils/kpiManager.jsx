@@ -4,16 +4,16 @@
  */
 export async function updateUserKPIs(userId, changes) {
   if (!userId) {
-    console.warn('[KPIs] No userId provided');
+    console.warn("[KPIs] No userId provided");
     return false;
   }
 
   try {
     // Fetch current user data
     const user = await User.get(userId);
-    
+
     if (!user) {
-      console.warn('[KPIs] User not found:', userId);
+      console.warn("[KPIs] User not found:", userId);
       return false;
     }
 
@@ -22,7 +22,10 @@ export async function updateUserKPIs(userId, changes) {
 
     // Update followers count
     if (changes.followers !== undefined) {
-      const newCount = Math.max(0, (user.metrics_followers || 0) + changes.followers);
+      const newCount = Math.max(
+        0,
+        (user.metrics_followers || 0) + changes.followers
+      );
       if (newCount !== user.metrics_followers) {
         updates.metrics_followers = newCount;
         hasChanges = true;
@@ -31,7 +34,10 @@ export async function updateUserKPIs(userId, changes) {
 
     // Update following count
     if (changes.following !== undefined) {
-      const newCount = Math.max(0, (user.metrics_following || 0) + changes.following);
+      const newCount = Math.max(
+        0,
+        (user.metrics_following || 0) + changes.following
+      );
       if (newCount !== user.metrics_following) {
         updates.metrics_following = newCount;
         hasChanges = true;
@@ -40,7 +46,10 @@ export async function updateUserKPIs(userId, changes) {
 
     // Update trips count
     if (changes.trips !== undefined) {
-      const newCount = Math.max(0, (user.metrics_my_trips || 0) + changes.trips);
+      const newCount = Math.max(
+        0,
+        (user.metrics_my_trips || 0) + changes.trips
+      );
       if (newCount !== user.metrics_my_trips) {
         updates.metrics_my_trips = newCount;
         hasChanges = true;
@@ -48,21 +57,17 @@ export async function updateUserKPIs(userId, changes) {
     }
 
     if (!hasChanges) {
-      console.log('[KPIs] No changes needed for user:', userId);
       return true;
     }
 
-    console.log('[KPIs] Updating user KPIs:', { userId, updates });
     await User.update(userId, updates);
-    console.log('[KPIs] User KPIs updated successfully');
     return true;
-
   } catch (error) {
     // Log error but don't throw - KPIs are non-critical
-    console.warn('[KPIs] Failed to update user KPIs (non-critical):', {
+    console.warn("[KPIs] Failed to update user KPIs (non-critical):", {
       userId,
       changes,
-      error: error.message
+      error: error.message,
     });
     return false;
   }
@@ -74,16 +79,16 @@ export async function updateUserKPIs(userId, changes) {
  */
 export async function updateTripKPIs(tripId, changes) {
   if (!tripId) {
-    console.warn('[KPIs] No tripId provided');
+    console.warn("[KPIs] No tripId provided");
     return false;
   }
 
   try {
     // Fetch current trip data
     const trip = await Trip.get(tripId);
-    
+
     if (!trip) {
-      console.warn('[KPIs] Trip not found:', tripId);
+      console.warn("[KPIs] Trip not found:", tripId);
       return false;
     }
 
@@ -118,21 +123,17 @@ export async function updateTripKPIs(tripId, changes) {
     }
 
     if (!hasChanges) {
-      console.log('[KPIs] No changes needed for trip:', tripId);
       return true;
     }
 
-    console.log('[KPIs] Updating trip KPIs:', { tripId, updates });
     await Trip.update(tripId, updates);
-    console.log('[KPIs] Trip KPIs updated successfully');
     return true;
-
   } catch (error) {
     // Log error but don't throw - KPIs are non-critical
-    console.warn('[KPIs] Failed to update trip KPIs (non-critical):', {
+    console.warn("[KPIs] Failed to update trip KPIs (non-critical):", {
       tripId,
       changes,
-      error: error.message
+      error: error.message,
     });
     return false;
   }
@@ -147,29 +148,29 @@ export async function fetchUserKPIs(userId) {
     return {
       metrics_followers: 0,
       metrics_following: 0,
-      metrics_my_trips: 0
+      metrics_my_trips: 0,
     };
   }
 
   try {
     const user = await User.get(userId);
-    
+
     return {
       metrics_followers: user?.metrics_followers || 0,
       metrics_following: user?.metrics_following || 0,
-      metrics_my_trips: user?.metrics_my_trips || 0
+      metrics_my_trips: user?.metrics_my_trips || 0,
     };
   } catch (error) {
-    console.warn('[KPIs] Failed to fetch user KPIs (non-critical):', {
+    console.warn("[KPIs] Failed to fetch user KPIs (non-critical):", {
       userId,
-      error: error.message
+      error: error.message,
     });
-    
+
     // Return defaults on error
     return {
       metrics_followers: 0,
       metrics_following: 0,
-      metrics_my_trips: 0
+      metrics_my_trips: 0,
     };
   }
 }
@@ -183,29 +184,29 @@ export async function fetchTripKPIs(tripId) {
     return {
       likes: 0,
       steals: 0,
-      shares: 0
+      shares: 0,
     };
   }
 
   try {
     const trip = await Trip.get(tripId);
-    
+
     return {
       likes: trip?.likes || 0,
       steals: trip?.steals || 0,
-      shares: trip?.shares || 0
+      shares: trip?.shares || 0,
     };
   } catch (error) {
-    console.warn('[KPIs] Failed to fetch trip KPIs (non-critical):', {
+    console.warn("[KPIs] Failed to fetch trip KPIs (non-critical):", {
       tripId,
-      error: error.message
+      error: error.message,
     });
-    
+
     // Return defaults on error
     return {
       likes: 0,
       steals: 0,
-      shares: 0
+      shares: 0,
     };
   }
 }

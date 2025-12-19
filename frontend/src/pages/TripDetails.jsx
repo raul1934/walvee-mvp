@@ -1201,7 +1201,16 @@ export default function TripDetails() {
 
   // Memoize expensive calculations - MUST be before any conditional returns
   const cities = React.useMemo(() => {
-    return tripData ? getTripCities(tripData) : [];
+    // Backend should always return cities array with IDs
+    if (tripData?.cities && Array.isArray(tripData.cities) && tripData.cities.length > 0) {
+      return tripData.cities;
+    }
+    // Fallback: extract city names if backend doesn't provide cities
+    if (tripData) {
+      const cityNames = getTripCities(tripData);
+      return cityNames.map(name => ({ id: null, name }));
+    }
+    return [];
   }, [tripData]);
 
   const authorFirstName = React.useMemo(() => {
@@ -1572,17 +1581,32 @@ export default function TripDetails() {
                 {tripData.title}
               </h1>
 
-              {/* Updated City Links with Individual Clickable Cities */}
-              <div className="flex items-center gap-1 text-xs min-w-0">
-                <MapPin className="w-3 h-3 shrink-0 text-blue-400" />
-                <div className="min-w-0 flex-1">
-                  <CitiesScroller
-                    cities={cities}
-                    className="text-xs text-gray-400"
-                    makeLinks={true}
-                  />
+              {/* Primary Destination City Link */}
+              {cities && cities.length > 0 && (
+                <div className="flex items-center gap-1.5 text-sm">
+                  <MapPin className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                  <Link
+                    to={`/city/${cities[0].id}`}
+                    className="text-blue-400 hover:text-blue-300 hover:underline transition-colors truncate"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {cities[0].name}
+                  </Link>
                 </div>
-              </div>
+              )}
+
+              {/* Multiple Cities Scroller (only show if more than 1 city) */}
+              {cities && cities.length > 1 && (
+                <div className="flex items-center gap-1 text-xs min-w-0">
+                  <MapPin className="w-3 h-3 shrink-0 text-gray-500" />
+                  <div className="min-w-0 flex-1">
+                    <CitiesScroller
+                      cities={cities}
+                      className="text-xs text-gray-400"
+                    />
+                  </div>
+                </div>
+              )}
 
               <div>
                 <button
@@ -1956,15 +1980,19 @@ export default function TripDetails() {
                 </p>
 
                 <div className="flex flex-wrap gap-2">
-                  {cities.map((city, idx) => (
-                    <Link
-                      key={idx}
-                      to={`/City?name=${encodeURIComponent(city)}`}
-                      className="text-sm text-blue-400 hover:text-blue-300 hover:underline transition-colors"
-                    >
-                      #{city.toLowerCase().replace(/\s+/g, "")}
-                    </Link>
-                  )) || (
+                  {cities.map((city, idx) => {
+                    const hashtag = city.name.split(',')[0].toLowerCase().replace(/\s+/g, "");
+                    
+                    return (
+                      <Link
+                        key={idx}
+                        to={`/city/${city.id}`}
+                        className="text-sm text-blue-400 hover:text-blue-300 hover:underline transition-colors"
+                      >
+                        #{hashtag}
+                      </Link>
+                    );
+                  }) || (
                     <>
                       <span className="text-sm text-blue-400">#travel</span>
                       <span className="text-sm text-blue-400">#adventure</span>

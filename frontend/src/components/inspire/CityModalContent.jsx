@@ -241,10 +241,6 @@ export default function CityModalContent({ cityName, user, onAddToTrip }) {
             >
               <Button
                 onClick={() => {
-                  console.log(
-                    "[CityModalContent] Add to Trip clicked for:",
-                    cityName
-                  );
                   onAddToTrip();
                 }}
                 className="bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white px-8 py-3 text-sm font-bold rounded-xl shadow-xl shadow-emerald-500/25 transition-all hover:scale-105 border-0"

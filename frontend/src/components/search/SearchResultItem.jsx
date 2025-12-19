@@ -36,7 +36,7 @@ export default function SearchResultItem({ result, onClose, onPlaceClick }) {
   if (result.type === "city") {
     return (
       <Link
-        to={createCityUrl(result.countryId, result.id)}
+        to={createCityUrl(result.id)}
         onClick={handleClick}
         className="flex items-center gap-4 p-4 hover:bg-[#1A1B23] rounded-xl transition-colors group"
       >

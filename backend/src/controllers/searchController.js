@@ -48,12 +48,6 @@ const searchOverlay = async (req, res, next) => {
     const searchTerm = query.trim();
     const resultLimit = parseInt(limit) || 5;
 
-    console.log(
-      `[Search Overlay] Query: "${searchTerm}", City Context: ${
-        cityContext || "none"
-      }, Limit: ${resultLimit}`
-    );
-
     // Normalize search query for case-insensitive matching
     const normalizedQuery = searchTerm.toLowerCase();
 
@@ -88,8 +82,6 @@ const searchOverlay = async (req, res, next) => {
 
     // ===== SEARCH CITIES =====
     if (!cityContext) {
-      console.log("[Search Overlay] Searching cities...");
-
       // Search cities in database
       const citiesQuery = {
         where: {
@@ -120,10 +112,6 @@ const searchOverlay = async (req, res, next) => {
 
       // Auto-populate cities from Google Maps if less than limit
       if (cities.length < resultLimit) {
-        console.log(
-          `[Search Overlay] Only ${cities.length} cities found, fetching from Google Maps...`
-        );
-
         try {
           const googleCities = await searchCitiesFromGoogle(
             searchTerm,
@@ -203,8 +191,6 @@ const searchOverlay = async (req, res, next) => {
                   ignoreDuplicates: true,
                 });
               }
-
-              console.log(`[Search Overlay] Created city: ${cityDetails.name}`);
             }
           }
 
@@ -233,7 +219,6 @@ const searchOverlay = async (req, res, next) => {
     }
 
     // ===== SEARCH TRIPS =====
-    console.log("[Search Overlay] Searching trips...");
 
     const tripWhere = {
       [Op.or]: [
@@ -298,7 +283,6 @@ const searchOverlay = async (req, res, next) => {
     response.counts.trips = totalTripsCount;
 
     // ===== SEARCH PLACES =====
-    console.log("[Search Overlay] Searching places...");
 
     const placeWhere = {
       name: { [Op.like]: `%${searchTerm}%` },
@@ -341,10 +325,6 @@ const searchOverlay = async (req, res, next) => {
 
     // Auto-populate places from Google Maps if less than limit
     if (places.length < resultLimit) {
-      console.log(
-        `[Search Overlay] Only ${places.length} places found, fetching from Google Maps...`
-      );
-
       try {
         const searchQuery = cityContext
           ? `${searchTerm}, ${cityContext}`
@@ -408,8 +388,6 @@ const searchOverlay = async (req, res, next) => {
                 ignoreDuplicates: true,
               });
             }
-
-            console.log(`[Search Overlay] Created place: ${placeDetails.name}`);
           }
         }
 
@@ -459,8 +437,6 @@ const searchOverlay = async (req, res, next) => {
 
     // ===== SEARCH TRAVELERS (only if authenticated) =====
     if (isAuthenticated) {
-      console.log("[Search Overlay] Searching travelers...");
-
       const userWhere = {
         [Op.or]: [
           { full_name: { [Op.like]: `%${searchTerm}%` } },
@@ -538,14 +514,6 @@ const searchOverlay = async (req, res, next) => {
       response.counts.trips +
       response.counts.places +
       response.counts.travelers;
-
-    console.log("[Search Overlay] Search complete:", {
-      cities: `${response.results.cities.length}/${response.counts.cities}`,
-      trips: `${response.results.trips.length}/${response.counts.trips}`,
-      places: `${response.results.places.length}/${response.counts.places}`,
-      travelers: `${response.results.travelers.length}/${response.counts.travelers}`,
-      total: response.counts.total,
-    });
 
     res.json(buildSuccessResponse(response));
   } catch (error) {

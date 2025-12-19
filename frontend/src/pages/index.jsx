@@ -91,8 +91,7 @@ function PagesContent() {
 
           <Route path="/ResetLikes" element={<ResetLikes />} />
 
-          <Route path="/City" element={<City />} />
-          <Route path="/:countryId/:cityId" element={<City />} />
+          <Route path="/city/:id" element={<City />} />
 
           <Route path="/Profile" element={<Profile />} />
           <Route path="/profile" element={<Profile />} />
