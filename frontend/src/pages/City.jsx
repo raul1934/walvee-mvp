@@ -26,17 +26,10 @@ export default function City({ cityNameOverride, isModal = false }) {
   const [activeTab, setActiveTab] = useState("all");
   const [placeCategory, setPlaceCategory] = useState("all");
   const [offset, setOffset] = useState(0);
-  const [allTrips, setAllTrips] = useState([]);
-  const [hasMore, setHasMore] = useState(true);
   const [selectedPlace, setSelectedPlace] = useState(null);
   const [isPlaceModalOpen, setIsPlaceModalOpen] = useState(false);
 
   const [placesOffset, setPlacesOffset] = useState(0);
-  const [allPlaces, setAllPlaces] = useState([]);
-  const [hasMorePlaces, setHasMorePlaces] = useState(true);
-
-  const [enrichedTripPlaces, setEnrichedTripPlaces] = useState([]);
-  const [isEnrichingTripPlaces, setIsEnrichingTripPlaces] = useState(false);
 
   const [imageErrors, setImageErrors] = useState(new Set());
 
@@ -142,26 +135,18 @@ export default function City({ cityNameOverride, isModal = false }) {
     cacheTime: 24 * 60 * 60 * 1000,
   });
 
-  useEffect(() => {
+  // Derive allTrips and hasMore from trips and offset
+  const { allTrips, hasMore } = React.useMemo(() => {
     if (trips.length === 0) {
-      setAllTrips([]);
-      setHasMore(false);
-      return;
+      return { allTrips: [], hasMore: false };
     }
 
     const newTrips = trips.slice(0, offset + LIMIT);
-    setAllTrips((prev) => {
-      // Only update if the content actually changed
-      if (
-        prev.length === newTrips.length &&
-        prev.every((trip, index) => trip.id === newTrips[index]?.id)
-      ) {
-        return prev;
-      }
-      return newTrips;
-    });
-    setHasMore(newTrips.length < trips.length);
-  }, [trips, offset]);
+    return {
+      allTrips: newTrips,
+      hasMore: newTrips.length < trips.length,
+    };
+  }, [trips, offset, LIMIT]);
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -191,12 +176,8 @@ export default function City({ cityNameOverride, isModal = false }) {
 
   useEffect(() => {
     setOffset(0);
-    setAllTrips([]);
-    setHasMore(true);
     setActiveTab("all");
     setPlacesOffset(0);
-    setAllPlaces([]);
-    setHasMorePlaces(true);
     setPlaceCategory("all");
   }, [cityName]);
 
@@ -241,11 +222,9 @@ export default function City({ cityNameOverride, isModal = false }) {
     return placesFromTrips;
   }, [trips]);
 
-  useEffect(() => {
-    // Simply use topPlaces as-is without enrichment
-    setEnrichedTripPlaces(topPlaces);
-    setIsEnrichingTripPlaces(false);
-  }, [topPlaces]);
+  // Use topPlaces directly as enrichedTripPlaces
+  const enrichedTripPlaces = topPlaces;
+  const isEnrichingTripPlaces = false;
 
   const combinedPlacesAll = React.useMemo(() => {
     const tripsPlaces = enrichedTripPlaces.filter((p) => p.mentions > 0);
@@ -277,25 +256,26 @@ export default function City({ cityNameOverride, isModal = false }) {
     });
   }, [enrichedTripPlaces, placeCategory, cityName]);
 
-  useEffect(() => {
-    if (activeTab !== "places") return;
+  // Derive allPlaces and hasMorePlaces from combinedPlacesAll and placesOffset
+  const { allPlaces, hasMorePlaces } = React.useMemo(() => {
+    if (activeTab !== "places") {
+      return { allPlaces: [], hasMorePlaces: false };
+    }
 
     if (combinedPlacesAll.length === 0) {
-      setAllPlaces([]);
-      setHasMorePlaces(false);
-      return;
+      return { allPlaces: [], hasMorePlaces: false };
     }
 
     const newPlaces = combinedPlacesAll.slice(0, placesOffset + PLACES_LIMIT);
-    setAllPlaces(newPlaces);
-    setHasMorePlaces(newPlaces.length < combinedPlacesAll.length);
-  }, [combinedPlacesAll, placesOffset, activeTab]);
+    return {
+      allPlaces: newPlaces,
+      hasMorePlaces: newPlaces.length < combinedPlacesAll.length,
+    };
+  }, [combinedPlacesAll, placesOffset, activeTab, PLACES_LIMIT]);
 
   useEffect(() => {
     if (activeTab === "places") {
       setPlacesOffset(0);
-      setAllPlaces([]);
-      setHasMorePlaces(true);
     }
   }, [placeCategory, activeTab]);
 
@@ -331,7 +311,7 @@ export default function City({ cityNameOverride, isModal = false }) {
         observer.disconnect();
       }
     };
-  }, [hasMorePlaces, isEnrichingTripPlaces, activeTab]);
+  }, [hasMorePlaces, activeTab]);
 
   const relatedCities = React.useMemo(() => {
     if (!trips.length) return [];
@@ -550,6 +530,7 @@ export default function City({ cityNameOverride, isModal = false }) {
           relatedCities={relatedCities}
           featuredLocals={featuredLocals}
           currentCity={cityName}
+          countryId={cityData?.country_id}
         />
       </div>
 

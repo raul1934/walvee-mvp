@@ -7,113 +7,46 @@ import UserAvatar from "../common/UserAvatar";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient, endpoints } from "@/api/apiClient";
 
-// Top cities by country - curated list
-const COUNTRY_CITIES = {
-  Brazil: [
-    "Rio de Janeiro",
-    "São Paulo",
-    "Salvador",
-    "Brasília",
-    "Florianópolis",
-  ],
-  Spain: ["Madrid", "Barcelona", "Seville", "Valencia", "Granada"],
-  Argentina: ["Buenos Aires", "Mendoza", "Córdoba", "Bariloche", "Salta"],
-  "United States": [
-    "New York",
-    "Los Angeles",
-    "Miami",
-    "San Francisco",
-    "Chicago",
-  ],
-  "South Africa": [
-    "Cape Town",
-    "Johannesburg",
-    "Durban",
-    "Pretoria",
-    "Port Elizabeth",
-  ],
-  Japan: ["Tokyo", "Kyoto", "Osaka", "Hiroshima", "Sapporo"],
-  Italy: ["Rome", "Milan", "Venice", "Florence", "Naples"],
-  France: ["Paris", "Lyon", "Marseille", "Nice", "Bordeaux"],
-  "United Kingdom": [
-    "London",
-    "Edinburgh",
-    "Manchester",
-    "Liverpool",
-    "Birmingham",
-  ],
-  UAE: ["Dubai", "Abu Dhabi", "Sharjah", "Ajman", "Ras Al Khaimah"],
-};
-
 export default function CityExplore({
   relatedCities,
   featuredLocals,
   currentCity,
+  countryId,
 }) {
   // Extract country from currentCity (format: "City, Country")
   const country = currentCity?.split(",")[1]?.trim();
   const currentCityName = currentCity?.split(",")[0]?.trim();
 
-  // Query cities from the same country from backend
-  const { data: countryCities = [] } = useQuery({
-    queryKey: ["countryCities", country],
+  // Query suggested cities from backend using country ID
+  const { data: suggestedCities = [] } = useQuery({
+    queryKey: ["suggestedCities", countryId],
     queryFn: async () => {
-      if (!country) return [];
+      if (!countryId) return [];
 
       try {
-        // Search for cities in the country
-        const response = await apiClient.get(endpoints.cities.search, {
-          query: country,
-        });
+        const response = await apiClient.get(endpoints.cities.suggestedByCountry(countryId));
 
         if (response.success && response.data) {
-          return response.data
-            .filter((city) => {
-              const cityCountry = city.country?.name || "";
-              return (
-                cityCountry.toLowerCase().includes(country.toLowerCase()) &&
-                city.name !== currentCityName
-              );
-            })
-            .slice(0, 5);
+          return response.data.map((city) => ({
+            id: city.id,
+            name: city.name,
+            tripsCount: city.tripsCount,
+          }));
         }
         return [];
       } catch (error) {
-        console.error("Error fetching country cities:", error);
+        console.error("Error fetching suggested cities:", error);
         return [];
       }
     },
-    enabled: !!country,
+    enabled: !!countryId,
     staleTime: 30 * 60 * 1000,
   });
 
-  // Get suggested cities from same country
-  const suggestedCities = React.useMemo(() => {
-    // Prefer backend cities with IDs
-    if (countryCities.length > 0) {
-      return countryCities.map((city) => ({
-        id: city.id,
-        name: `${city.name}, ${city.country?.name || ""}`,
-        tripsCount: city.trip_count || 0,
-      }));
-    }
-
-    // Fallback to hardcoded list if backend fails
-    if (!country || !COUNTRY_CITIES[country]) return [];
-
-    return COUNTRY_CITIES[country]
-      .filter((city) => city !== currentCityName)
-      .slice(0, 5)
-      .map((city) => ({
-        id: null,
-        name: `${city}, ${country}`,
-        tripsCount: 0,
-      }));
-  }, [countryCities, country, currentCityName]);
-
+  // Get suggested cities from backend
   const citiesToShow =
     suggestedCities.length > 0
-      ? suggestedCities
+      ? suggestedCities.filter((city) => city.name !== currentCity)
       : relatedCities?.slice(0, 5) || [];
 
   if (
@@ -145,8 +78,20 @@ export default function CityExplore({
                     to={createCityUrl(city.id)}
                     className="block bg-[#1A1B23] rounded-xl p-4 text-center hover:bg-[#2A2B35] hover:scale-105 transition-all border border-[#2A2B35] hover:border-blue-500/30"
                   >
-                    <div className="w-16 h-16 mx-auto mb-3 rounded-full bg-gradient-to-br from-blue-600/20 to-purple-600/20 flex items-center justify-center">
-                      <MapPin className="w-8 h-8 text-blue-400" />
+                    <div className="w-16 h-16 mx-auto mb-3 rounded-full bg-gradient-to-br from-blue-600/20 to-purple-600/20 flex items-center justify-center overflow-hidden relative">
+                      {city.image ? (
+                        <img
+                          src={city.image}
+                          alt={city.name.split(",")[0]}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            e.target.style.display = 'none';
+                            const mapPin = e.target.nextElementSibling;
+                            if (mapPin) mapPin.style.display = 'flex';
+                          }}
+                        />
+                      ) : null}
+                      <MapPin className={`w-8 h-8 text-blue-400 ${city.image ? 'hidden' : ''}`} />
                     </div>
                     <h4 className="font-semibold text-white text-sm mb-1">
                       {city.name.split(",")[0]}

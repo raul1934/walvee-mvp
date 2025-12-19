@@ -262,6 +262,7 @@ export const endpoints = {
     getTrips: (id) => `/cities/${id}/trips`,
     search: "/cities/search",
     byCountry: "/cities/country",
+    suggestedByCountry: (countryId) => `/cities/suggested/country/${countryId}`,
   },
 };
 

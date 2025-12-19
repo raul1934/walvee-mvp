@@ -1,5 +1,6 @@
-const { City, Country, CityReview } = require("../models/sequelize");
-const { Op } = require("sequelize");
+const { City, Country, CityReview, Trip, CityPhoto } = require("../models/sequelize");
+const { Op, Sequelize } = require("sequelize");
+const { sequelize } = require("../database/sequelize");
 const {
   buildSuccessResponse,
   buildErrorResponse,
@@ -687,7 +688,80 @@ const getCityAiReview = async (req, res, next) => {
       )
     );
   } catch (error) {
-    console.error("[Get City AI Review] Error:", error);
+  }
+};
+
+/**
+ * Get suggested cities for a country
+ * Returns popular cities from the database for the given country
+ * Cities are ordered by trip count (descending) and limited to top 5
+ */
+const getSuggestedCitiesByCountry = async (req, res, next) => {
+  try {
+    const { countryId } = req.params;
+
+    if (!countryId) {
+      return res
+        .status(400)
+        .json(
+          buildErrorResponse(
+            "INVALID_INPUT",
+            "Country ID is required"
+          )
+        );
+    }
+
+    // Get the country record by ID
+    const countryRecord = await Country.findByPk(countryId);
+
+    if (!countryRecord) {
+      return res
+        .status(404)
+        .json(buildErrorResponse("RESOURCE_NOT_FOUND", "Country not found"));
+    }
+
+    // Get cities from database, ordered by trip count (descending)
+    const cities = await City.findAll({
+      where: { country_id: countryRecord.id },
+      include: [
+        { model: Country, as: "country" },
+        {
+          model: CityPhoto,
+          as: "photos",
+          required: false,
+          limit: 1,
+          order: [["photo_order", "ASC"]],
+        }
+      ],
+      attributes: {
+        include: [
+          [
+            sequelize.literal(`(
+              SELECT COUNT(*)
+              FROM trips
+              WHERE trips.destination_city_id = City.id
+            )`),
+            'trip_count'
+          ]
+        ]
+      },
+      order: [
+        [sequelize.literal('trip_count'), 'DESC'],
+        ['name', 'ASC']
+      ],
+      limit: 5,
+    });
+
+    // Format the response
+    const suggestedCities = cities.map(city => ({
+      id: city.id,
+      name: `${city.name}, ${countryRecord.name}`,
+      tripsCount: parseInt(city.dataValues.trip_count) || 0,
+      image: city.photos && city.photos.length > 0 ? city.photos[0].url_medium || city.photos[0].url_small : null,
+    }));
+
+    res.json(buildSuccessResponse(suggestedCities));
+  } catch (error) {
     next(error);
   }
 };
@@ -697,6 +771,7 @@ module.exports = {
   getOrCreateCity,
   getCityById,
   getCitiesByCountry,
+  getSuggestedCitiesByCountry,
   getCityAiReview,
   getCityTrips,
 };
