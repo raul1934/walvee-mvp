@@ -5,7 +5,9 @@ const axios = require("axios");
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
 
 if (!GOOGLE_MAPS_API_KEY) {
-  console.error("Error: GOOGLE_MAPS_API_KEY not found in environment variables");
+  console.error(
+    "Error: GOOGLE_MAPS_API_KEY not found in environment variables"
+  );
   process.exit(1);
 }
 
@@ -189,7 +191,11 @@ async function addMissingCitiesAndLink() {
 
     for (const trip of trips) {
       const destination = trip.destination || "";
-      console.log(`\n[${matchedCount + failedTrips.length + 1}/${trips.length}] Processing: "${trip.title}"`);
+      console.log(
+        `\n[${matchedCount + failedTrips.length + 1}/${
+          trips.length
+        }] Processing: "${trip.title}"`
+      );
       console.log(`  Destination: ${destination}`);
 
       // Geocode the destination
@@ -235,7 +241,9 @@ async function addMissingCitiesAndLink() {
       }
 
       // Check if city was just created (within last 5 seconds)
-      const wasCreated = city.created_at && new Date(city.created_at).getTime() > Date.now() - 5000;
+      const wasCreated =
+        city.created_at &&
+        new Date(city.created_at).getTime() > Date.now() - 5000;
       if (wasCreated) {
         createdCitiesCount++;
       }
@@ -244,7 +252,9 @@ async function addMissingCitiesAndLink() {
       await trip.update({ destination_city_id: city.id });
       matchedCount++;
       console.log(
-        `  ✓ Linked to city: ${city.name}, ${city.country?.name || "N/A"} (ID: ${city.id})`
+        `  ✓ Linked to city: ${city.name}, ${
+          city.country?.name || "N/A"
+        } (ID: ${city.id})`
       );
 
       // Rate limiting - wait 100ms between requests

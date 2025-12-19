@@ -3,7 +3,12 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Link } from "react-router-dom";
 import { createCityUrl } from "@/utils";
 
-export default function CitiesScroller({ cities, className = "", makeLinks = true, showSeparators = true }) {
+export default function CitiesScroller({
+  cities,
+  className = "",
+  makeLinks = true,
+  showSeparators = true,
+}) {
   const scrollRef = useRef(null);
   const [showLeftArrow, setShowLeftArrow] = useState(false);
   const [showRightArrow, setShowRightArrow] = useState(false);
@@ -92,9 +97,7 @@ export default function CitiesScroller({ cities, className = "", makeLinks = tru
                 {city.name}
               </Link>
             ) : (
-              <span className="whitespace-nowrap">
-                {city.name}
-              </span>
+              <span className="whitespace-nowrap">{city.name}</span>
             )}
             {showSeparators && idx < cities.length - 1 && (
               <span className="text-gray-600">•</span>

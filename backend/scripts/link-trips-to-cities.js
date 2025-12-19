@@ -54,7 +54,11 @@ async function linkTripsToCities() {
       const cityName = parts[0];
 
       if (!cityName) {
-        unmatchedTrips.push({ id: trip.id, destination, reason: "Empty city name" });
+        unmatchedTrips.push({
+          id: trip.id,
+          destination,
+          reason: "Empty city name",
+        });
         continue;
       }
 
@@ -91,14 +95,16 @@ async function linkTripsToCities() {
         await trip.update({ destination_city_id: matchedCity.id });
         matchedCount++;
         console.log(
-          `✓ Matched "${destination}" -> ${matchedCity.name}, ${matchedCity.country?.name || "N/A"} (ID: ${matchedCity.id})`
+          `✓ Matched "${destination}" -> ${matchedCity.name}, ${
+            matchedCity.country?.name || "N/A"
+          } (ID: ${matchedCity.id})`
         );
       } else {
-        unmatchedTrips.push({ 
-          id: trip.id, 
+        unmatchedTrips.push({
+          id: trip.id,
           title: trip.title,
-          destination, 
-          reason: "No matching city found" 
+          destination,
+          reason: "No matching city found",
         });
       }
     }
@@ -116,13 +122,15 @@ async function linkTripsToCities() {
       console.log("UNMATCHED TRIPS:");
       console.log("-".repeat(60));
       unmatchedTrips.forEach((trip) => {
-        console.log(`✗ ${trip.title || 'Untitled'}`);
+        console.log(`✗ ${trip.title || "Untitled"}`);
         console.log(`  Destination: ${trip.destination}`);
         console.log(`  Reason: ${trip.reason}`);
         console.log("");
       });
 
-      console.log("\nTip: You may need to add these cities to the database or manually set destination_city_id");
+      console.log(
+        "\nTip: You may need to add these cities to the database or manually set destination_city_id"
+      );
     }
 
     console.log("\nDone!");
