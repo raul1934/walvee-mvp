@@ -238,6 +238,11 @@ export const endpoints = {
     getById: (id) => `/places/${id}`,
   },
 
+  // Search
+  search: {
+    overlay: "/search/overlay",
+  },
+
   // LLM
   llm: {
     chat: "/llm/chat",

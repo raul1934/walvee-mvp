@@ -14,6 +14,7 @@ const Country = require("./Country");
 const City = require("./City");
 const Place = require("./Place");
 const PlacePhoto = require("./PlacePhoto");
+const CityPhoto = require("./CityPhoto");
 
 // Define associations
 Country.hasMany(City, { foreignKey: "country_id", as: "cities" });
@@ -93,6 +94,10 @@ Place.belongsTo(City, { foreignKey: "city_id", as: "city" });
 Place.hasMany(PlacePhoto, { foreignKey: "place_id", as: "photos" });
 PlacePhoto.belongsTo(Place, { foreignKey: "place_id", as: "place" });
 
+// City Photo associations
+City.hasMany(CityPhoto, { foreignKey: "city_id", as: "photos" });
+CityPhoto.belongsTo(City, { foreignKey: "city_id", as: "city" });
+
 TripPlace.belongsTo(Place, { foreignKey: "place_id", as: "placeDetails" });
 Place.hasMany(TripPlace, { foreignKey: "place_id", as: "tripPlaces" });
 
@@ -116,4 +121,5 @@ module.exports = {
   City,
   Place,
   PlacePhoto,
+  CityPhoto,
 };

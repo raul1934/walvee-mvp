@@ -4,14 +4,15 @@ import { motion, AnimatePresence } from "framer-motion";
 import SearchResultItem from "./SearchResultItem";
 import PlaceModal from "../city/PlaceModal";
 
-export default function SearchOverlay({ 
-  isOpen, 
-  onClose, 
-  query, 
-  setQuery, 
-  results, 
-  isLoading, 
-  error, 
+export default function SearchOverlay({
+  isOpen,
+  onClose,
+  query,
+  setQuery,
+  results,
+  counts = { cities: 0, trips: 0, places: 0, travelers: 0, total: 0 },
+  isLoading,
+  error,
   retrySearch,
   onPlaceClick,
   cityContext = null
@@ -58,12 +59,12 @@ export default function SearchOverlay({
 
   if (!isOpen) return null;
 
-  // Get counts - usando travelers
-  const citiesCount = results.cities?.length || 0;
-  const tripsCount = results.trips?.length || 0;
-  const placesCount = results.places?.length || 0;
-  const travelersCount = results.travelers?.length || 0;
-  const totalResults = citiesCount + tripsCount + placesCount + travelersCount;
+  // Use counts from backend (total counts, not just displayed results)
+  const citiesCount = counts.cities || 0;
+  const tripsCount = counts.trips || 0;
+  const placesCount = counts.places || 0;
+  const travelersCount = counts.travelers || 0;
+  const totalResults = counts.total || 0;
 
   const hasResults = totalResults > 0;
 

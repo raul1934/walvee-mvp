@@ -337,6 +337,108 @@ const getPlaceDetailsWithPhotos = async (placeId) => {
 };
 
 /**
+ * Get city details including photos from Google Places API
+ * @param {string} placeId - Google Maps Place ID for the city
+ * @returns {Promise<Object>} City details with photos
+ */
+const getCityDetailsWithPhotos = async (placeId) => {
+  if (!GOOGLE_MAPS_API_KEY) {
+    throw new Error("Google Maps API key is not configured");
+  }
+
+  try {
+    const response = await axios.get(`${PLACES_API_BASE_URL}/details/json`, {
+      params: {
+        place_id: placeId,
+        fields: [
+          "place_id",
+          "name",
+          "formatted_address",
+          "address_components",
+          "geometry",
+          "types",
+          "utc_offset",
+          "photos",
+        ].join(","),
+        key: GOOGLE_MAPS_API_KEY,
+      },
+    });
+
+    if (response.data.status !== "OK") {
+      throw new Error(`Google Places API error: ${response.data.status}`);
+    }
+
+    const place = response.data.result;
+
+    // Extract city and country information from address components
+    const addressComponents = place.address_components || [];
+    let cityName = null;
+    let stateName = null;
+    let countryName = null;
+    let countryCode = null;
+
+    for (const component of addressComponents) {
+      if (component.types.includes("locality")) {
+        cityName = component.long_name;
+      } else if (component.types.includes("administrative_area_level_1")) {
+        stateName = component.long_name;
+      } else if (component.types.includes("country")) {
+        countryName = component.long_name;
+        countryCode = component.short_name;
+      }
+    }
+
+    // If no locality, try administrative_area_level_2 or administrative_area_level_1
+    if (!cityName) {
+      for (const component of addressComponents) {
+        if (component.types.includes("administrative_area_level_2")) {
+          cityName = component.long_name;
+          break;
+        }
+      }
+    }
+
+    if (!cityName) {
+      for (const component of addressComponents) {
+        if (component.types.includes("administrative_area_level_1")) {
+          cityName = component.long_name;
+          break;
+        }
+      }
+    }
+
+    // Build photo objects with URLs for different sizes
+    const photos = (place.photos || []).map((photo) => ({
+      photo_reference: photo.photo_reference,
+      width: photo.width,
+      height: photo.height,
+      html_attributions: photo.html_attributions,
+      // Generate URLs for different sizes
+      url_small: `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photo_reference=${photo.photo_reference}&key=${GOOGLE_MAPS_API_KEY}`,
+      url_medium: `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photo_reference=${photo.photo_reference}&key=${GOOGLE_MAPS_API_KEY}`,
+      url_large: `https://maps.googleapis.com/maps/api/place/photo?maxwidth=1600&photo_reference=${photo.photo_reference}&key=${GOOGLE_MAPS_API_KEY}`,
+    }));
+
+    return {
+      google_maps_id: place.place_id,
+      name: cityName || place.name,
+      formatted_address: place.formatted_address,
+      country_name: countryName,
+      country_code: countryCode,
+      state: stateName,
+      latitude: place.geometry?.location?.lat,
+      longitude: place.geometry?.location?.lng,
+      timezone_offset: place.utc_offset,
+      types: place.types || [],
+      photos,
+    };
+  } catch (error) {
+    console.error("[Google Maps Service] Error getting city details with photos:", error.message);
+    throw error;
+  }
+};
+
+/**
  * Get photo URL from Google Places API
  * @param {string} photoReference - Photo reference from place details
  * @param {number} maxWidth - Maximum width of the photo
@@ -356,5 +458,6 @@ module.exports = {
   getTimezone,
   searchPlace,
   getPlaceDetailsWithPhotos,
+  getCityDetailsWithPhotos,
   getPhotoUrl,
 };

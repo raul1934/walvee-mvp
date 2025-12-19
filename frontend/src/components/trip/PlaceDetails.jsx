@@ -159,6 +159,7 @@ export default function PlaceDetails({
   onPhotoClick,
   user,
   onAddToTrip,
+  openLoginModal,
 }) {
   console.log("[PlaceDetails] ===== RENDER =====");
   console.log("[PlaceDetails] Props:", {

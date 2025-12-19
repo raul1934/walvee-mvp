@@ -19,6 +19,7 @@ export default function Navbar({ user, onMenuClick, openLoginModal }) {
     query,
     setQuery,
     results,
+    counts,
     isLoading,
     error,
     clearSearch,
@@ -195,6 +196,7 @@ export default function Navbar({ user, onMenuClick, openLoginModal }) {
         query={query}
         setQuery={setQuery}
         results={results}
+        counts={counts}
         isLoading={isLoading}
         error={error}
         onRetry={retrySearch}

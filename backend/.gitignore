@@ -24,6 +24,12 @@ Thumbs.db
 uploads/
 temp/
 
+# Migrated images
+images/
+
+# Migration backups
+backups/
+
 # Build
 dist/
 build/

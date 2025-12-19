@@ -75,6 +75,12 @@ app.use(
   express.static(path.join(__dirname, "..", config.upload.directory))
 );
 
+// Serve migrated images
+app.use(
+  "/images",
+  express.static(path.join(__dirname, "..", "images"))
+);
+
 // Health check endpoint
 app.get("/health", (req, res) => {
   res.json({

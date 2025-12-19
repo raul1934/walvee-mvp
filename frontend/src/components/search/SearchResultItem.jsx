@@ -127,7 +127,7 @@ export default function SearchResultItem({ result, onClose, onPlaceClick }) {
               <div className="flex items-center gap-1 text-xs">
                 <Star className="w-3 h-3 fill-yellow-500 text-yellow-500" />
                 <span className="text-yellow-500 font-semibold">
-                  {result.rating.toFixed(1)}
+                  {Number(result.rating).toFixed(1)}
                 </span>
               </div>
             )}
