@@ -55,4 +55,10 @@ const City = sequelize.define(
   }
 );
 
+// Hook to automatically fetch photos after city creation
+City.afterCreate(async (city) => {
+  const { checkCityPhotos } = require("../../utils/photoChecker");
+  await checkCityPhotos(city);
+});
+
 module.exports = City;

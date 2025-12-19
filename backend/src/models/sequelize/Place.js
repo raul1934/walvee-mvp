@@ -71,4 +71,10 @@ const Place = sequelize.define(
   }
 );
 
+// Hook to automatically fetch photos after place creation
+Place.afterCreate(async (place) => {
+  const { checkPlacePhotos } = require("../../utils/photoChecker");
+  await checkPlacePhotos(place);
+});
+
 module.exports = Place;

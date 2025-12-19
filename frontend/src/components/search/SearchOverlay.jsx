@@ -1,5 +1,13 @@
 import React, { useState, useEffect, useRef } from "react";
-import { X, Search, MapPin, Map, Compass, Users, AlertCircle } from "lucide-react";
+import {
+  X,
+  Search,
+  MapPin,
+  Map,
+  Compass,
+  Users,
+  AlertCircle,
+} from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import SearchResultItem from "./SearchResultItem";
 import PlaceModal from "../city/PlaceModal";
@@ -15,7 +23,7 @@ export default function SearchOverlay({
   error,
   retrySearch,
   onPlaceClick,
-  cityContext = null
+  cityContext = null,
 }) {
   const [activeFilter, setActiveFilter] = useState("all");
   const inputRef = useRef(null);
@@ -32,7 +40,7 @@ export default function SearchOverlay({
 
   useEffect(() => {
     const handleEscape = (e) => {
-      if (e.key === 'Escape' && isOpen) {
+      if (e.key === "Escape" && isOpen) {
         if (isPlaceModalOpen) {
           handleClosePlaceModal();
         } else {
@@ -41,18 +49,18 @@ export default function SearchOverlay({
       }
     };
 
-    window.addEventListener('keydown', handleEscape);
-    return () => window.removeEventListener('keydown', handleEscape);
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
   }, [isOpen, onClose, isPlaceModalOpen]);
 
   const handlePlaceClick = (place) => {
-    console.log('[SearchOverlay] Place clicked:', place.name);
+    console.log("[SearchOverlay] Place clicked:", place.name);
     setSelectedPlace(place);
     setIsPlaceModalOpen(true);
   };
 
   const handleClosePlaceModal = () => {
-    console.log('[SearchOverlay] Closing PlaceModal');
+    console.log("[SearchOverlay] Closing PlaceModal");
     setIsPlaceModalOpen(false);
     setTimeout(() => setSelectedPlace(null), 300);
   };
@@ -72,7 +80,8 @@ export default function SearchOverlay({
   const shouldShowCities = activeFilter === "all" || activeFilter === "cities";
   const shouldShowTrips = activeFilter === "all" || activeFilter === "trips";
   const shouldShowPlaces = activeFilter === "all" || activeFilter === "places";
-  const shouldShowTravelers = activeFilter === "all" || activeFilter === "travelers";
+  const shouldShowTravelers =
+    activeFilter === "all" || activeFilter === "travelers";
 
   const filters = [
     { id: "all", label: "All", count: totalResults, icon: Search },
@@ -97,7 +106,7 @@ export default function SearchOverlay({
           }
         }}
       >
-        <div className="flex justify-center items-start gap-4 pt-20 px-4 h-full">
+        <div className="flex justify-center items-start gap-4 pt-4 md:pt-20 px-2 md:px-4 h-full">
           {/* Search Results Panel */}
           <motion.div
             initial={{ opacity: 0, y: -20 }}
@@ -105,7 +114,7 @@ export default function SearchOverlay({
             exit={{ opacity: 0, y: -20 }}
             onClick={(e) => e.stopPropagation()}
             className={`relative bg-[#0D0D0D] rounded-2xl border border-[#1F1F1F] shadow-2xl overflow-hidden transition-all ${
-              isPlaceModalOpen ? 'w-full max-w-2xl' : 'w-full max-w-3xl'
+              isPlaceModalOpen ? "w-full max-w-2xl" : "w-full max-w-3xl"
             }`}
           >
             {/* Search Header */}
@@ -135,23 +144,25 @@ export default function SearchOverlay({
                 {filters.map((filter) => {
                   const Icon = filter.icon;
                   const isActive = activeFilter === filter.id;
-                  
+
                   return (
                     <button
                       key={filter.id}
                       onClick={() => setActiveFilter(filter.id)}
                       className={`flex items-center gap-2 px-4 py-2 rounded-lg whitespace-nowrap transition-all ${
                         isActive
-                          ? 'bg-blue-600 text-white'
-                          : 'bg-[#1A1B23] text-gray-400 hover:bg-[#2A2B35] hover:text-white'
+                          ? "bg-blue-600 text-white"
+                          : "bg-[#1A1B23] text-gray-400 hover:bg-[#2A2B35] hover:text-white"
                       }`}
                     >
                       <Icon className="w-4 h-4" />
                       <span className="font-medium">{filter.label}</span>
                       {filter.count > 0 && (
-                        <span className={`px-1.5 py-0.5 rounded-full text-xs font-bold ${
-                          isActive ? 'bg-blue-700' : 'bg-[#2A2B35]'
-                        }`}>
+                        <span
+                          className={`px-1.5 py-0.5 rounded-full text-xs font-bold ${
+                            isActive ? "bg-blue-700" : "bg-[#2A2B35]"
+                          }`}
+                        >
                           {filter.count}
                         </span>
                       )}
@@ -162,7 +173,7 @@ export default function SearchOverlay({
             </div>
 
             {/* Results Content */}
-            <div className="max-h-[60vh] overflow-y-auto scrollbar-hide">
+            <div className="max-h-[70vh] md:max-h-[60vh] overflow-y-auto scrollbar-hide">
               {isLoading && (
                 <div className="flex flex-col items-center justify-center py-20">
                   <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-500 border-t-transparent mb-4" />
@@ -175,7 +186,9 @@ export default function SearchOverlay({
                   <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mb-4">
                     <AlertCircle className="w-8 h-8 text-red-400" />
                   </div>
-                  <h3 className="text-lg font-semibold text-white mb-2">Search Error</h3>
+                  <h3 className="text-lg font-semibold text-white mb-2">
+                    Search Error
+                  </h3>
                   <p className="text-gray-400 text-center mb-4">{error}</p>
                   <button
                     onClick={retrySearch}
@@ -191,7 +204,9 @@ export default function SearchOverlay({
                   <div className="w-20 h-20 bg-gray-800 rounded-full flex items-center justify-center mb-4">
                     <Search className="w-10 h-10 text-gray-600" />
                   </div>
-                  <h3 className="text-xl font-semibold text-white mb-2">No results found</h3>
+                  <h3 className="text-xl font-semibold text-white mb-2">
+                    No results found
+                  </h3>
                   <p className="text-gray-400 text-center">
                     Try searching for something else
                   </p>
@@ -213,9 +228,9 @@ export default function SearchOverlay({
                       )}
                       <div className="space-y-1">
                         {results.cities.map((city, idx) => (
-                          <SearchResultItem 
+                          <SearchResultItem
                             key={`city-${city.id || idx}`}
-                            result={{ ...city, type: 'city' }}
+                            result={{ ...city, type: "city" }}
                             onClose={onClose}
                             onPlaceClick={handlePlaceClick}
                           />
@@ -237,9 +252,9 @@ export default function SearchOverlay({
                       )}
                       <div className="space-y-1">
                         {results.trips.map((trip) => (
-                          <SearchResultItem 
+                          <SearchResultItem
                             key={`trip-${trip.id}`}
-                            result={{ ...trip, type: 'trip' }}
+                            result={{ ...trip, type: "trip" }}
                             onClose={onClose}
                             onPlaceClick={handlePlaceClick}
                           />
@@ -261,9 +276,9 @@ export default function SearchOverlay({
                       )}
                       <div className="space-y-1">
                         {results.places.map((place, idx) => (
-                          <SearchResultItem 
+                          <SearchResultItem
                             key={`place-${place.place_id || idx}`}
-                            result={{ ...place, type: 'place' }}
+                            result={{ ...place, type: "place" }}
                             onClose={onClose}
                             onPlaceClick={handlePlaceClick}
                           />
@@ -285,9 +300,9 @@ export default function SearchOverlay({
                       )}
                       <div className="space-y-1">
                         {results.travelers.map((traveler) => (
-                          <SearchResultItem 
+                          <SearchResultItem
                             key={`traveler-${traveler.id}`}
-                            result={{ ...traveler, type: 'traveler' }}
+                            result={{ ...traveler, type: "traveler" }}
                             onClose={onClose}
                             onPlaceClick={handlePlaceClick}
                           />

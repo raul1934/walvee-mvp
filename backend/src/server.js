@@ -69,15 +69,27 @@ app.use(session(config.session));
 app.use(passport.initialize());
 app.use(passport.session());
 
-// Serve uploaded files
+// Serve uploaded files with CORS headers
 app.use(
   "/uploads",
+  (req, res, next) => {
+    res.header("Access-Control-Allow-Origin", req.headers.origin || "*");
+    res.header("Access-Control-Allow-Credentials", "true");
+    res.header("Cross-Origin-Resource-Policy", "cross-origin");
+    next();
+  },
   express.static(path.join(__dirname, "..", config.upload.directory))
 );
 
-// Serve migrated images
+// Serve migrated images with CORS headers
 app.use(
   "/images",
+  (req, res, next) => {
+    res.header("Access-Control-Allow-Origin", req.headers.origin || "*");
+    res.header("Access-Control-Allow-Credentials", "true");
+    res.header("Cross-Origin-Resource-Policy", "cross-origin");
+    next();
+  },
   express.static(path.join(__dirname, "..", "images"))
 );
 

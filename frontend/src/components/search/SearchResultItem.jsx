@@ -42,8 +42,17 @@ export default function SearchResultItem({ result, onClose, onPlaceClick }) {
         onClick={handleClick}
         className="flex items-center gap-4 p-4 hover:bg-[#1A1B23] rounded-xl transition-colors group"
       >
-        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-600/20 to-blue-600/20 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
-          <MapPin className="w-6 h-6 text-purple-400" />
+        <div className="w-16 h-16 rounded-xl overflow-hidden bg-gradient-to-br from-purple-600/20 to-blue-600/20 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
+          {!result.image || imageError ? (
+            <MapPin className="w-6 h-6 text-purple-400" />
+          ) : (
+            <img
+              src={result.image}
+              alt={result.name}
+              className="w-full h-full object-cover"
+              onError={() => setImageError(true)}
+            />
+          )}
         </div>
 
         <div className="flex-1 min-w-0">
@@ -106,13 +115,24 @@ export default function SearchResultItem({ result, onClose, onPlaceClick }) {
 
   // Place result
   if (result.type === "place") {
+    const [placeImageError, setPlaceImageError] = React.useState(false);
+
     return (
       <button
         onClick={handleClick}
         className="w-full flex items-center gap-4 p-4 hover:bg-[#1A1B23] rounded-xl transition-colors group text-left"
       >
-        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-green-600/20 to-blue-600/20 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
-          <MapPin className="w-6 h-6 text-green-400" />
+        <div className="w-16 h-16 rounded-xl overflow-hidden bg-gradient-to-br from-green-600/20 to-blue-600/20 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
+          {!result.photo || placeImageError ? (
+            <MapPin className="w-6 h-6 text-green-400" />
+          ) : (
+            <img
+              src={result.photo}
+              alt={result.name}
+              className="w-full h-full object-cover"
+              onError={() => setPlaceImageError(true)}
+            />
+          )}
         </div>
 
         <div className="flex-1 min-w-0">

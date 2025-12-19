@@ -1,16 +1,17 @@
-const axios = require('axios');
-const fs = require('fs').promises;
-const path = require('path');
-const { getConnection } = require('../src/database/connection');
+const axios = require("axios");
+const fs = require("fs").promises;
+const path = require("path");
+const { getConnection } = require("../src/database/connection");
 
 // Configuration
 const CONFIG = {
-  NEW_IMAGE_DIR: process.env.NEW_IMAGE_DIR || path.join(__dirname, '..', 'images'),
-  BACKUP_DIR: process.env.BACKUP_DIR || path.join(__dirname, '..', 'backups'),
+  NEW_IMAGE_DIR:
+    process.env.NEW_IMAGE_DIR || path.join(__dirname, "..", "images"),
+  BACKUP_DIR: process.env.BACKUP_DIR || path.join(__dirname, "..", "backups"),
   MAX_CONCURRENT_DOWNLOADS: parseInt(process.env.MAX_CONCURRENT_DOWNLOADS) || 5,
   RETRY_ATTEMPTS: parseInt(process.env.RETRY_ATTEMPTS) || 3,
-  DRY_RUN: process.argv.includes('--dry-run'),
-  BASE_URL: process.env.BASE_URL || 'http://localhost:3000',
+  DRY_RUN: process.argv.includes("--dry-run"),
+  BASE_URL: process.env.BASE_URL || "http://localhost:3000",
 };
 
 // Statistics tracking
@@ -24,12 +25,12 @@ const stats = {
 
 const urlMapping = {};
 const failedDownloads = [];
-const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
 
 /**
  * Sleep utility for retry delays
  */
-const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
  * Download image with retry logic
@@ -38,26 +39,37 @@ async function downloadImage(url, outputPath, retries = CONFIG.RETRY_ATTEMPTS) {
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
       // Skip if URL is null, empty, or invalid
-      if (!url || url.trim() === '' || url === 'null') {
-        return { success: false, reason: 'Invalid URL' };
+      if (!url || url.trim() === "" || url === "null") {
+        return { success: false, reason: "Invalid URL" };
+      }
+
+      // Skip if already migrated (starts with /images/)
+      if (url.startsWith("/images/")) {
+        return { success: false, reason: "Already migrated" };
       }
 
       // Handle relative URLs (local uploads)
       let downloadUrl = url;
-      if (url.startsWith('/uploads/') || url.startsWith('uploads/')) {
-        downloadUrl = `${CONFIG.BASE_URL}/${url.replace(/^\//, '')}`;
+      if (url.startsWith("/uploads/") || url.startsWith("uploads/")) {
+        downloadUrl = `${CONFIG.BASE_URL}/${url.replace(/^\//, "")}`;
       }
 
-      console.log(`  [${attempt}/${retries}] Downloading: ${downloadUrl.substring(0, 80)}...`);
+      console.log(
+        `  [${attempt}/${retries}] Downloading: ${downloadUrl.substring(
+          0,
+          80
+        )}...`
+      );
 
       const response = await axios({
-        method: 'GET',
+        method: "GET",
         url: downloadUrl,
-        responseType: 'arraybuffer',
+        responseType: "arraybuffer",
         timeout: 30000,
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-        }
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        },
       });
 
       // Ensure directory exists
@@ -71,19 +83,18 @@ async function downloadImage(url, outputPath, retries = CONFIG.RETRY_ATTEMPTS) {
 
       console.log(`  ✓ Saved to: ${outputPath}`);
       return { success: true, size: response.data.length };
-
     } catch (error) {
       console.error(`  ✗ Attempt ${attempt} failed: ${error.message}`);
 
       if (attempt < retries) {
         const delay = Math.pow(2, attempt) * 1000; // Exponential backoff
-        console.log(`  Retrying in ${delay/1000}s...`);
+        console.log(`  Retrying in ${delay / 1000}s...`);
         await sleep(delay);
       } else {
         return {
           success: false,
           reason: error.message,
-          url: url
+          url: url,
         };
       }
     }
@@ -93,53 +104,59 @@ async function downloadImage(url, outputPath, retries = CONFIG.RETRY_ATTEMPTS) {
 /**
  * Get file extension from URL or content type
  */
-function getFileExtension(url, contentType = '') {
+function getFileExtension(url, contentType = "") {
   // Try to get from URL
-  const urlExt = path.extname(url).split('?')[0].toLowerCase();
-  if (urlExt && ['.jpg', '.jpeg', '.png', '.gif', '.webp'].includes(urlExt)) {
+  const urlExt = path.extname(url).split("?")[0].toLowerCase();
+  if (urlExt && [".jpg", ".jpeg", ".png", ".gif", ".webp"].includes(urlExt)) {
     return urlExt;
   }
 
   // Try to get from content type
   if (contentType) {
     const typeMap = {
-      'image/jpeg': '.jpg',
-      'image/jpg': '.jpg',
-      'image/png': '.png',
-      'image/gif': '.gif',
-      'image/webp': '.webp'
+      "image/jpeg": ".jpg",
+      "image/jpg": ".jpg",
+      "image/png": ".png",
+      "image/gif": ".gif",
+      "image/webp": ".webp",
     };
-    return typeMap[contentType.toLowerCase()] || '.jpg';
+    return typeMap[contentType.toLowerCase()] || ".jpg";
   }
 
-  return '.jpg'; // Default
+  return ".jpg"; // Default
 }
 
 /**
  * Create database backup
  */
 async function createBackup(connection) {
-  console.log('\n📦 Creating database backup...');
+  console.log("\n📦 Creating database backup...");
 
   const backup = {
     timestamp: new Date().toISOString(),
-    tables: {}
+    tables: {},
   };
 
   try {
     // Backup users
-    const [users] = await connection.query('SELECT id, photo_url FROM users WHERE photo_url IS NOT NULL');
+    const [users] = await connection.query(
+      "SELECT id, photo_url FROM users WHERE photo_url IS NOT NULL"
+    );
     backup.tables.users = users;
     console.log(`  ✓ Backed up ${users.length} users`);
 
     // Backup trips
-    const [trips] = await connection.query('SELECT id, cover_image FROM trips WHERE cover_image IS NOT NULL');
+    const [trips] = await connection.query(
+      "SELECT id, cover_image FROM trips WHERE cover_image IS NOT NULL"
+    );
     backup.tables.trips = trips;
     console.log(`  ✓ Backed up ${trips.length} trips`);
 
     // Backup trip_images (if table exists)
     try {
-      const [tripImages] = await connection.query('SELECT id, trip_id, image_url, display_order FROM trip_images WHERE image_url IS NOT NULL');
+      const [tripImages] = await connection.query(
+        "SELECT id, trip_id, image_url, display_order FROM trip_images WHERE image_url IS NOT NULL"
+      );
       backup.tables.trip_images = tripImages;
       console.log(`  ✓ Backed up ${tripImages.length} trip images`);
     } catch (err) {
@@ -148,12 +165,16 @@ async function createBackup(connection) {
     }
 
     // Backup place_photos
-    const [placePhotos] = await connection.query('SELECT id, place_id, url_small, url_medium, url_large, photo_order FROM place_photos');
+    const [placePhotos] = await connection.query(
+      "SELECT id, place_id, url_small, url_medium, url_large, photo_order FROM place_photos"
+    );
     backup.tables.place_photos = placePhotos;
     console.log(`  ✓ Backed up ${placePhotos.length} place photos`);
 
     // Backup city_photos
-    const [cityPhotos] = await connection.query('SELECT id, city_id, url_small, url_medium, url_large, photo_order FROM city_photos');
+    const [cityPhotos] = await connection.query(
+      "SELECT id, city_id, url_small, url_medium, url_large, photo_order FROM city_photos"
+    );
     backup.tables.city_photos = cityPhotos;
     console.log(`  ✓ Backed up ${cityPhotos.length} city photos`);
 
@@ -165,7 +186,7 @@ async function createBackup(connection) {
 
     return backup;
   } catch (error) {
-    console.error('  ✗ Backup failed:', error.message);
+    console.error("  ✗ Backup failed:", error.message);
     throw error;
   }
 }
@@ -174,15 +195,21 @@ async function createBackup(connection) {
  * Migrate user photos
  */
 async function migrateUsers(connection) {
-  console.log('\n👤 Migrating user photos...');
+  console.log("\n👤 Migrating user photos...");
 
-  const [users] = await connection.query('SELECT id, photo_url FROM users WHERE photo_url IS NOT NULL AND photo_url != ""');
+  const [users] = await connection.query(
+    'SELECT id, photo_url FROM users WHERE photo_url IS NOT NULL AND photo_url != ""'
+  );
   stats.users.total = users.length;
   console.log(`  Found ${users.length} users with photos`);
 
   for (const user of users) {
     const ext = getFileExtension(user.photo_url);
-    const newPath = path.join(CONFIG.NEW_IMAGE_DIR, 'users', `${user.id}${ext}`);
+    const newPath = path.join(
+      CONFIG.NEW_IMAGE_DIR,
+      "users",
+      `${user.id}${ext}`
+    );
     const newUrl = `/images/users/${user.id}${ext}`;
 
     const result = await downloadImage(user.photo_url, newPath);
@@ -193,37 +220,41 @@ async function migrateUsers(connection) {
     } else {
       stats.users.failed++;
       failedDownloads.push({
-        table: 'users',
+        table: "users",
         id: user.id,
-        field: 'photo_url',
+        field: "photo_url",
         url: user.photo_url,
-        reason: result.reason
+        reason: result.reason,
       });
     }
   }
 
-  console.log(`  ✓ Success: ${stats.users.success}, Failed: ${stats.users.failed}`);
+  console.log(
+    `  ✓ Success: ${stats.users.success}, Failed: ${stats.users.failed}`
+  );
 }
 
 /**
  * Migrate trip cover images
  */
 async function migrateTrips(connection) {
-  console.log('\n🗺️  Migrating trip cover images...');
+  console.log("\n🗺️  Migrating trip cover images...");
 
-  const [trips] = await connection.query('SELECT id, cover_image FROM trips WHERE cover_image IS NOT NULL AND cover_image != ""');
+  const [trips] = await connection.query(
+    'SELECT id, cover_image FROM trips WHERE cover_image IS NOT NULL AND cover_image != ""'
+  );
   stats.trips.total = trips.length;
   console.log(`  Found ${trips.length} trips with cover images`);
 
   for (const trip of trips) {
     // Skip unsplash URLs (these are dynamic/generic)
-    if (trip.cover_image.includes('unsplash.com')) {
+    if (trip.cover_image.includes("unsplash.com")) {
       stats.trips.skipped++;
       continue;
     }
 
     const ext = getFileExtension(trip.cover_image);
-    const tripDir = path.join(CONFIG.NEW_IMAGE_DIR, 'trips', trip.id);
+    const tripDir = path.join(CONFIG.NEW_IMAGE_DIR, "trips", trip.id);
     const newPath = path.join(tripDir, `cover${ext}`);
     const newUrl = `/images/trips/${trip.id}/cover${ext}`;
 
@@ -235,32 +266,36 @@ async function migrateTrips(connection) {
     } else {
       stats.trips.failed++;
       failedDownloads.push({
-        table: 'trips',
+        table: "trips",
         id: trip.id,
-        field: 'cover_image',
+        field: "cover_image",
         url: trip.cover_image,
-        reason: result.reason
+        reason: result.reason,
       });
     }
   }
 
-  console.log(`  ✓ Success: ${stats.trips.success}, Failed: ${stats.trips.failed}, Skipped: ${stats.trips.skipped}`);
+  console.log(
+    `  ✓ Success: ${stats.trips.success}, Failed: ${stats.trips.failed}, Skipped: ${stats.trips.skipped}`
+  );
 }
 
 /**
  * Migrate trip images
  */
 async function migrateTripImages(connection) {
-  console.log('\n📸 Migrating trip images...');
+  console.log("\n📸 Migrating trip images...");
 
   try {
-    const [tripImages] = await connection.query('SELECT id, trip_id, image_url, display_order FROM trip_images WHERE image_url IS NOT NULL AND image_url != ""');
+    const [tripImages] = await connection.query(
+      'SELECT id, trip_id, image_url, display_order FROM trip_images WHERE image_url IS NOT NULL AND image_url != ""'
+    );
     stats.tripImages.total = tripImages.length;
     console.log(`  Found ${tripImages.length} trip images`);
 
     for (const image of tripImages) {
       const ext = getFileExtension(image.image_url);
-      const tripDir = path.join(CONFIG.NEW_IMAGE_DIR, 'trips', image.trip_id);
+      const tripDir = path.join(CONFIG.NEW_IMAGE_DIR, "trips", image.trip_id);
       const newPath = path.join(tripDir, `${image.display_order}${ext}`);
       const newUrl = `/images/trips/${image.trip_id}/${image.display_order}${ext}`;
 
@@ -272,16 +307,18 @@ async function migrateTripImages(connection) {
       } else {
         stats.tripImages.failed++;
         failedDownloads.push({
-          table: 'trip_images',
+          table: "trip_images",
           id: image.id,
-          field: 'image_url',
+          field: "image_url",
           url: image.image_url,
-          reason: result.reason
+          reason: result.reason,
         });
       }
     }
 
-    console.log(`  ✓ Success: ${stats.tripImages.success}, Failed: ${stats.tripImages.failed}`);
+    console.log(
+      `  ✓ Success: ${stats.tripImages.success}, Failed: ${stats.tripImages.failed}`
+    );
   } catch (error) {
     console.log(`  ⚠ trip_images table doesn't exist, skipping`);
   }
@@ -291,14 +328,22 @@ async function migrateTripImages(connection) {
  * Migrate place photos
  */
 async function migratePlacePhotos(connection) {
-  console.log('\n📍 Migrating place photos...');
+  console.log("\n📍 Migrating place photos...");
 
-  const [photos] = await connection.query('SELECT id, place_id, url_small, url_medium, url_large, photo_order FROM place_photos');
+  const [photos] = await connection.query(
+    "SELECT id, place_id, url_small, url_medium, url_large, photo_order FROM place_photos"
+  );
   stats.placePhotos.total = photos.length * 3; // 3 sizes per photo
-  console.log(`  Found ${photos.length} place photos (${stats.placePhotos.total} total files)`);
+  console.log(
+    `  Found ${photos.length} place photos (${stats.placePhotos.total} total files)`
+  );
 
   for (const photo of photos) {
-    const placeDir = path.join(CONFIG.NEW_IMAGE_DIR, 'places', photo.place_id.toString());
+    const placeDir = path.join(
+      CONFIG.NEW_IMAGE_DIR,
+      "places",
+      photo.place_id.toString()
+    );
 
     // Download small
     if (photo.url_small) {
@@ -313,11 +358,11 @@ async function migratePlacePhotos(connection) {
       } else {
         stats.placePhotos.failed++;
         failedDownloads.push({
-          table: 'place_photos',
+          table: "place_photos",
           id: photo.id,
-          field: 'url_small',
+          field: "url_small",
           url: photo.url_small,
-          reason: result.reason
+          reason: result.reason,
         });
       }
     }
@@ -335,11 +380,11 @@ async function migratePlacePhotos(connection) {
       } else {
         stats.placePhotos.failed++;
         failedDownloads.push({
-          table: 'place_photos',
+          table: "place_photos",
           id: photo.id,
-          field: 'url_medium',
+          field: "url_medium",
           url: photo.url_medium,
-          reason: result.reason
+          reason: result.reason,
         });
       }
     }
@@ -357,31 +402,41 @@ async function migratePlacePhotos(connection) {
       } else {
         stats.placePhotos.failed++;
         failedDownloads.push({
-          table: 'place_photos',
+          table: "place_photos",
           id: photo.id,
-          field: 'url_large',
+          field: "url_large",
           url: photo.url_large,
-          reason: result.reason
+          reason: result.reason,
         });
       }
     }
   }
 
-  console.log(`  ✓ Success: ${stats.placePhotos.success}, Failed: ${stats.placePhotos.failed}`);
+  console.log(
+    `  ✓ Success: ${stats.placePhotos.success}, Failed: ${stats.placePhotos.failed}`
+  );
 }
 
 /**
  * Migrate city photos
  */
 async function migrateCityPhotos(connection) {
-  console.log('\n🏙️  Migrating city photos...');
+  console.log("\n🏙️  Migrating city photos...");
 
-  const [photos] = await connection.query('SELECT id, city_id, url_small, url_medium, url_large, photo_order FROM city_photos');
+  const [photos] = await connection.query(
+    "SELECT id, city_id, url_small, url_medium, url_large, photo_order FROM city_photos"
+  );
   stats.cityPhotos.total = photos.length * 3; // 3 sizes per photo
-  console.log(`  Found ${photos.length} city photos (${stats.cityPhotos.total} total files)`);
+  console.log(
+    `  Found ${photos.length} city photos (${stats.cityPhotos.total} total files)`
+  );
 
   for (const photo of photos) {
-    const cityDir = path.join(CONFIG.NEW_IMAGE_DIR, 'cities', photo.city_id.toString());
+    const cityDir = path.join(
+      CONFIG.NEW_IMAGE_DIR,
+      "cities",
+      photo.city_id.toString()
+    );
 
     // Download small
     if (photo.url_small) {
@@ -396,11 +451,11 @@ async function migrateCityPhotos(connection) {
       } else {
         stats.cityPhotos.failed++;
         failedDownloads.push({
-          table: 'city_photos',
+          table: "city_photos",
           id: photo.id,
-          field: 'url_small',
+          field: "url_small",
           url: photo.url_small,
-          reason: result.reason
+          reason: result.reason,
         });
       }
     }
@@ -418,11 +473,11 @@ async function migrateCityPhotos(connection) {
       } else {
         stats.cityPhotos.failed++;
         failedDownloads.push({
-          table: 'city_photos',
+          table: "city_photos",
           id: photo.id,
-          field: 'url_medium',
+          field: "url_medium",
           url: photo.url_medium,
-          reason: result.reason
+          reason: result.reason,
         });
       }
     }
@@ -440,27 +495,29 @@ async function migrateCityPhotos(connection) {
       } else {
         stats.cityPhotos.failed++;
         failedDownloads.push({
-          table: 'city_photos',
+          table: "city_photos",
           id: photo.id,
-          field: 'url_large',
+          field: "url_large",
           url: photo.url_large,
-          reason: result.reason
+          reason: result.reason,
         });
       }
     }
   }
 
-  console.log(`  ✓ Success: ${stats.cityPhotos.success}, Failed: ${stats.cityPhotos.failed}`);
+  console.log(
+    `  ✓ Success: ${stats.cityPhotos.success}, Failed: ${stats.cityPhotos.failed}`
+  );
 }
 
 /**
  * Update database with new URLs
  */
 async function updateDatabase(connection) {
-  console.log('\n💾 Updating database...');
+  console.log("\n💾 Updating database...");
 
   if (CONFIG.DRY_RUN) {
-    console.log('  ⚠️  DRY RUN MODE - Skipping database updates');
+    console.log("  ⚠️  DRY RUN MODE - Skipping database updates");
     return;
   }
 
@@ -472,7 +529,7 @@ async function updateDatabase(connection) {
     // Update users
     for (const [oldUrl, newUrl] of Object.entries(urlMapping)) {
       const [result] = await connection.query(
-        'UPDATE users SET photo_url = ? WHERE photo_url = ?',
+        "UPDATE users SET photo_url = ? WHERE photo_url = ?",
         [newUrl, oldUrl]
       );
       updateCount += result.affectedRows;
@@ -483,7 +540,7 @@ async function updateDatabase(connection) {
     updateCount = 0;
     for (const [oldUrl, newUrl] of Object.entries(urlMapping)) {
       const [result] = await connection.query(
-        'UPDATE trips SET cover_image = ? WHERE cover_image = ?',
+        "UPDATE trips SET cover_image = ? WHERE cover_image = ?",
         [newUrl, oldUrl]
       );
       updateCount += result.affectedRows;
@@ -495,7 +552,7 @@ async function updateDatabase(connection) {
       updateCount = 0;
       for (const [oldUrl, newUrl] of Object.entries(urlMapping)) {
         const [result] = await connection.query(
-          'UPDATE trip_images SET image_url = ? WHERE image_url = ?',
+          "UPDATE trip_images SET image_url = ? WHERE image_url = ?",
           [newUrl, oldUrl]
         );
         updateCount += result.affectedRows;
@@ -509,19 +566,19 @@ async function updateDatabase(connection) {
     updateCount = 0;
     for (const [oldUrl, newUrl] of Object.entries(urlMapping)) {
       const [result] = await connection.query(
-        'UPDATE place_photos SET url_small = ? WHERE url_small = ?',
+        "UPDATE place_photos SET url_small = ? WHERE url_small = ?",
         [newUrl, oldUrl]
       );
       updateCount += result.affectedRows;
 
       const [result2] = await connection.query(
-        'UPDATE place_photos SET url_medium = ? WHERE url_medium = ?',
+        "UPDATE place_photos SET url_medium = ? WHERE url_medium = ?",
         [newUrl, oldUrl]
       );
       updateCount += result2.affectedRows;
 
       const [result3] = await connection.query(
-        'UPDATE place_photos SET url_large = ? WHERE url_large = ?',
+        "UPDATE place_photos SET url_large = ? WHERE url_large = ?",
         [newUrl, oldUrl]
       );
       updateCount += result3.affectedRows;
@@ -532,19 +589,19 @@ async function updateDatabase(connection) {
     updateCount = 0;
     for (const [oldUrl, newUrl] of Object.entries(urlMapping)) {
       const [result] = await connection.query(
-        'UPDATE city_photos SET url_small = ? WHERE url_small = ?',
+        "UPDATE city_photos SET url_small = ? WHERE url_small = ?",
         [newUrl, oldUrl]
       );
       updateCount += result.affectedRows;
 
       const [result2] = await connection.query(
-        'UPDATE city_photos SET url_medium = ? WHERE url_medium = ?',
+        "UPDATE city_photos SET url_medium = ? WHERE url_medium = ?",
         [newUrl, oldUrl]
       );
       updateCount += result2.affectedRows;
 
       const [result3] = await connection.query(
-        'UPDATE city_photos SET url_large = ? WHERE url_large = ?',
+        "UPDATE city_photos SET url_large = ? WHERE url_large = ?",
         [newUrl, oldUrl]
       );
       updateCount += result3.affectedRows;
@@ -552,11 +609,10 @@ async function updateDatabase(connection) {
     console.log(`  ✓ Updated ${updateCount} city photo URLs`);
 
     await connection.commit();
-    console.log('  ✓ Database transaction committed');
-
+    console.log("  ✓ Database transaction committed");
   } catch (error) {
     await connection.rollback();
-    console.error('  ✗ Database update failed, rolled back:', error.message);
+    console.error("  ✗ Database update failed, rolled back:", error.message);
     throw error;
   }
 }
@@ -565,10 +621,13 @@ async function updateDatabase(connection) {
  * Save migration logs
  */
 async function saveLogs() {
-  console.log('\n📝 Saving migration logs...');
+  console.log("\n📝 Saving migration logs...");
 
   // Save URL mapping
-  const mappingPath = path.join(CONFIG.BACKUP_DIR, `url-mapping-${timestamp}.json`);
+  const mappingPath = path.join(
+    CONFIG.BACKUP_DIR,
+    `url-mapping-${timestamp}.json`
+  );
   await fs.writeFile(mappingPath, JSON.stringify(urlMapping, null, 2));
   console.log(`  ✓ URL mapping saved to: ${mappingPath}`);
 
@@ -580,26 +639,44 @@ Timestamp: ${new Date().toISOString()}
 Dry Run: ${CONFIG.DRY_RUN}
 
 STATISTICS:
-Users:        ${stats.users.success}/${stats.users.total} successful (${stats.users.failed} failed, ${stats.users.skipped} skipped)
-Trips:        ${stats.trips.success}/${stats.trips.total} successful (${stats.trips.failed} failed, ${stats.trips.skipped} skipped)
-Trip Images:  ${stats.tripImages.success}/${stats.tripImages.total} successful (${stats.tripImages.failed} failed)
-Place Photos: ${stats.placePhotos.success}/${stats.placePhotos.total} successful (${stats.placePhotos.failed} failed)
-City Photos:  ${stats.cityPhotos.success}/${stats.cityPhotos.total} successful (${stats.cityPhotos.failed} failed)
+Users:        ${stats.users.success}/${stats.users.total} successful (${
+    stats.users.failed
+  } failed, ${stats.users.skipped} skipped)
+Trips:        ${stats.trips.success}/${stats.trips.total} successful (${
+    stats.trips.failed
+  } failed, ${stats.trips.skipped} skipped)
+Trip Images:  ${stats.tripImages.success}/${
+    stats.tripImages.total
+  } successful (${stats.tripImages.failed} failed)
+Place Photos: ${stats.placePhotos.success}/${
+    stats.placePhotos.total
+  } successful (${stats.placePhotos.failed} failed)
+City Photos:  ${stats.cityPhotos.success}/${
+    stats.cityPhotos.total
+  } successful (${stats.cityPhotos.failed} failed)
 
 Total Successful: ${Object.values(stats).reduce((sum, s) => sum + s.success, 0)}
 Total Failed:     ${Object.values(stats).reduce((sum, s) => sum + s.failed, 0)}
 Total Skipped:    ${Object.values(stats).reduce((sum, s) => sum + s.skipped, 0)}
 
 FAILED DOWNLOADS:
-${failedDownloads.length === 0 ? 'None' : failedDownloads.map(f =>
-  `- ${f.table}.${f.field} (ID: ${f.id}): ${f.url}\n  Reason: ${f.reason}`
-).join('\n')}
+${
+  failedDownloads.length === 0
+    ? "None"
+    : failedDownloads
+        .map(
+          (f) =>
+            `- ${f.table}.${f.field} (ID: ${f.id}): ${f.url}\n  Reason: ${f.reason}`
+        )
+        .join("\n")
+}
 
 URL MAPPINGS: ${Object.keys(urlMapping).length} total
 First 10 samples:
-${Object.entries(urlMapping).slice(0, 10).map(([old, new_]) =>
-  `${old} -> ${new_}`
-).join('\n')}
+${Object.entries(urlMapping)
+  .slice(0, 10)
+  .map(([old, new_]) => `${old} -> ${new_}`)
+  .join("\n")}
 `;
 
   await fs.writeFile(logPath, logContent);
@@ -607,12 +684,223 @@ ${Object.entries(urlMapping).slice(0, 10).map(([old, new_]) =>
 }
 
 /**
+ * Check and fetch missing city photos from Google Maps
+ */
+async function fetchMissingCityPhotos(connection) {
+  console.log("\n🏙️  Checking for cities without photos...");
+
+  try {
+    // Get cities that don't have photos
+    const [citiesWithoutPhotos] = await connection.query(`
+      SELECT c.id, c.name, c.state, c.google_maps_id, co.name as country_name
+      FROM cities c
+      LEFT JOIN city_photos cp ON c.id = cp.city_id
+      LEFT JOIN countries co ON c.country_id = co.id
+      WHERE c.google_maps_id IS NOT NULL 
+        AND cp.id IS NULL
+      LIMIT 50
+    `);
+
+    if (citiesWithoutPhotos.length === 0) {
+      console.log("  ✓ All cities have photos");
+      return;
+    }
+
+    console.log(`  Found ${citiesWithoutPhotos.length} cities without photos`);
+
+    const {
+      getCityDetailsWithPhotos,
+    } = require("../src/services/googleMapsService");
+
+    for (const city of citiesWithoutPhotos) {
+      console.log(`  Fetching photos for: ${city.name}, ${city.country_name}`);
+
+      try {
+        const details = await getCityDetailsWithPhotos(city.google_maps_id);
+
+        if (details?.photos && details.photos.length > 0) {
+          const photoRef = details.photos[0].photo_reference;
+
+          // Download all 3 sizes
+          const sizes = [
+            { name: "small", maxWidth: 400 },
+            { name: "medium", maxWidth: 800 },
+            { name: "large", maxWidth: 1600 },
+          ];
+
+          const cityDir = path.join(
+            CONFIG.NEW_IMAGE_DIR,
+            "cities",
+            city.id.toString()
+          );
+          await fs.mkdir(cityDir, { recursive: true });
+
+          let allSuccess = true;
+          const photoUrls = {};
+
+          for (const size of sizes) {
+            const photoUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=${size.maxWidth}&photo_reference=${photoRef}&key=${process.env.GOOGLE_MAPS_API_KEY}`;
+            const localPath = path.join(cityDir, `0_${size.name}.jpg`);
+
+            const result = await downloadImage(photoUrl, localPath);
+
+            if (result.success) {
+              photoUrls[
+                `url_${size.name}`
+              ] = `/images/cities/${city.id}/0_${size.name}.jpg`;
+            } else {
+              allSuccess = false;
+              break;
+            }
+          }
+
+          if (allSuccess && !CONFIG.DRY_RUN) {
+            // Insert photo record into database
+            await connection.query(
+              "INSERT INTO city_photos (city_id, url_small, url_medium, url_large, photo_order, google_photo_reference, created_at) VALUES (?, ?, ?, ?, 0, ?, NOW())",
+              [
+                city.id,
+                photoUrls.url_small,
+                photoUrls.url_medium,
+                photoUrls.url_large,
+                photoRef,
+              ]
+            );
+            console.log(`    ✓ Added photos for ${city.name}`);
+            stats.cityPhotos.success++;
+          }
+        } else {
+          console.log(`    ⚠ No photos available for ${city.name}`);
+        }
+
+        // Rate limiting
+        await sleep(200);
+      } catch (error) {
+        console.error(
+          `    ✗ Failed to fetch photos for ${city.name}:`,
+          error.message
+        );
+        stats.cityPhotos.failed++;
+      }
+    }
+  } catch (error) {
+    console.error("  ✗ Error checking city photos:", error.message);
+  }
+}
+
+/**
+ * Check and fetch missing place photos from Google Maps
+ */
+async function fetchMissingPlacePhotos(connection) {
+  console.log("\n📍 Checking for places without photos...");
+
+  try {
+    // Get places that don't have photos
+    const [placesWithoutPhotos] = await connection.query(`
+      SELECT p.id, p.name, p.google_maps_id, p.city_id
+      FROM places p
+      LEFT JOIN place_photos pp ON p.id = pp.place_id
+      WHERE p.google_maps_id IS NOT NULL 
+        AND pp.id IS NULL
+      LIMIT 50
+    `);
+
+    if (placesWithoutPhotos.length === 0) {
+      console.log("  ✓ All places have photos");
+      return;
+    }
+
+    console.log(`  Found ${placesWithoutPhotos.length} places without photos`);
+
+    const {
+      getPlaceDetailsWithPhotos,
+    } = require("../src/services/googleMapsService");
+
+    for (const place of placesWithoutPhotos) {
+      console.log(`  Fetching photos for: ${place.name}`);
+
+      try {
+        const details = await getPlaceDetailsWithPhotos(place.google_maps_id);
+
+        if (details?.photos && details.photos.length > 0) {
+          const photoRef = details.photos[0].photo_reference;
+
+          // Download all 3 sizes
+          const sizes = [
+            { name: "small", maxWidth: 400 },
+            { name: "medium", maxWidth: 800 },
+            { name: "large", maxWidth: 1600 },
+          ];
+
+          const placeDir = path.join(
+            CONFIG.NEW_IMAGE_DIR,
+            "places",
+            place.id.toString()
+          );
+          await fs.mkdir(placeDir, { recursive: true });
+
+          let allSuccess = true;
+          const photoUrls = {};
+
+          for (const size of sizes) {
+            const photoUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=${size.maxWidth}&photo_reference=${photoRef}&key=${process.env.GOOGLE_MAPS_API_KEY}`;
+            const localPath = path.join(placeDir, `0_${size.name}.jpg`);
+
+            const result = await downloadImage(photoUrl, localPath);
+
+            if (result.success) {
+              photoUrls[
+                `url_${size.name}`
+              ] = `/images/places/${place.id}/0_${size.name}.jpg`;
+            } else {
+              allSuccess = false;
+              break;
+            }
+          }
+
+          if (allSuccess && !CONFIG.DRY_RUN) {
+            // Insert photo record into database
+            await connection.query(
+              "INSERT INTO place_photos (place_id, url_small, url_medium, url_large, photo_order, google_photo_reference, created_at) VALUES (?, ?, ?, ?, 0, ?, NOW())",
+              [
+                place.id,
+                photoUrls.url_small,
+                photoUrls.url_medium,
+                photoUrls.url_large,
+                photoRef,
+              ]
+            );
+            console.log(`    ✓ Added photos for ${place.name}`);
+            stats.placePhotos.success++;
+          }
+        } else {
+          console.log(`    ⚠ No photos available for ${place.name}`);
+        }
+
+        // Rate limiting
+        await sleep(200);
+      } catch (error) {
+        console.error(
+          `    ✗ Failed to fetch photos for ${place.name}:`,
+          error.message
+        );
+        stats.placePhotos.failed++;
+      }
+    }
+  } catch (error) {
+    console.error("  ✗ Error checking place photos:", error.message);
+  }
+}
+
+/**
  * Main migration function
  */
 async function main() {
-  console.log('\n🚀 IMAGE MIGRATION SCRIPT');
-  console.log('=======================\n');
-  console.log(`Mode: ${CONFIG.DRY_RUN ? 'DRY RUN (no database updates)' : 'PRODUCTION'}`);
+  console.log("\n🚀 IMAGE MIGRATION SCRIPT");
+  console.log("=======================\n");
+  console.log(
+    `Mode: ${CONFIG.DRY_RUN ? "DRY RUN (no database updates)" : "PRODUCTION"}`
+  );
   console.log(`Image Directory: ${CONFIG.NEW_IMAGE_DIR}`);
   console.log(`Backup Directory: ${CONFIG.BACKUP_DIR}`);
 
@@ -620,16 +908,28 @@ async function main() {
 
   try {
     // Create directories
-    await fs.mkdir(path.join(CONFIG.NEW_IMAGE_DIR, 'users'), { recursive: true });
-    await fs.mkdir(path.join(CONFIG.NEW_IMAGE_DIR, 'trips'), { recursive: true });
-    await fs.mkdir(path.join(CONFIG.NEW_IMAGE_DIR, 'places'), { recursive: true });
-    await fs.mkdir(path.join(CONFIG.NEW_IMAGE_DIR, 'cities'), { recursive: true });
+    await fs.mkdir(path.join(CONFIG.NEW_IMAGE_DIR, "users"), {
+      recursive: true,
+    });
+    await fs.mkdir(path.join(CONFIG.NEW_IMAGE_DIR, "trips"), {
+      recursive: true,
+    });
+    await fs.mkdir(path.join(CONFIG.NEW_IMAGE_DIR, "places"), {
+      recursive: true,
+    });
+    await fs.mkdir(path.join(CONFIG.NEW_IMAGE_DIR, "cities"), {
+      recursive: true,
+    });
     await fs.mkdir(CONFIG.BACKUP_DIR, { recursive: true });
 
     // Create backup
     await createBackup(connection);
 
-    // Migrate all images
+    // Fetch missing photos from Google Maps FIRST
+    await fetchMissingCityPhotos(connection);
+    await fetchMissingPlacePhotos(connection);
+
+    // Then migrate all images (including newly fetched ones)
     await migrateUsers(connection);
     await migrateTrips(connection);
     await migrateTripImages(connection);
@@ -642,19 +942,26 @@ async function main() {
     // Save logs
     await saveLogs();
 
-    console.log('\n✅ MIGRATION COMPLETED SUCCESSFULLY!\n');
+    console.log("\n✅ MIGRATION COMPLETED SUCCESSFULLY!\n");
 
-    const totalSuccess = Object.values(stats).reduce((sum, s) => sum + s.success, 0);
-    const totalFailed = Object.values(stats).reduce((sum, s) => sum + s.failed, 0);
+    const totalSuccess = Object.values(stats).reduce(
+      (sum, s) => sum + s.success,
+      0
+    );
+    const totalFailed = Object.values(stats).reduce(
+      (sum, s) => sum + s.failed,
+      0
+    );
     console.log(`Total images migrated: ${totalSuccess}`);
     console.log(`Total failures: ${totalFailed}`);
 
     if (failedDownloads.length > 0) {
-      console.log(`\n⚠️  ${failedDownloads.length} images failed to download. Check the log file for details.`);
+      console.log(
+        `\n⚠️  ${failedDownloads.length} images failed to download. Check the log file for details.`
+      );
     }
-
   } catch (error) {
-    console.error('\n❌ MIGRATION FAILED:', error.message);
+    console.error("\n❌ MIGRATION FAILED:", error.message);
     console.error(error.stack);
     process.exit(1);
   } finally {

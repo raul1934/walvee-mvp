@@ -1,105 +1,46 @@
 import React from "react";
-import { Trip } from "@/api/entities";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
-
-// Fisher-Yates shuffle algorithm
-function shuffleArray(array) {
-  const shuffled = [...array];
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-  }
-  return shuffled;
-}
+import { apiClient, endpoints } from "@/api/apiClient";
 
 export default function DestinationCarousel() {
   const scrollRef = React.useRef(null);
   const [showArrows, setShowArrows] = React.useState(false);
 
-  // Fetch real cities from trips in database
+  // Fetch cities from home endpoint
   const { data: cities = [], isLoading } = useQuery({
     queryKey: ["homeCities"],
     queryFn: async () => {
       try {
-        // First try to get cities from cache
-        const cachedCities = sessionStorage.getItem("walvee_cities_cache");
-        if (cachedCities) {
-          const cache = JSON.parse(cachedCities);
-          // Check if cache is less than 10 minutes old
-          if (Date.now() - cache.timestamp < 10 * 60 * 1000) {
-            console.log("[DestinationCarousel] Using cached cities");
-            return shuffleArray(cache.data);
-          }
+        console.log("[DestinationCarousel] Fetching cities from home endpoint");
+        const response = await apiClient.get(endpoints.home.cities);
+
+        if (response.success && response.data) {
+          // Format for carousel: {name, tripsCount, image}
+          const cities = response.data.map((city) => ({
+            name: `${city.name}, ${city.country_name}`,
+            tripsCount: city.trip_count,
+            image: city.city_image || city.photo,
+          }));
+
+          console.log(cities);
+
+          console.log("[DestinationCarousel] Cities loaded:", cities.length);
+          return cities;
         }
 
-        console.log("[DestinationCarousel] Fetching cities from API");
-        const allTrips = await Trip.list();
-
-        // Extract and count cities from trip destinations
-        const cityCount = {};
-        const cityImages = {};
-
-        allTrips.forEach((trip) => {
-          if (!trip.destination) return;
-
-          // Parse city name (format: "City, Country")
-          const cityName = trip.destination.trim();
-
-          // Count occurrences
-          cityCount[cityName] = (cityCount[cityName] || 0) + 1;
-
-          // Store first valid image for each city
-          if (!cityImages[cityName] && trip.images && trip.images.length > 0) {
-            cityImages[cityName] = trip.images[0];
-          } else if (!cityImages[cityName] && trip.image_url) {
-            cityImages[cityName] = trip.image_url;
-          }
-        });
-
-        // Convert to array and sort by trip count
-        const citiesArray = Object.entries(cityCount)
-          .map(([name, count]) => ({
-            name,
-            tripsCount: count,
-            image:
-              cityImages[name] ||
-              `https://images.unsplash.com/photo-1514565131-fce0801e5785?w=400&h=400&fit=crop`,
-          }))
-          .sort((a, b) => b.tripsCount - a.tripsCount)
-          .slice(0, 12);
-
-        // Cache the results
-        sessionStorage.setItem(
-          "walvee_cities_cache",
-          JSON.stringify({
-            data: citiesArray,
-            timestamp: Date.now(),
-          })
-        );
-
-        // Randomize order on each load
-        return shuffleArray(citiesArray);
+        return [];
       } catch (error) {
         console.error("[DestinationCarousel] Error loading cities:", error);
-
-        // Try to return cached data even if expired
-        const cachedCities = sessionStorage.getItem("walvee_cities_cache");
-        if (cachedCities) {
-          const cache = JSON.parse(cachedCities);
-          console.log("[DestinationCarousel] Using stale cache due to error");
-          return shuffleArray(cache.data);
-        }
-
         return [];
       }
     },
     staleTime: 10 * 60 * 1000, // 10 minutes
     cacheTime: 30 * 60 * 1000, // 30 minutes
-    retry: 0,
+    retry: 2,
     refetchOnMount: false,
     refetchOnWindowFocus: false,
   });

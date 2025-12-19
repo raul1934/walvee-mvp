@@ -107,9 +107,10 @@ export default function Navbar({ user, onMenuClick, openLoginModal }) {
 
             {/* CENTER - Search Bar */}
             <div className="flex items-center justify-center">
+              {/* Desktop Search Bar */}
               <button
                 onClick={handleSearchOpen}
-                className="w-full max-w-md flex items-center gap-3 bg-[#1A1B23] hover:bg-[#2A2B35] border border-[#2A2B35] rounded-xl px-4 py-2 transition-all"
+                className="hidden md:flex w-full max-w-md items-center gap-3 bg-[#1A1B23] hover:bg-[#2A2B35] border border-[#2A2B35] rounded-xl px-4 py-2 transition-all"
               >
                 <Search className="w-5 h-5 text-gray-400 shrink-0" />
                 <span className="text-gray-400 text-sm">
@@ -118,8 +119,16 @@ export default function Navbar({ user, onMenuClick, openLoginModal }) {
               </button>
             </div>
 
-            {/* RIGHT - KPIs + Bell + Avatar OR Login */}
+            {/* RIGHT - Search Icon (Mobile) + KPIs + Bell + Avatar OR Login */}
             <div className="flex items-center gap-3">
+              {/* Mobile Search Icon - aligned with bell */}
+              <button
+                onClick={handleSearchOpen}
+                className="md:hidden w-10 h-10 flex items-center justify-center hover:opacity-80 transition-opacity"
+                aria-label="Search"
+              >
+                <Search className="w-5 h-5 text-white" />
+              </button>
               {user ? (
                 <>
                   {/* KPIs - hidden on mobile - ALL USING EMAIL */}

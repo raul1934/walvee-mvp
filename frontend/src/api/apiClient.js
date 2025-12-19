@@ -247,6 +247,13 @@ export const endpoints = {
   llm: {
     chat: "/llm/chat",
   },
+
+  // Home
+  home: {
+    trips: "/home/trips",
+    cities: "/home/cities",
+    travelers: "/home/travelers",
+  },
 };
 
 export default apiClient;

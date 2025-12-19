@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { Trip, TripLike } from "@/api/entities";
+import { TripLike } from "@/api/entities";
+import apiClient, { endpoints } from "@/api/apiClient";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -47,7 +48,7 @@ export default function Home({ user, userLoading }) {
     }
   }, [user, userLoading, navigate]);
 
-  // Fetch trips and randomize order
+  // Fetch trips from home endpoint (already randomized)
   console.log("[Home] 📊 Setting up useQuery for trips...");
   const {
     data: trips = [],
@@ -55,24 +56,14 @@ export default function Home({ user, userLoading }) {
     error,
     refetch,
   } = useQuery({
-    queryKey: ["trips"],
+    queryKey: ["homeTrips"],
     queryFn: async () => {
-      console.log("[Home] ⬇️ Fetching trips...");
+      console.log("[Home] ⬇️ Fetching trips from home endpoint...");
       try {
-        const allTrips = await Trip.list({
-          sortBy: "created_at",
-          order: "desc",
-        });
-        console.log("[Home] ✅ Trips fetched:", allTrips.length);
-
-        // Fisher-Yates shuffle algorithm to randomize order
-        const shuffled = [...allTrips];
-        for (let i = shuffled.length - 1; i > 0; i--) {
-          const j = Math.floor(Math.random() * (i + 1));
-          [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-        }
-
-        return shuffled;
+        const response = await apiClient.get(endpoints.home.trips);
+        const trips = response.data;
+        console.log("[Home] ✅ Trips fetched:", trips.length);
+        return trips;
       } catch (err) {
         console.error("[Home] ❌ Error fetching trips:", err);
         throw err;

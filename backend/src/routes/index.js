@@ -11,6 +11,7 @@ const cityRoutes = require("./cities");
 const placeRoutes = require("./places");
 const llmRoutes = require("./llm");
 const searchRoutes = require("./search");
+const homeRoutes = require("./home");
 
 const router = express.Router();
 
@@ -27,5 +28,6 @@ router.use("/cities", cityRoutes);
 router.use("/places", placeRoutes);
 router.use("/llm", llmRoutes);
 router.use("/search", searchRoutes);
+router.use("/home", homeRoutes);
 
 module.exports = router;
