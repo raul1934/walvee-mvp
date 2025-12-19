@@ -638,27 +638,28 @@ async function formatTripResponse(trip) {
   const { City, Country } = require("../models/sequelize");
   const { Op } = require("sequelize");
   const cityMap = new Map();
-  
+
   // Add main destination city
   const destination = tripData.destination || "";
   const destCityName = destination.split(",")[0].trim();
   if (destCityName) {
     cityMap.set(destCityName.toLowerCase(), { name: destination, id: null });
   }
-  
+
   // Add cities from itinerary activities
   if (tripData.itineraryDays) {
     tripData.itineraryDays.forEach((day) => {
       if (day.activities) {
         day.activities.forEach((activity) => {
-          const location = activity.location || activity.placeDetails?.address || "";
+          const location =
+            activity.location || activity.placeDetails?.address || "";
           const parts = location.split(",");
           if (parts.length > 0) {
             const cityName = parts[0].trim();
             if (cityName) {
-              cityMap.set(cityName.toLowerCase(), { 
-                name: location, 
-                id: null 
+              cityMap.set(cityName.toLowerCase(), {
+                name: location,
+                id: null,
               });
             }
           }
@@ -666,27 +667,29 @@ async function formatTripResponse(trip) {
       }
     });
   }
-  
+
   // Look up city IDs from database
   const cityNames = Array.from(cityMap.keys());
   if (cityNames.length > 0) {
     const cities = await City.findAll({
       where: {
         name: {
-          [Op.in]: cityNames.map(name => 
-            name.charAt(0).toUpperCase() + name.slice(1)
-          )
-        }
+          [Op.in]: cityNames.map(
+            (name) => name.charAt(0).toUpperCase() + name.slice(1)
+          ),
+        },
       },
       attributes: ["id", "name"],
-      include: [{
-        model: Country,
-        as: "country",
-        attributes: ["name"]
-      }]
+      include: [
+        {
+          model: Country,
+          as: "country",
+          attributes: ["name"],
+        },
+      ],
     });
-    
-    cities.forEach(cityObj => {
+
+    cities.forEach((cityObj) => {
       const key = cityObj.name.toLowerCase();
       if (cityMap.has(key)) {
         const existing = cityMap.get(key);
@@ -695,7 +698,7 @@ async function formatTripResponse(trip) {
       }
     });
   }
-  
+
   const citiesWithIds = Array.from(cityMap.values());
 
   return {
@@ -728,7 +731,7 @@ async function formatTripResponse(trip) {
     author_email: tripData.author?.email || null,
     author_bio: tripData.author?.bio || null,
     tags: tripData.tags ? tripData.tags.map((t) => t.tag) : [],
-    locations: citiesWithIds.map(c => c.name),
+    locations: citiesWithIds.map((c) => c.name),
     cities: citiesWithIds,
     itinerary: tripData.itineraryDays
       ? tripData.itineraryDays.map((day) => ({

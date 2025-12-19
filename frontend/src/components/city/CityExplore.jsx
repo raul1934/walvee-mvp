@@ -59,19 +59,21 @@ export default function CityExplore({
     queryKey: ["countryCities", country],
     queryFn: async () => {
       if (!country) return [];
-      
+
       try {
         // Search for cities in the country
         const response = await apiClient.get(endpoints.cities.search, {
           query: country,
         });
-        
+
         if (response.success && response.data) {
           return response.data
-            .filter(city => {
+            .filter((city) => {
               const cityCountry = city.country?.name || "";
-              return cityCountry.toLowerCase().includes(country.toLowerCase()) &&
-                     city.name !== currentCityName;
+              return (
+                cityCountry.toLowerCase().includes(country.toLowerCase()) &&
+                city.name !== currentCityName
+              );
             })
             .slice(0, 5);
         }
@@ -89,13 +91,13 @@ export default function CityExplore({
   const suggestedCities = React.useMemo(() => {
     // Prefer backend cities with IDs
     if (countryCities.length > 0) {
-      return countryCities.map(city => ({
+      return countryCities.map((city) => ({
         id: city.id,
         name: `${city.name}, ${city.country?.name || ""}`,
         tripsCount: city.trip_count || 0,
       }));
     }
-    
+
     // Fallback to hardcoded list if backend fails
     if (!country || !COUNTRY_CITIES[country]) return [];
 
@@ -156,15 +158,13 @@ export default function CityExplore({
                     )}
                   </Link>
                 ) : (
-                  <div
-                    className="block bg-[#1A1B23] rounded-xl p-4 text-center border border-[#2A2B35]"
-                  >
-                  <div className="w-16 h-16 mx-auto mb-3 rounded-full bg-gradient-to-br from-blue-600/20 to-purple-600/20 flex items-center justify-center">
-                    <MapPin className="w-8 h-8 text-blue-400" />
-                  </div>
-                  <h4 className="font-semibold text-white text-sm mb-1">
-                    {city.name.split(",")[0]}
-                  </h4>
+                  <div className="block bg-[#1A1B23] rounded-xl p-4 text-center border border-[#2A2B35]">
+                    <div className="w-16 h-16 mx-auto mb-3 rounded-full bg-gradient-to-br from-blue-600/20 to-purple-600/20 flex items-center justify-center">
+                      <MapPin className="w-8 h-8 text-blue-400" />
+                    </div>
+                    <h4 className="font-semibold text-white text-sm mb-1">
+                      {city.name.split(",")[0]}
+                    </h4>
                     {city.tripsCount > 0 && (
                       <p className="text-xs text-gray-500">
                         {city.tripsCount} trips

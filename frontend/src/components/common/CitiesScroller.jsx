@@ -3,10 +3,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Link } from "react-router-dom";
 import { createCityUrl } from "@/utils";
 
-export default function CitiesScroller({
-  cities,
-  className = "",
-}) {
+export default function CitiesScroller({ cities, className = "" }) {
   const scrollRef = useRef(null);
   const [showLeftArrow, setShowLeftArrow] = useState(false);
   const [showRightArrow, setShowRightArrow] = useState(false);

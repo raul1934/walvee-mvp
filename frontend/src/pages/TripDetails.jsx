@@ -1202,13 +1202,17 @@ export default function TripDetails() {
   // Memoize expensive calculations - MUST be before any conditional returns
   const cities = React.useMemo(() => {
     // Backend should always return cities array with IDs
-    if (tripData?.cities && Array.isArray(tripData.cities) && tripData.cities.length > 0) {
+    if (
+      tripData?.cities &&
+      Array.isArray(tripData.cities) &&
+      tripData.cities.length > 0
+    ) {
       return tripData.cities;
     }
     // Fallback: extract city names if backend doesn't provide cities
     if (tripData) {
       const cityNames = getTripCities(tripData);
-      return cityNames.map(name => ({ id: null, name }));
+      return cityNames.map((name) => ({ id: null, name }));
     }
     return [];
   }, [tripData]);
@@ -1981,8 +1985,11 @@ export default function TripDetails() {
 
                 <div className="flex flex-wrap gap-2">
                   {cities.map((city, idx) => {
-                    const hashtag = city.name.split(',')[0].toLowerCase().replace(/\s+/g, "");
-                    
+                    const hashtag = city.name
+                      .split(",")[0]
+                      .toLowerCase()
+                      .replace(/\s+/g, "");
+
                     return (
                       <Link
                         key={idx}
