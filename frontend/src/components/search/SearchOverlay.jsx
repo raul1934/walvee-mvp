@@ -54,13 +54,11 @@ export default function SearchOverlay({
   }, [isOpen, onClose, isPlaceModalOpen]);
 
   const handlePlaceClick = (place) => {
-    console.log("[SearchOverlay] Place clicked:", place.name);
     setSelectedPlace(place);
     setIsPlaceModalOpen(true);
   };
 
   const handleClosePlaceModal = () => {
-    console.log("[SearchOverlay] Closing PlaceModal");
     setIsPlaceModalOpen(false);
     setTimeout(() => setSelectedPlace(null), 300);
   };

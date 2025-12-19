@@ -162,16 +162,6 @@ export default function PlaceDetails({
   onAddToTrip,
   openLoginModal,
 }) {
-  console.log("[PlaceDetails] ===== RENDER =====");
-  console.log("[PlaceDetails] Props:", {
-    placeName: place?.name,
-    placeId: place?.place_id,
-    fullPlace: place,
-    hasUser: !!user,
-    userId: user?.id,
-    hasOpenLoginModal: !!openLoginModal,
-  });
-
   const [enrichedPlace, setEnrichedPlace] = useState(place);
   const [isEnriching, setIsEnriching] = useState(false);
 
@@ -213,38 +203,18 @@ export default function PlaceDetails({
 
   const isFavorite = isFavorited(enrichedPlace.name);
 
-  console.log("[PlaceDetails] Favorites state:", {
-    placeName: enrichedPlace.name,
-    isFavorite,
-    isToggling,
-    hasUser: !!user,
-    userId: user?.id,
-    userEmail: user?.email,
-  });
-
   const { data: userReviews = [] } = useQuery({
     queryKey: ["reviews", "place", enrichedPlace.place_id],
     queryFn: async () => {
-      console.log(
-        "[PlaceDetails] Query enabled, enrichedPlace:",
-        enrichedPlace
-      );
-      console.log("[PlaceDetails] place_id:", enrichedPlace.place_id);
-      console.log("[PlaceDetails] activeTab:", activeTab);
-
       if (!enrichedPlace.place_id) {
         console.warn("[PlaceDetails] No place_id found, returning empty array");
         return [];
       }
 
-      console.log(
-        "[PlaceDetails] Fetching reviews for place:",
-        enrichedPlace.place_id
-      );
       const response = await apiClient.get(
         `/places/${enrichedPlace.place_id}/reviews`
       );
-      console.log("[PlaceDetails] Reviews response:", response);
+
       return response.data || [];
     },
     enabled: !!enrichedPlace.place_id && activeTab === "reviews",
@@ -802,7 +772,6 @@ export default function PlaceDetails({
             {onAddToTrip && (
               <Button
                 onClick={() => {
-                  console.log("[PlaceDetails] Add to Trip clicked:", place);
                   onAddToTrip();
                 }}
                 className="bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white px-4 py-2 h-10 text-sm font-bold rounded-xl shadow-lg shadow-emerald-500/25 transition-all hover:scale-105 border-0"

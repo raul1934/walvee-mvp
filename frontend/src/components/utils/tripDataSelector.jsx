@@ -112,11 +112,5 @@ export function auditPlaceConsistency(homePlaces, detailPlaces, context = {}) {
     consistent: !mismatch
   };
   
-  if (mismatch) {
-    console.error('[TripDataAudit] Consistency check failed:', result);
-  } else {
-    console.log('[TripDataAudit] Consistency check passed:', context);
-  }
-  
   return result;
 }

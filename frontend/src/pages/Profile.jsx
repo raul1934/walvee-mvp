@@ -78,20 +78,11 @@ export default function Profile() {
   } = useQuery({
     queryKey: ["profileUser", targetUserId, targetUserEmail, currentUser?.id],
     queryFn: async () => {
-      console.log("[Profile] Query starting:", {
-        targetUserId,
-        targetUserEmail,
-        hasCurrentUser: !!currentUser,
-        currentUserEmail: currentUser?.email,
-      });
-
       // If no params and no current user, show login prompt
       if (!targetUserEmail && !targetUserId) {
         if (currentUser) {
-          console.log("[Profile] Using current user:", currentUser.email);
           return currentUser;
         }
-        console.log("[Profile] No target user and not logged in");
         return null;
       }
 
@@ -99,10 +90,6 @@ export default function Profile() {
 
       // Priority 1: Try to get user data from publicly available trips if email is known
       if (targetUserEmail) {
-        console.log(
-          "[Profile] Attempting to build user profile from public trips for email:",
-          targetUserEmail
-        );
         try {
           // Get all trips (public)
           const allTrips = await Trip.list();
@@ -131,10 +118,6 @@ export default function Profile() {
               metrics_followers: 0, // Will be overridden if authenticated
               metrics_following: 0, // Will be overridden if authenticated
             };
-            console.log(
-              "[Profile] Built partial user from trips:",
-              userFromPublicData
-            );
           }
         } catch (error) {
           console.error(
@@ -147,16 +130,11 @@ export default function Profile() {
       // Priority 2: If authenticated, try direct User entity access for full data
       let userFromAuthenticatedSource = null;
       if (currentUser) {
-        console.log("[Profile] Attempting authenticated user fetch...");
         try {
           if (targetUserEmail) {
             const users = await User.filter({ email: targetUserEmail });
             if (users.length > 0) {
               userFromAuthenticatedSource = users[0];
-              console.log(
-                "[Profile] Found user by email (authenticated):",
-                userFromAuthenticatedSource.email
-              );
             }
           }
 
@@ -168,10 +146,6 @@ export default function Profile() {
             const user = await User.get(targetUserId);
             if (user) {
               userFromAuthenticatedSource = user;
-              console.log(
-                "[Profile] Found user by ID (authenticated):",
-                userFromAuthenticatedSource.email
-              );
             }
           }
         } catch (error) {

@@ -13,10 +13,6 @@ export default function ResetFollowKPIs() {
       try {
         const currentUser = await User.me();
 
-        console.log(
-          "[Reset] Starting follow KPI reset for user:",
-          currentUser.id
-        );
         setStatus("deleting-follows");
 
         // 1. Get all follow records involving this user
@@ -27,18 +23,11 @@ export default function ResetFollowKPIs() {
             f.follower_id === currentUser.id || f.followee_id === currentUser.id
         );
 
-        console.log(
-          "[Reset] Found",
-          userFollows.length,
-          "follow records to delete"
-        );
-
         // 2. Delete all follow records by their record id using deleteRecord
         for (const follow of userFollows) {
           await Follow.deleteRecord(follow.id);
         }
 
-        console.log("[Reset] Deleted all follow records");
         setStatus("updating-kpis");
 
         // 3. Reset KPIs to 0
@@ -46,8 +35,6 @@ export default function ResetFollowKPIs() {
           metrics_following: 0,
           metrics_followers: 0,
         });
-
-        console.log("[Reset] ✅ Follow KPIs reset complete");
 
         setResult({
           success: true,

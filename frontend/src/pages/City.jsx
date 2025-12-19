@@ -15,21 +15,9 @@ import CityFavorites from "../components/city/CityFavorites";
 import PlaceModal from "../components/city/PlaceModal";
 import { apiClient, endpoints } from "@/api/apiClient";
 
-console.log("[City Page] ===== MODULE LOADED =====");
-
 export default function City({ cityNameOverride, isModal = false }) {
   // Get user from auth context
   const { user, openLoginModal } = useAuth();
-
-  console.log("[City Page] ===== FUNCTION CALLED =====");
-  console.log("[City Page] Received props:", {
-    hasUser: !!user,
-    userId: user?.id,
-    userEmail: user?.email,
-    userName: user?.preferred_name || user?.full_name,
-    cityNameOverride: cityNameOverride,
-    isModal: isModal,
-  });
 
   // Extract cityId from route params (for /:countryId/:cityId route)
   const { countryId, cityId: cityIdParam } = useParams();
@@ -414,21 +402,11 @@ export default function City({ cityNameOverride, isModal = false }) {
   };
 
   const handlePlaceClick = (place) => {
-    console.log("[City Page] ===== handlePlaceClick =====");
-    console.log("[City Page] Place clicked:", {
-      placeName: place.name,
-      hasUser: !!user,
-      userId: user?.id,
-      userName: user?.preferred_name || user?.full_name,
-    });
-
-    console.log("[City Page] Setting selectedPlace and opening modal");
     setSelectedPlace(place);
     setIsPlaceModalOpen(true);
   };
 
   const handleClosePlaceModal = () => {
-    console.log("[City Page] Closing PlaceModal");
     setIsPlaceModalOpen(false);
     setTimeout(() => setSelectedPlace(null), 300);
   };
@@ -440,15 +418,6 @@ export default function City({ cityNameOverride, isModal = false }) {
       </div>
     );
   }
-
-  console.log("[City Page] ===== ABOUT TO RENDER =====");
-  console.log("[City Page] PlaceModal state:", {
-    hasPlace: !!selectedPlace,
-    placeName: selectedPlace?.name,
-    isOpen: isPlaceModalOpen,
-    hasUser: !!user,
-    userId: user?.id,
-  });
 
   return (
     <div

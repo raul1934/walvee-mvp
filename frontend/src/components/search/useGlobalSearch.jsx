@@ -40,10 +40,6 @@ export function useGlobalSearch(cityContext = null) {
     setError(null);
 
     try {
-      console.log('[Search] ===== STARTING BACKEND SEARCH =====');
-      console.log('[Search] Query:', searchQuery);
-      console.log('[Search] City Context:', cityContext || 'none');
-
       // Build query parameters
       const params = {
         query: searchQuery,
@@ -56,9 +52,6 @@ export function useGlobalSearch(cityContext = null) {
 
       // Call backend search endpoint
       const response = await apiClient.get(endpoints.search.overlay, params);
-
-      console.log('[Search] ===== BACKEND SEARCH COMPLETE =====');
-      console.log('[Search] Response:', response);
 
       if (response.success && response.data) {
         const { results: searchResults, counts: searchCounts } = response.data;
@@ -119,22 +112,14 @@ export function useGlobalSearch(cityContext = null) {
         setResults(mappedResults);
         setCounts(searchCounts || { cities: 0, trips: 0, places: 0, travelers: 0, total: 0 });
 
-        console.log('[Search] Results set:', {
-          cities: mappedResults.cities.length,
-          trips: mappedResults.trips.length,
-          places: mappedResults.places.length,
-          travelers: mappedResults.travelers.length
-        });
-        console.log('[Search] Counts set:', searchCounts);
+
       }
 
     } catch (err) {
       if (err.name === 'AbortError') {
-        console.log('[Search] Search aborted');
         return;
       }
 
-      console.error('[Search] Error:', err);
       setError(err.message || 'Search failed');
       setResults({ cities: [], trips: [], places: [], travelers: [] });
       setCounts({ cities: 0, trips: 0, places: 0, travelers: 0, total: 0 });

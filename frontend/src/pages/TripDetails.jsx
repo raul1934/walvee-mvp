@@ -43,13 +43,6 @@ import TripMap from "../components/map/TripMap";
 export default function TripDetails() {
   const { user: currentUser, openLoginModal } = useAuth();
 
-  console.log("[TripDetails] ===== RENDER =====");
-  console.log("[TripDetails] Props:", {
-    hasUser: !!currentUser,
-    userId: currentUser?.id,
-    hasOpenLoginModal: !!openLoginModal,
-  });
-
   const [activeTab, setActiveTab] = useState("itinerary");
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [selectedDay, setSelectedDay] = useState(0);
@@ -103,7 +96,6 @@ export default function TripDetails() {
     queryKey: ["trip", tripId],
     queryFn: async () => {
       const trip = await Trip.get(tripId);
-      console.log("[TripDetails] Trip from API:", trip);
       return trip;
     },
     enabled: !!tripId,
@@ -186,7 +178,6 @@ export default function TripDetails() {
       if (cached) {
         const parsed = JSON.parse(cached);
         if (Date.now() - parsed.timestamp < 60 * 60 * 1000) {
-          console.log("[Follow] Using cached status");
           return parsed.data;
         }
       }
@@ -227,7 +218,6 @@ export default function TripDetails() {
       if (cached) {
         const parsed = JSON.parse(cached);
         if (Date.now() - parsed.timestamp < 60 * 60 * 1000) {
-          console.log("[Like] Using cached status");
           return parsed.data;
         }
       }
@@ -324,8 +314,6 @@ export default function TripDetails() {
         queryClient.setQueryData(["currentUser"], newUser);
       }
 
-      console.log("[Follow] Optimistic update applied");
-
       return { previousFollow, previousUser, startTime };
     },
     onError: (err, variables, context) => {
@@ -347,8 +335,6 @@ export default function TripDetails() {
       alert("Couldn't follow now. Please try again.");
     },
     onSuccess: async (data) => {
-      console.log("[Follow] Mutation successful");
-
       queryClient.setQueryData(
         ["followStatus", tripData?.created_by, currentUser?.id],
         data
@@ -369,7 +355,6 @@ export default function TripDetails() {
         updateUserKPIs(tripData.created_by, { followers: 1 }),
       ])
         .then(() => {
-          console.log("[Follow] KPIs updated successfully");
           queryClient.invalidateQueries(["currentUser"]);
         })
         .catch((error) => {
@@ -386,7 +371,7 @@ export default function TripDetails() {
       if (!tripData || !currentUser) throw new Error("Not authenticated");
       if (!isFollowing) throw new Error("Not following");
 
-      console.log("[Unfollow] Deleting follow for user:", tripData.created_by);
+
       return await Follow.unfollow(tripData.created_by);
     },
     onMutate: async () => {
@@ -430,8 +415,6 @@ export default function TripDetails() {
         queryClient.setQueryData(["currentUser"], newUser);
       }
 
-      console.log("[Unfollow] Optimistic update applied");
-
       return { previousFollow, previousUser, startTime };
     },
     onError: (err, variables, context) => {
@@ -453,7 +436,7 @@ export default function TripDetails() {
       alert("Couldn't unfollow now. Please try again.");
     },
     onSuccess: async () => {
-      console.log("[Unfollow] Mutation successful");
+
 
       queryClient.setQueryData(
         ["followStatus", tripData?.created_by, currentUser?.id],
@@ -475,7 +458,6 @@ export default function TripDetails() {
         updateUserKPIs(tripData.created_by, { followers: -1 }),
       ])
         .then(() => {
-          console.log("[Unfollow] KPIs updated successfully");
           queryClient.invalidateQueries(["currentUser"]);
         })
         .catch((error) => {
@@ -490,11 +472,7 @@ export default function TripDetails() {
       if (tripData.created_by === currentUser.id)
         throw new Error("Cannot like your own trip.");
 
-      console.log("[Like] Creating like:", {
-        trip_id: tripId,
-        liker_id: currentUser.id,
-        trip_owner_id: tripData.created_by,
-      });
+
 
       // TripLike.create expects a single `tripId` string
       return await TripLike.create(tripId);
@@ -539,8 +517,6 @@ export default function TripDetails() {
         queryClient.setQueryData(["trip", tripId], newTrip);
       }
 
-      console.log("[Like] Optimistic update applied");
-
       return { previousLike, previousTrip, startTime };
     },
     onError: (err, variables, context) => {
@@ -564,7 +540,7 @@ export default function TripDetails() {
       alert("Couldn't like now. Please try again.");
     },
     onSuccess: async (data) => {
-      console.log("[Like] Mutation successful");
+
 
       queryClient.setQueryData(["likeStatus", tripId, currentUser?.id], data);
       sessionStorage.setItem(
@@ -578,7 +554,6 @@ export default function TripDetails() {
       // Update trip KPIs
       try {
         await updateTripKPIs(tripId, { likes: 1 });
-        console.log("[Like] Trip KPIs updated");
         await queryClient.invalidateQueries(["trip", tripId]);
       } catch (error) {
         console.error("[Like] Trip KPI update failed:", error);
@@ -592,7 +567,7 @@ export default function TripDetails() {
         throw new Error("Not liked or optimistic state");
       }
 
-      console.log("[Unlike] Deleting like:", likeStatus.id);
+
 
       return await TripLike.delete(likeStatus.id);
     },
@@ -627,8 +602,6 @@ export default function TripDetails() {
         queryClient.setQueryData(["trip", tripId], newTrip);
       }
 
-      console.log("[Unlike] Optimistic update applied");
-
       return { previousLike, previousTrip, startTime };
     },
     onError: (err, variables, context) => {
@@ -652,7 +625,7 @@ export default function TripDetails() {
       alert("Couldn't unlike now. Please try again.");
     },
     onSuccess: async () => {
-      console.log("[Unlike] Mutation successful");
+
 
       queryClient.setQueryData(["likeStatus", tripId, currentUser?.id], null);
       sessionStorage.setItem(
@@ -666,7 +639,6 @@ export default function TripDetails() {
       // Update trip KPIs
       try {
         await updateTripKPIs(tripId, { likes: -1 });
-        console.log("[Unlike] Trip KPIs updated");
         await queryClient.invalidateQueries(["trip", tripId]);
       } catch (error) {
         console.error("[Unlike] Trip KPI update failed:", error);
@@ -908,11 +880,6 @@ export default function TripDetails() {
       });
     }
 
-    console.log(
-      "[TripDetails] Map markers prepared:",
-      markers.length,
-      "markers"
-    );
     setMapMarkers(markers);
   }, [tripData, selectedDay, enrichedPlaces]);
 

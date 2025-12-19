@@ -11,20 +11,16 @@ export default function ResetLikes() {
   useEffect(() => {
     const resetLikes = async () => {
       try {
-        console.log('[Reset Likes] Starting reset');
         setStatus('deleting-likes');
         
         // 1. Get all like records
         const allLikes = await TripLike.list();
-        
-        console.log('[Reset Likes] Found', allLikes.length, 'like records to delete');
         
         // 2. Delete all like records
         for (const like of allLikes) {
           await TripLike.delete(like.id);
         }
         
-        console.log('[Reset Likes] Deleted all like records');
         setStatus('updating-trips');
         
         // 3. Reset all trips likes to 0
@@ -33,8 +29,6 @@ export default function ResetLikes() {
         for (const trip of allTrips) {
           await Trip.update(trip.id, { likes: 0 });
         }
-        
-        console.log('[Reset Likes] Reset', allTrips.length, 'trips to 0 likes');
         
         setResult({
           success: true,

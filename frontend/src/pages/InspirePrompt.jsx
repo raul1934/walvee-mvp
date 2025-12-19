@@ -160,13 +160,6 @@ const isCityInTabs = (cityName, existingTabs) => {
  * ✓ "Avenida Paulista" (type: place) → FALSE → Opens Place Modal
  */
 const isCityRecommendation = (rec) => {
-  console.log('[isCityRecommendation] 🔍 Checking:', {
-    name: rec.name,
-    type: rec.type,
-    hasPlaceId: !!rec.place_id,
-    hasCountry: !!rec.country
-  });
-
   // ==========================================
   // PRIORITY 1: Trust the type from AI
   // Accept both English and Portuguese types
@@ -175,14 +168,12 @@ const isCityRecommendation = (rec) => {
   
   // City types (English and Portuguese)
   if (typeNormalized === 'city' || typeNormalized === 'cidade') {
-    console.log('[isCityRecommendation] ✅ Type is "city/cidade" → CITY MODAL');
     return true;
   }
 
   // Place types (English and Portuguese)
   const placeTypes = ['place', 'activity', 'business', 'lugar', 'atividade', 'negócio'];
   if (placeTypes.includes(typeNormalized)) {
-    console.log('[isCityRecommendation] ✅ Type is place/activity/business/lugar/atividade/negócio → PLACE MODAL');
     return false;
   }
 
@@ -192,7 +183,6 @@ const isCityRecommendation = (rec) => {
   // ==========================================
   const hasPlaceId = rec.place_id && rec.place_id.length > 0;
   if (hasPlaceId) {
-    console.log('[isCityRecommendation] ✅ Has place_id → PLACE MODAL');
     return false;
   }
 
@@ -221,14 +211,12 @@ const isCityRecommendation = (rec) => {
   const nameLower = rec.name.toLowerCase();
 
   if (placeKeywords.some(keyword => nameLower.includes(keyword))) {
-    console.log('[isCityRecommendation] ✅ Name contains place keyword → PLACE MODAL');
     return false;
   }
 
   // ==========================================
   // DEFAULT: When in doubt, treat as a place
   // ==========================================
-  console.log('[isCityRecommendation] ⚠️ No clear indicators → PLACE MODAL (default)');
   return false;
 };
 
@@ -393,18 +381,12 @@ export default function InspirePrompt({ user }) {
    * Uses isCityInTabs() for smart duplicate detection
    */
   const handleAddCityToTrip = (cityName) => {
-    console.log('[handleAddCityToTrip] ===== ADDING CITY TO TABS =====');
-    console.log('[handleAddCityToTrip] City name:', cityName);
-    console.log('[handleAddCityToTrip] Current tabs:', cityTabs.map(t => t.name));
-    
     // Always close modal and clear selection when adding/activating a city tab
     setIsModalOpen(false);
     setSelectedRecommendation(null);
 
     // Check for duplicates BEFORE adding
     if (isCityInTabs(cityName, cityTabs)) {
-      console.log('[handleAddCityToTrip] ⚠️ City already exists in tabs, activating it instead.');
-      
       let foundExistingTab = null;
       const normalizedInput = normalizeCityName(cityName);
       const inputParts = normalizedInput.split(',').map(p => p.trim());
@@ -446,7 +428,6 @@ export default function InspirePrompt({ user }) {
       }
       
       if (foundExistingTab) {
-        console.log('[handleAddCityToTrip] Switching to existing tab:', foundExistingTab.name);
         setActiveCity(foundExistingTab.name);
         setInputValue('');
         inputRef.current?.focus();
@@ -455,8 +436,6 @@ export default function InspirePrompt({ user }) {
       }
       return;
     }
-    
-    console.log('[handleAddCityToTrip] ✅ Adding new city tab');
     
     // Determine user's language for AI's response for the new city message
     const userLanguageForAI = messages.some(m =>
@@ -482,7 +461,6 @@ export default function InspirePrompt({ user }) {
       timestamp: Date.now()
     };
 
-    console.log('[handleAddCityToTrip] Adding city focus message for new tab');
     setMessages(prev => [...prev, cityFocusMessage]);
 
     setInputValue('');
@@ -491,8 +469,6 @@ export default function InspirePrompt({ user }) {
 
   // Handle adding place to trip
   const handleAddPlaceToTrip = (place) => {
-    console.log('[InspirePrompt] Adding place to trip:', place);
-
     let cityName;
     if (place.city && place.country) {
       cityName = `${place.city}, ${place.country}`;
@@ -510,8 +486,6 @@ export default function InspirePrompt({ user }) {
     } else {
       cityName = 'Unknown City';
     }
-
-    console.log('[InspirePrompt] Place city (derived):', cityName);
 
     const normalizedNewCityName = normalizeCityName(cityName);
 
@@ -557,14 +531,12 @@ export default function InspirePrompt({ user }) {
       }
 
       if (existingTab) {
-        console.log('[InspirePrompt] Adding place to existing city tab:', existingTab.name);
         const placeExistsInTab = existingTab.places.some(p =>
           (p.place_id && p.place_id === place.place_id) ||
           (p.name === place.name && p.address === place.address)
         );
 
         if (placeExistsInTab) {
-          console.log('[InspirePrompt] Place already exists in city tab, not adding again.');
           setActiveCity(existingTab.name);
           return prevTabs;
         }
@@ -591,8 +563,6 @@ export default function InspirePrompt({ user }) {
         return updatedTabs;
 
       } else {
-        console.log('[InspirePrompt] Creating new city tab with place:', cityName);
-
         const userLanguageForAI = messages.some(m =>
           /[àáâãéêíóôõúç]/i.test(m.content)
         ) ? 'pt' : 'en';
@@ -651,8 +621,6 @@ export default function InspirePrompt({ user }) {
   // Handle removing city tab
   const handleRemoveCityTab = (cityName, e) => {
     e.stopPropagation();
-    console.log('[InspirePrompt] Removing city tab:', cityName);
-
     setCityTabs(prev => prev.filter(tab => tab.name !== cityName));
 
     if (activeCity === cityName) {
@@ -671,12 +639,6 @@ export default function InspirePrompt({ user }) {
    * - Place recommendations (should open PlaceDetails modal)
    */
   const handleRecommendationClick = (rec) => {
-    console.log('[InspirePrompt] ===== RECOMMENDATION CLICKED =====');
-    console.log('[InspirePrompt] Name:', rec.name);
-    console.log('[InspirePrompt] Type:', rec.type);
-    console.log('[InspirePrompt] Has place_id:', !!rec.place_id);
-    console.log('[InspirePrompt] Full rec:', rec);
-
     setSelectedRecommendation(rec);
     setIsModalOpen(true);
   };
@@ -684,8 +646,6 @@ export default function InspirePrompt({ user }) {
   // Handle adding place from the PlaceDetails modal to the trip
   const handleAddPlaceFromModal = () => {
     if (!selectedRecommendation) return;
-
-    console.log('[InspirePrompt] Adding place from modal:', selectedRecommendation);
 
     handleAddPlaceToTrip(selectedRecommendation);
 
@@ -717,8 +677,6 @@ export default function InspirePrompt({ user }) {
     setIsLoadingResponse(true);
 
     try {
-      console.log('[InspirePrompt] Calling Gemini...');
-
       // Build context from filters
       let filterContext = '';
       if (selectedFilters.interests.length > 0) {
@@ -814,8 +772,6 @@ Provide 9-15 recommendations. Respond in ${userLanguageForAI === 'pt' ? 'Portugu
         }
       });
 
-      console.log('[InspirePrompt] Gemini response:', response);
-
       // Add AI message with recommendations
       const aiMessage = {
         role: 'assistant',
@@ -865,12 +821,8 @@ Provide 9-15 recommendations. Respond in ${userLanguageForAI === 'pt' ? 'Portugu
 
   const activeCityPlaces = cityTabs.find(tab => tab.name === activeCity)?.places || [];
 
-  console.log('[InspirePrompt] Active city:', activeCity);
-  console.log('[InspirePrompt] Active city places:', activeCityPlaces);
-
   // Placeholder function for opening login modal
   const openLoginModal = () => {
-    console.log("Login modal requested.");
   };
 
   return (

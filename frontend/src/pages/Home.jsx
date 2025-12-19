@@ -12,14 +12,7 @@ import TripCard from "../components/home/TripCard";
 import { useDragScroll } from "../components/hooks/useDragScroll";
 
 export default function Home({ user, userLoading }) {
-  console.log("[Home] 🏠 Component rendered", {
-    hasUser: !!user,
-    userEmail: user?.email,
-    userLoading,
-    timestamp: new Date().toISOString(),
-  });
-
-  const [showScrollIndicator, setShowScrollIndicator] = useState(false);
+  const [isHoveringCards, setIsHoveringCards] = useState(false);
   const [isHoveringCards, setIsHoveringCards] = useState(false);
   const scrollRef = React.useRef(null);
   const dragScrollRef = useDragScroll();
@@ -28,12 +21,10 @@ export default function Home({ user, userLoading }) {
 
   // Debug: Track hover state changes
   useEffect(() => {
-    console.log("[Home] ⚡ isHoveringCards changed to:", isHoveringCards);
   }, [isHoveringCards]);
 
   // Reset all trip cards to default state when component mounts
   useEffect(() => {
-    console.log("[Home] 🧹 Cleaning sessionStorage");
     // Clear all trip view preferences from sessionStorage
     Object.keys(sessionStorage).forEach((key) => {
       if (key.startsWith("tripView_")) {
@@ -49,7 +40,6 @@ export default function Home({ user, userLoading }) {
   }, [user, userLoading, navigate]);
 
   // Fetch trips from home endpoint (already randomized)
-  console.log("[Home] 📊 Setting up useQuery for trips...");
   const {
     data: trips = [],
     isLoading,
@@ -58,14 +48,11 @@ export default function Home({ user, userLoading }) {
   } = useQuery({
     queryKey: ["homeTrips"],
     queryFn: async () => {
-      console.log("[Home] ⬇️ Fetching trips from home endpoint...");
       try {
         const response = await apiClient.get(endpoints.home.trips);
         const trips = response.data;
-        console.log("[Home] ✅ Trips fetched:", trips.length);
         return trips;
       } catch (err) {
-        console.error("[Home] ❌ Error fetching trips:", err);
         throw err;
       }
     },
@@ -74,18 +61,9 @@ export default function Home({ user, userLoading }) {
     refetchOnWindowFocus: false,
     retry: 2,
     onError: (err) => {
-      console.error("[Home] ❌ React Query error:", err);
     },
     onSuccess: (data) => {
-      console.log("[Home] ✅ React Query success:", data?.length, "trips");
     },
-  });
-
-  console.log("[Home] 📈 Query state:", {
-    tripsCount: trips?.length,
-    isLoading,
-    hasError: !!error,
-    errorMessage: error?.message,
   });
 
   // Fetch ALL user's likes in a SINGLE query to avoid rate limit
@@ -97,7 +75,6 @@ export default function Home({ user, userLoading }) {
         // Single query to get all likes by this user
         return await TripLike.filter({ liker_id: user.id });
       } catch (error) {
-        console.error("[Likes] Error fetching user likes:", error);
         return [];
       }
     },
@@ -210,15 +187,9 @@ export default function Home({ user, userLoading }) {
             <div
               className="relative lg:w-[420px] flex-shrink-0 h-full overflow-hidden"
               onMouseEnter={() => {
-                console.log(
-                  "[Home] 🖱️ Mouse ENTER - setting isHoveringCards to true"
-                );
                 setIsHoveringCards(true);
               }}
               onMouseLeave={() => {
-                console.log(
-                  "[Home] 🖱️ Mouse LEAVE - setting isHoveringCards to false"
-                );
                 setIsHoveringCards(false);
               }}
             >

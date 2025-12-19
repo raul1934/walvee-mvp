@@ -124,18 +124,9 @@ const startServer = async () => {
 
     // Sync Sequelize models (without force to keep existing data)
     await sequelize.sync({ alter: false });
-    console.log("✓ Sequelize models synced");
 
     // Start listening
     app.listen(config.port, () => {
-      console.log(`\n🚀 Walvee API Server`);
-      console.log(`📍 Environment: ${config.env}`);
-      console.log(`🔗 Server running at: http://localhost:${config.port}`);
-      console.log(`📚 API Version: ${config.apiVersion}`);
-      console.log(
-        `🌐 API Base URL: http://localhost:${config.port}/${config.apiVersion}`
-      );
-      console.log(`\n✨ Server is ready to accept requests!\n`);
     });
   } catch (error) {
     console.error("Failed to start server:", error);
