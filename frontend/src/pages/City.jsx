@@ -515,7 +515,7 @@ export default function City({ cityNameOverride, isModal = false }) {
 
         {activeTab === "locals" && (
           <div className="container mx-auto px-6">
-            <CityLocals cityName={cityName} />
+            <CityLocals cityName={cityName} cityId={cityId} />
           </div>
         )}
 

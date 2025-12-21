@@ -1,67 +1,40 @@
 import React from "react";
-import { User } from "@/api/entities";
+import { apiClient, endpoints } from "@/api/apiClient";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { createPageUrl, createProfileUrl } from "@/utils";
 import { Users } from "lucide-react";
 import UserAvatar from "../common/UserAvatar";
 
-export default function CityLocals({ cityName }) {
-  // Fetch all users who live in this city
-  const { data: locals = [], isLoading } = useQuery({
-    queryKey: ["cityLocals", cityName],
+export default function CityLocals({ cityName, cityId }) {
+  // Fetch users who live in this city from backend
+  const { data: localsData, isLoading } = useQuery({
+    queryKey: ["cityLocals", cityId],
     queryFn: async () => {
+      if (!cityId) return { data: [], pagination: null };
+
       try {
-        const isAuthenticated = await User.isAuthenticated();
-        if (!isAuthenticated) {
-          return [];
-        }
-
-        const allUsers = await User.list();
-
-        // Normalize city name for comparison
-        const normalizedCityName = cityName?.toLowerCase().trim() || "";
-        const cityNameOnly = normalizedCityName.split(",")[0].trim();
-
-        // Filter users who live in this city
-        const filtered = allUsers.filter((user) => {
-          if (!user.city) return false;
-
-          const userCity = user.city.toLowerCase().trim();
-          const userCityOnly = userCity.split(",")[0].trim();
-
-          return (
-            userCityOnly === cityNameOnly || userCity === normalizedCityName
-          );
+        const response = await apiClient.get(endpoints.cities.getLocals(cityId), {
+          page: 1,
+          limit: 50,
+          sortBy: "trips_count",
+          order: "desc",
         });
 
-        // Format and sort by trip count
-        return filtered
-          .map((user) => ({
-            id: user.id,
-            email: user.email,
-            name: user.preferred_name || user.full_name || user.email,
-            photo: user.photo_url || user.picture,
-            city: user.city,
-            country: user.country,
-            bio: user.bio,
-            trips: user.trips_count || 0,
-            followers: user.followers_count || 0,
-          }))
-          .sort((a, b) => {
-            // Sort by trips first
-            if (b.trips !== a.trips) return b.trips - a.trips;
-            // Then by followers
-            return (b.followers || 0) - (a.followers || 0);
-          });
+        if (response.success && response.data) {
+          return { data: response.data, pagination: response.pagination };
+        }
+        return { data: [], pagination: null };
       } catch (error) {
         console.error("[CityLocals] Error fetching locals:", error);
-        return [];
+        return { data: [], pagination: null };
       }
     },
-    enabled: !!cityName,
+    enabled: !!cityId,
     staleTime: 10 * 60 * 1000,
   });
+
+  const locals = localsData?.data || [];
 
   if (isLoading) {
     return (
@@ -129,14 +102,14 @@ export default function CityLocals({ cityName }) {
                 <div className="flex items-center gap-4 mt-3 text-xs">
                   <div className="flex items-center gap-1">
                     <span className="font-semibold text-white">
-                      {local.trips}
+                      {local.trips_count || 0}
                     </span>
                     <span className="text-gray-500">trips</span>
                   </div>
 
                   <div className="flex items-center gap-1">
                     <span className="font-semibold text-white">
-                      {local.followers}
+                      {local.followers_count || 0}
                     </span>
                     <span className="text-gray-500">followers</span>
                   </div>

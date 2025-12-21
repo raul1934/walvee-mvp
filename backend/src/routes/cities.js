@@ -8,6 +8,7 @@ const {
   getSuggestedCitiesByCountry,
   getCityAiReview,
   getCityTrips,
+  getCityLocals,
 } = require("../controllers/cityController");
 const { authenticate } = require("../middleware/auth");
 
@@ -16,6 +17,7 @@ router.get("/search", searchCities);
 router.get("/country", getCitiesByCountry);
 router.get("/suggested/country/:countryId", getSuggestedCitiesByCountry);
 router.get("/:id/trips", getCityTrips);
+router.get("/:id/locals", getCityLocals);
 router.get("/:cityId/reviews/ai", getCityAiReview);
 router.get("/:id", getCityById);
 

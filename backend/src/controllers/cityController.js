@@ -865,6 +865,109 @@ const getSuggestedCitiesByCountry = async (req, res, next) => {
   }
 };
 
+/**
+ * Get locals (users) who live in a specific city
+ * GET /v1/cities/:id/locals
+ */
+const getCityLocals = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { page = 1, limit = 20, sortBy = "trips_count", order = "desc" } = req.query;
+
+    // Verify city exists
+    const city = await City.findByPk(id, {
+      include: [{ model: Country, as: "country" }],
+    });
+
+    if (!city) {
+      return res
+        .status(404)
+        .json(buildErrorResponse("RESOURCE_NOT_FOUND", "City not found"));
+    }
+
+    const cityName = city.name;
+    const countryName = city.country?.name || "";
+    const fullCityName = `${cityName}, ${countryName}`;
+
+    const { User, Trip, Follow, City: CityModel } = require("../models/sequelize");
+    const { paginate, buildPaginationMeta } = require("../utils/helpers");
+
+    const { page: pageNum, limit: limitNum, offset } = paginate(page, limit, 100);
+
+    // Get users who have this city_id
+    const { count: total, rows: users } = await User.findAndCountAll({
+      where: {
+        city_id: id,
+      },
+      include: [
+        {
+          model: CityModel,
+          as: "cityData",
+          attributes: ["id", "name"],
+          include: [
+            {
+              model: Country,
+              as: "country",
+              attributes: ["name"],
+            },
+          ],
+        },
+      ],
+      attributes: [
+        "id",
+        "email",
+        "full_name",
+        "preferred_name",
+        "photo_url",
+        "bio",
+      ],
+      offset,
+      limit: limitNum,
+    });
+
+    // Add dynamic counts for each user
+    const usersWithCounts = await Promise.all(
+      users.map(async (user) => {
+        const [trips_count, followers_count, following_count] = await Promise.all([
+          Trip.count({ where: { author_id: user.id } }),
+          Follow.count({ where: { followee_id: user.id } }),
+          Follow.count({ where: { follower_id: user.id } }),
+        ]);
+
+        const cityName = user.cityData
+          ? `${user.cityData.name}, ${user.cityData.country?.name || ""}`
+          : null;
+
+        return {
+          id: user.id,
+          email: user.email,
+          name: user.preferred_name || user.full_name || user.email,
+          photo: user.photo_url,
+          city: cityName,
+          bio: user.bio,
+          trips_count,
+          followers_count,
+          following_count,
+        };
+      })
+    );
+
+    // Sort by the requested field
+    const sortedUsers = usersWithCounts.sort((a, b) => {
+      const aValue = a[sortBy] || 0;
+      const bValue = b[sortBy] || 0;
+      return order === "desc" ? bValue - aValue : aValue - bValue;
+    });
+
+    const pagination = buildPaginationMeta(pageNum, limitNum, total);
+
+    res.json(buildSuccessResponse(sortedUsers, pagination));
+  } catch (error) {
+    console.error("[Get City Locals] Error:", error);
+    next(error);
+  }
+};
+
 module.exports = {
   searchCities,
   getOrCreateCity,
@@ -873,4 +976,5 @@ module.exports = {
   getSuggestedCitiesByCountry,
   getCityAiReview,
   getCityTrips,
+  getCityLocals,
 };
