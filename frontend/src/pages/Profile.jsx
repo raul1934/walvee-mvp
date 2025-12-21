@@ -26,6 +26,7 @@ import PlaceModal from "../components/city/PlaceModal";
 import ProfileTripFilters from "../components/profile/ProfileTripFilters";
 import { Link, useNavigate, useParams, useLocation } from "react-router-dom";
 import { createPageUrl, createProfileUrl, createCityUrl } from "@/utils";
+import { formatCityName } from "@/components/utils/cityFormatter";
 import EditProfilePanel from "../components/profile/EditProfilePanel";
 import { getTripDestinationName } from "@/components/utils/cityFormatter";
 import { useAuth } from "@/contexts/AuthContext";
@@ -52,6 +53,10 @@ export default function Profile() {
   // Initialize activeView based on the URL path (support /profile/followers, /profile/followees, /profile/following, /profile/favorites)
   useEffect(() => {
     const path = (location.pathname || "").toLowerCase();
+    if (path.endsWith("/edit")) {
+      setActiveView("edit");
+      return;
+    }
     if (path.endsWith("/followers")) {
       setActiveView("followers");
     } else if (path.endsWith("/followees") || path.endsWith("/following")) {
@@ -214,6 +219,14 @@ export default function Profile() {
   const isOwnProfile =
     currentUser?.id === profileUser?.id ||
     currentUser?.email === profileUser?.email;
+
+  // Precompute display-friendly city strings to avoid JSX complexity
+  const cityDisplayText = userCity
+    ? `${formatCityName(userCity.name)}${
+        userCity.country ? `, ${userCity.country}` : ""
+      }`
+    : null;
+  const cityHasId = !!(userCity && userCity.id);
 
   const { data: userTrips = [], isLoading: isLoadingTrips } = useQuery({
     queryKey: ["userTrips", profileUser?.email],
@@ -761,10 +774,20 @@ export default function Profile() {
   };
 
   const handleEditProfile = () => {
+    const base =
+      !isOwnProfile && profileUser?.id
+        ? createProfileUrl(profileUser.id)
+        : createProfileUrl();
+    navigate(`${base}/edit`);
     setActiveView("edit");
   };
 
   const handleCloseEdit = () => {
+    const base =
+      !isOwnProfile && profileUser?.id
+        ? createProfileUrl(profileUser.id)
+        : createProfileUrl();
+    navigate(`${base}`);
     setActiveView("trips");
   };
 
@@ -776,6 +799,11 @@ export default function Profile() {
     // Small delay to ensure UI updates
     await new Promise((resolve) => setTimeout(resolve, 200));
 
+    const base =
+      !isOwnProfile && profileUser?.id
+        ? createProfileUrl(profileUser.id)
+        : createProfileUrl();
+    navigate(`${base}`);
     setActiveView("trips");
   };
 
@@ -1061,6 +1089,42 @@ export default function Profile() {
                 />
               </div>
             </button>
+
+            {/* Favorites Button (was missing) */}
+            <button
+              onClick={showFavorites}
+              className={`w-full flex items-center justify-between px-3 py-2 rounded-lg transition-colors text-left ${
+                activeView === "favorites"
+                  ? "bg-blue-600 text-white"
+                  : "bg-[#0D0D0D] hover:bg-[#2A2B35]"
+              }`}
+            >
+              <span className="text-xs font-medium text-white">
+                {isOwnProfile ? "My Favorites" : `${firstName}'s Favorites`}
+              </span>
+              <div className="flex items-center gap-1.5">
+                <span
+                  className={`text-[10px] ${
+                    !currentUser || !userFavorites || userFavorites.length === 0
+                      ? "text-gray-600"
+                      : activeView === "favorites"
+                      ? "text-white"
+                      : "text-blue-400"
+                  }`}
+                >
+                  {userFavorites ? userFavorites.length : 0}
+                </span>
+                <ArrowRight
+                  className={`w-3 h-3 ${
+                    !currentUser || !userFavorites || userFavorites.length === 0
+                      ? "text-gray-600"
+                      : activeView === "favorites"
+                      ? "text-white"
+                      : "text-blue-400"
+                  }`}
+                />
+              </div>
+            </button>
           </div>
 
           {/* Location & Join Date - Inline compact */}
@@ -1069,13 +1133,12 @@ export default function Profile() {
               <MapPin className="w-3 h-3 text-blue-400 shrink-0" />
               <div className="truncate">
                 {userCity ? (
-                  userCity.id ? (
+                  cityHasId ? (
                     <Link
                       to={createCityUrl(userCity.id)}
                       className="text-sm font-medium hover:text-blue-400 transition-colors"
                     >
-                      {userCity.name}
-                      {userCity.country ? `, ${userCity.country}` : ""}
+                      {cityDisplayText}
                     </Link>
                   ) : (
                     <button
@@ -1083,14 +1146,13 @@ export default function Profile() {
                       onClick={() =>
                         navigate(
                           `${createPageUrl("Search")}?q=${encodeURIComponent(
-                            userCity.name
+                            cityDisplayText || ""
                           )}`
                         )
                       }
                       className="text-sm font-medium hover:text-blue-400 transition-colors text-left"
                     >
-                      {userCity.name}
-                      {userCity.country ? `, ${userCity.country}` : ""}
+                      {cityDisplayText}
                     </button>
                   )
                 ) : (

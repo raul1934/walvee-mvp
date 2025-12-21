@@ -1062,7 +1062,7 @@ export default function TripDetails() {
       }
     }
 
-    const newUrl = `${window.location.pathname}?id=${tripId}&day=${
+    const newUrl = `${window.location.pathname}?day=${
       selectedDay + 1
     }&placeId=${placeCombinedId}`;
     window.history.pushState({}, "", newUrl);
@@ -1073,9 +1073,7 @@ export default function TripDetails() {
     setSelectedPlaceIndex(null);
     setSelectedPlaceDetails(null);
 
-    const newUrl = `${window.location.pathname}?id=${tripId}&day=${
-      selectedDay + 1
-    }`;
+    const newUrl = `${window.location.pathname}?day=${selectedDay + 1}`;
     window.history.pushState({}, "", newUrl);
   };
 
@@ -1102,7 +1100,9 @@ export default function TripDetails() {
 
       // Redirect to the newly cloned trip
       if (response?.data?.clonedTrip?.id) {
-        navigate(`/trip?id=${response.data.clonedTrip.id}`);
+        navigate(
+          `${createPageUrl("TripDetails")}/${response.data.clonedTrip.id}`
+        );
       } else {
         showNotification({
           type: "success",

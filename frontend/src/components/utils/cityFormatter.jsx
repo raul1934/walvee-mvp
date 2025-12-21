@@ -78,3 +78,21 @@ export function getTripCities(trip) {
 
   return result;
 }
+
+/**
+ * Safely format a city name which may be a string or an object.
+ * Examples:
+ * - "Tokyo" -> "Tokyo"
+ * - { name: "Tokyo" } -> "Tokyo"
+ * - { en: "Tokyo", local: "東京" } -> "Tokyo" (prefers common keys)
+ */
+export function formatCityName(name) {
+  if (!name) return "";
+  if (typeof name === "string") return name;
+  if (typeof name === "object") {
+    return (
+      name.name || name.en || name.local || name.default || JSON.stringify(name)
+    );
+  }
+  return String(name);
+}

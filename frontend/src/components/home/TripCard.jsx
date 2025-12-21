@@ -181,7 +181,7 @@ export default React.memo(
 
       const shareUrl = `${window.location.origin}${createPageUrl(
         "TripDetails"
-      )}?id=${trip.id}`;
+      )}/${trip.id}`;
 
       try {
         await navigator.clipboard.writeText(shareUrl);

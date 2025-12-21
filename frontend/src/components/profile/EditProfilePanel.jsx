@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { apiClient, endpoints } from "@/api/apiClient";
 import { User, Upload } from "@/api/entities";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -19,32 +20,126 @@ export default function EditProfilePanel({ user, onClose, onSave }) {
   const [loading, setLoading] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [locationQuery, setLocationQuery] = useState("");
+  const [locationSuggestions, setLocationSuggestions] = useState([]);
+  const [searchingCities, setSearchingCities] = useState(false);
+  const searchTimeoutRef = useRef(null);
+  const [selectedCityId, setSelectedCityId] = useState(
+    user?.city && typeof user.city === "object"
+      ? user.city.id
+      : user?.city_id || null
+  );
 
   const [formData, setFormData] = useState({
     full_name: user?.full_name || "",
     preferred_name: user?.preferred_name || "",
     bio: user?.bio || "",
     instagram_username: user?.instagram_username || "",
-    city: user?.city || "",
-    country: user?.country || "",
+    // Support both legacy string fields and new nested city object
+    city:
+      user?.city && typeof user.city === "object"
+        ? user.city.name || ""
+        : user?.city || "",
+    country:
+      user?.city && typeof user.city === "object"
+        ? user.city.country || user?.country || ""
+        : user?.country || "",
+    // canonical city id when available
+    city_id:
+      user?.city && typeof user.city === "object"
+        ? user.city.id
+        : user?.city_id || null,
     photo_url: user?.photo_url || user?.picture || "",
     birth_date: user?.birth_date || "",
     gender: user?.gender || "",
   });
 
   useEffect(() => {
-    if (user?.city && user?.country) {
-      setLocationQuery(`${user.city}, ${user.country}`);
+    // If backend provides nested city object, prefer it
+    if (user?.city && typeof user.city === "object") {
+      const name = user.city.name || "";
+      const country = user.city.country || user.country || "";
+      const state = user.city.state || "";
+      const display = country
+        ? `${name}${state ? `, ${state}` : ""}, ${country}`
+        : name;
+      if (name || country) setLocationQuery(display);
+      // Initialize canonical id
+      setFormData((prev) => ({ ...prev, city_id: user.city.id }));
+      setSelectedCityId(user.city.id);
+      return;
+    }
+
+    // Fallback to legacy fields
+    if (user?.city || user?.country) {
+      setLocationQuery(
+        `${user.city || ""}${user.country ? `, ${user.country}` : ""}`
+      );
+      // Preserve legacy city_id if provided
+      if (user?.city_id) {
+        setSelectedCityId(user.city_id);
+        setFormData((prev) => ({ ...prev, city_id: user.city_id }));
+      }
     }
   }, [user]);
 
+  // NOTE: use `apiClient` + `endpoints` for API requests (centralized auth/URL handling)
+
   const handleLocationChange = (value) => {
     setLocationQuery(value);
-    // Simple parsing: assume format is "City, Country"
+    setSelectedCityId(null);
+
+    // Update parsed form values as user types (simple "City, Country" parser)
     const parts = value.split(",").map((p) => p.trim());
     const city = parts[0] || "";
     const country = parts.length > 1 ? parts[parts.length - 1] : "";
     setFormData((prev) => ({ ...prev, city, country }));
+
+    // Clear previous timeout
+    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+
+    if (!value || value.trim().length < 2) {
+      setLocationSuggestions([]);
+      return;
+    }
+
+    // Debounce search
+    searchTimeoutRef.current = setTimeout(async () => {
+      setSearchingCities(true);
+      try {
+        const resp = await apiClient.get(endpoints.cities.search, {
+          query: value.trim(),
+        });
+
+        if (resp && resp.success && resp.data) {
+          setLocationSuggestions(resp.data);
+        } else {
+          setLocationSuggestions([]);
+        }
+      } catch (error) {
+        console.error("Error searching cities:", error);
+        setLocationSuggestions([]);
+      } finally {
+        setSearchingCities(false);
+      }
+    }, 300);
+  };
+
+  const handleLocationSelect = (city) => {
+    const cityName = city.name || "";
+    const countryName = city.country?.name || city.country || "";
+    const displayText = countryName
+      ? `${cityName}${city.state ? `, ${city.state}` : ""}, ${countryName}`
+      : cityName;
+
+    setSelectedCityId(city.id);
+    setLocationQuery(displayText);
+    setFormData((prev) => ({
+      ...prev,
+      city: cityName,
+      country: countryName,
+      city_id: city.id,
+    }));
+    setLocationSuggestions([]);
   };
 
   const handlePhotoUpload = async (e) => {
@@ -118,6 +213,13 @@ export default function EditProfilePanel({ user, onClose, onSave }) {
         city: formData.city.trim(),
         country: formData.country.trim(),
       };
+
+      // Prefer selectedCityId (from autocomplete). Fallback to existing nested city.id to preserve FK.
+      if (selectedCityId) {
+        updateData.city_id = selectedCityId;
+      } else if (user?.city && typeof user.city === "object" && user.city.id) {
+        updateData.city_id = user.city.id;
+      }
 
       if (formData.photo_url) {
         updateData.photo_url = formData.photo_url;
@@ -402,6 +504,27 @@ export default function EditProfilePanel({ user, onClose, onSave }) {
                       placeholder="e.g., Paris, France"
                       className="bg-[#1A1B23] border-[#2A2B35] text-white pl-10 h-11 text-sm"
                     />
+                    {/* Suggestions dropdown */}
+                    {locationSuggestions.length > 0 && (
+                      <div className="absolute left-0 right-0 mt-2 bg-[#0B0C0F] border border-[#2A2B35] rounded-lg shadow-lg z-30 max-h-48 overflow-y-auto location-suggestions-scroll">
+                        {locationSuggestions.map((city) => (
+                          <button
+                            key={city.id}
+                            type="button"
+                            onClick={() => handleLocationSelect(city)}
+                            className="w-full text-left px-4 py-2 hover:bg-[#111317] text-sm text-gray-200"
+                          >
+                            <div className="font-medium">
+                              {city.name}
+                              {city.state ? `, ${city.state}` : ""}
+                            </div>
+                            <div className="text-xs text-gray-400">
+                              {city.country?.name || city.country}
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

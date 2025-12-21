@@ -31,6 +31,7 @@ import { useNotification } from "@/contexts/NotificationContext";
 import UserAvatar from "../common/UserAvatar";
 import ImagePlaceholder from "../common/ImagePlaceholder";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import ConfirmationModal from "@/components/common/ConfirmationModal";
 import { getPriceRangeInfo } from "../utils/priceFormatter";
 import { tr } from "date-fns/locale";
 
@@ -290,13 +291,23 @@ export default function PlaceDetails({
   });
 
   const handleDeleteReview = async (review) => {
-    if (!window.confirm("Are you sure you want to delete this review?")) {
-      return;
-    }
+    // Open confirmation modal
+    setReviewPendingDelete(review);
+  };
 
+  const [reviewPendingDelete, setReviewPendingDelete] = useState(null);
+
+  const confirmDeleteReview = async () => {
+    if (!reviewPendingDelete) return;
+    const review = reviewPendingDelete;
     const reviewIdToDelete =
       review.source === "walvee" ? review.originalId : review.id;
     await deleteReviewMutation.mutateAsync(reviewIdToDelete);
+    setReviewPendingDelete(null);
+  };
+
+  const cancelDeleteReview = () => {
+    setReviewPendingDelete(null);
   };
 
   useEffect(() => {
@@ -323,6 +334,21 @@ export default function PlaceDetails({
   useEffect(() => {
     setEnrichedPlace(place);
   }, [place]);
+
+  // Render confirmation modal for deleting reviews
+  const renderConfirmationModal = () => (
+    <ConfirmationModal
+      isOpen={!!reviewPendingDelete}
+      title={"Delete review"}
+      description={
+        "Are you sure you want to delete this review? This action cannot be undone."
+      }
+      confirmLabel={"Delete"}
+      cancelLabel={"Cancel"}
+      onConfirm={confirmDeleteReview}
+      onCancel={cancelDeleteReview}
+    />
+  );
 
   // Normalize photos so UI can handle both string URLs and photo objects
   const normalizedPhotos = React.useMemo(() => {
@@ -372,6 +398,13 @@ export default function PlaceDetails({
       setGoogleRatingsTotal(0);
     }
   }, [enrichedPlace.user_ratings_total, enrichedPlace.reviews]);
+
+  // Close modal on successful deletion
+  useEffect(() => {
+    if (deleteReviewMutation.isSuccess) {
+      setReviewPendingDelete(null);
+    }
+  }, [deleteReviewMutation.isSuccess]);
 
   const formatReviewDate = (timestamp) => {
     if (!timestamp) return "Unknown date";
@@ -647,6 +680,7 @@ export default function PlaceDetails({
 
   return (
     <aside className="place-panel">
+      {renderConfirmationModal()}
       <style>{`
         :root {
           --sat: env(safe-area-inset-top, 0px);
