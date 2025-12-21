@@ -356,9 +356,6 @@ const createTrip = async (req, res, next) => {
       }
     }
 
-    // Update user metrics
-    await user.increment("metrics_trips");
-
     // Fetch the complete trip with associations
     const completeTripData = await Trip.findByPk(trip.id, {
       include: [
@@ -569,12 +566,6 @@ const deleteTrip = async (req, res, next) => {
     }
 
     await trip.destroy();
-
-    // Update user metrics
-    const user = await User.findByPk(userId);
-    if (user.metrics_trips > 0) {
-      await user.decrement("metrics_trips");
-    }
 
     res.json(buildSuccessResponse({ message: "Trip deleted successfully" }));
   } catch (error) {

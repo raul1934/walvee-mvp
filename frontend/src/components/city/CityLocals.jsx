@@ -45,8 +45,8 @@ export default function CityLocals({ cityName }) {
             city: user.city,
             country: user.country,
             bio: user.bio,
-            trips: user.metrics_my_trips || 0,
-            followers: user.metrics_followers || 0,
+            trips: user.trips_count || 0,
+            followers: user.followers_count || 0,
           }))
           .sort((a, b) => {
             // Sort by trips first

@@ -107,7 +107,6 @@ export default function Profile() {
               full_name: firstTrip.author_name || "Traveler",
               preferred_name: firstTrip.author_name?.split(" ")[0],
               photo_url: firstTrip.author_photo,
-              metrics_my_trips: userTripsByEmail.length,
               created_date: firstTrip.created_date,
               // Basic placeholder fields if not fully authenticated
               id: null, // ID will be filled if authenticated below
@@ -115,8 +114,6 @@ export default function Profile() {
               city: null,
               country: null,
               instagram_username: null,
-              metrics_followers: 0, // Will be overridden if authenticated
-              metrics_following: 0, // Will be overridden if authenticated
             };
           }
         } catch (error) {
@@ -511,17 +508,6 @@ export default function Profile() {
         })
       );
 
-      if (previousUser) {
-        const newUser = {
-          ...previousUser,
-          metrics_followers: Math.max(
-            0,
-            (previousUser.metrics_followers || 0) + 1
-          ),
-        };
-        queryClient.setQueryData(["profileUser", profileUser?.id], newUser);
-      }
-
       return { previousFollow, previousUser };
     },
     onError: (err, variables, context) => {
@@ -548,22 +534,11 @@ export default function Profile() {
         })
       );
 
-      if (profileUser.id && currentUser.id) {
-        // Only update KPIs if IDs are available
-        Promise.all([
-          updateUserKPIs(currentUser.id, { following: 1 }),
-          updateUserKPIs(profileUser.id, { followers: 1 }),
-        ])
-          .then(() => {
-            queryClient.invalidateQueries(["profileUser", profileUser.id]);
-            queryClient.invalidateQueries(["currentUser"]);
-            queryClient.invalidateQueries(["profileFollowers", profileUser.id]); // Invalidate infinite query
-            queryClient.invalidateQueries(["profileFollowing", currentUser.id]);
-          })
-          .catch((error) => {
-            console.error("[Follow] KPI update failed:", error);
-          });
-      }
+      // Invalidate count queries to refresh with new data
+      queryClient.invalidateQueries(["followerCount", profileUser.id]);
+      queryClient.invalidateQueries(["followingCount", currentUser.id]);
+      queryClient.invalidateQueries(["profileFollowers", profileUser.id]);
+      queryClient.invalidateQueries(["profileFollowing", currentUser.id]);
     },
     onSettled: () => {
       followActionRef.current = false;
@@ -608,17 +583,6 @@ export default function Profile() {
         })
       );
 
-      if (previousUser) {
-        const newUser = {
-          ...previousUser,
-          metrics_followers: Math.max(
-            0,
-            (previousUser.metrics_followers || 0) - 1
-          ),
-        };
-        queryClient.setQueryData(["profileUser", profileUser?.id], newUser);
-      }
-
       return { previousFollow, previousUser };
     },
     onError: (err, variables, context) => {
@@ -645,22 +609,11 @@ export default function Profile() {
         })
       );
 
-      if (profileUser.id && currentUser.id) {
-        // Only update KPIs if IDs are available
-        Promise.all([
-          updateUserKPIs(currentUser.id, { following: -1 }),
-          updateUserKPIs(profileUser.id, { followers: -1 }),
-        ])
-          .then(() => {
-            queryClient.invalidateQueries(["profileUser", profileUser.id]);
-            queryClient.invalidateQueries(["currentUser"]);
-            queryClient.invalidateQueries(["profileFollowers", profileUser.id]); // Invalidate infinite query
-            queryClient.invalidateQueries(["profileFollowing", currentUser.id]);
-          })
-          .catch((error) => {
-            console.error("[Unfollow] KPI update failed:", error);
-          });
-      }
+      // Invalidate count queries to refresh with new data
+      queryClient.invalidateQueries(["followerCount", profileUser.id]);
+      queryClient.invalidateQueries(["followingCount", currentUser.id]);
+      queryClient.invalidateQueries(["profileFollowers", profileUser.id]);
+      queryClient.invalidateQueries(["profileFollowing", currentUser.id]);
     },
   });
 
@@ -806,9 +759,9 @@ export default function Profile() {
     profileUser.full_name?.split(" ")[0] ||
     "Traveler";
   const myTrips = totalTrips; // Use actual fetched trips count
-  // Use actual counts from queries, fallback to metrics if not available
-  const followersCount = followerCountData ?? actualFollowersCount ?? profileUser.metrics_followers ?? 0;
-  const followingCount = followingCountData ?? actualFollowingCount ?? profileUser.metrics_following ?? 0;
+  // Use actual counts from queries
+  const followersCount = followerCountData ?? actualFollowersCount ?? 0;
+  const followingCount = followingCountData ?? actualFollowingCount ?? 0;
 
   return (
     <div className="min-h-screen bg-[#0A0B0F] pt-16">

@@ -467,8 +467,6 @@ const searchOverlay = async (req, res, next) => {
           "preferred_name",
           "photo_url",
           "city_id",
-          "metrics_trips",
-          "metrics_followers",
         ],
         include: [
           {
@@ -487,24 +485,42 @@ const searchOverlay = async (req, res, next) => {
           },
         ],
         limit: resultLimit,
-        order: [
-          ["metrics_trips", "DESC"],
-          ["metrics_followers", "DESC"],
-        ],
       });
 
       const totalTravelersCount = await User.count({ where: userWhere });
 
-      response.results.travelers = travelers.map((user) => ({
-        id: user.id,
-        email: user.email,
-        name: user.preferred_name || user.full_name || user.email,
-        photo: user.photo_url,
-        city: user.cityData?.name || null,
-        country: user.cityData?.country?.name || null,
-        trips: user.metrics_trips || 0,
-        followers: user.metrics_followers || 0,
-      }));
+      // Calculate dynamic counts for each user
+      const { Follow, Trip } = require("../models/sequelize");
+      const travelersWithCounts = await Promise.all(
+        travelers.map(async (user) => {
+          const trips_count = await Trip.count({
+            where: { author_id: user.id }
+          });
+          
+          const followers_count = await Follow.count({
+            where: { followee_id: user.id }
+          });
+
+          return {
+            id: user.id,
+            email: user.email,
+            name: user.preferred_name || user.full_name || user.email,
+            photo: user.photo_url,
+            city: user.cityData?.name || null,
+            country: user.cityData?.country?.name || null,
+            trips: trips_count,
+            followers: followers_count,
+          };
+        })
+      );
+
+      // Sort by trips then followers
+      travelersWithCounts.sort((a, b) => {
+        if (b.trips !== a.trips) return b.trips - a.trips;
+        return b.followers - a.followers;
+      });
+
+      response.results.travelers = travelersWithCounts;
       response.counts.travelers = totalTravelersCount;
     }
 

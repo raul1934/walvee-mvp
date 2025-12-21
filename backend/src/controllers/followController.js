@@ -1,4 +1,4 @@
-const { Follow, User } = require("../models/sequelize");
+const { Follow, User, Trip } = require("../models/sequelize");
 const { Op } = require("sequelize");
 const {
   paginate,
@@ -24,9 +24,6 @@ const getFollowers = async (req, res, next) => {
             "full_name",
             "preferred_name",
             "photo_url",
-            "metrics_trips",
-            "metrics_followers",
-            "metrics_following",
           ],
         },
       ],
@@ -35,10 +32,38 @@ const getFollowers = async (req, res, next) => {
       order: [["created_at", "DESC"]],
     });
 
-    const followers = follows.map((f) => f.follower);
+    // Add dynamic counts for each follower
+    const followersWithCounts = await Promise.all(
+      follows.map(async (f) => {
+        const follower = f.follower.toJSON();
+        
+        // Count trips
+        const trips_count = await Trip.count({
+          where: { author_id: follower.id }
+        });
+        
+        // Count followers
+        const followers_count = await Follow.count({
+          where: { followee_id: follower.id }
+        });
+        
+        // Count following
+        const following_count = await Follow.count({
+          where: { follower_id: follower.id }
+        });
+        
+        return {
+          ...follower,
+          trips_count,
+          followers_count,
+          following_count,
+        };
+      })
+    );
+
     const pagination = buildPaginationMeta(pageNum, limitNum, total);
 
-    res.json(buildSuccessResponse(followers, pagination));
+    res.json(buildSuccessResponse(followersWithCounts, pagination));
   } catch (error) {
     next(error);
   }
@@ -61,9 +86,6 @@ const getFollowing = async (req, res, next) => {
             "full_name",
             "preferred_name",
             "photo_url",
-            "metrics_trips",
-            "metrics_followers",
-            "metrics_following",
           ],
         },
       ],
@@ -72,10 +94,38 @@ const getFollowing = async (req, res, next) => {
       order: [["created_at", "DESC"]],
     });
 
-    const following = follows.map((f) => f.followee);
+    // Add dynamic counts for each followee
+    const followingWithCounts = await Promise.all(
+      follows.map(async (f) => {
+        const followee = f.followee.toJSON();
+        
+        // Count trips
+        const trips_count = await Trip.count({
+          where: { author_id: followee.id }
+        });
+        
+        // Count followers
+        const followers_count = await Follow.count({
+          where: { followee_id: followee.id }
+        });
+        
+        // Count following
+        const following_count = await Follow.count({
+          where: { follower_id: followee.id }
+        });
+        
+        return {
+          ...followee,
+          trips_count,
+          followers_count,
+          following_count,
+        };
+      })
+    );
+
     const pagination = buildPaginationMeta(pageNum, limitNum, total);
 
-    res.json(buildSuccessResponse(following, pagination));
+    res.json(buildSuccessResponse(followingWithCounts, pagination));
   } catch (error) {
     next(error);
   }
@@ -119,12 +169,6 @@ const followUser = async (req, res, next) => {
       followee_id: followeeId,
     });
 
-    // Update metrics
-    const follower = await User.findByPk(followerId);
-    // keep metrics for backward compatibility, but rely on counts from user_follow
-    await follower.increment("metrics_following");
-    await followee.increment("metrics_followers");
-
     res.status(201).json(buildSuccessResponse(follow));
   } catch (error) {
     next(error);
@@ -153,18 +197,6 @@ const unfollowUser = async (req, res, next) => {
     }
 
     await follow.destroy();
-
-    // Update metrics (best effort)
-    const follower = await User.findByPk(followerId);
-    const followee = await User.findByPk(userId);
-
-    if (follower && follower.metrics_following > 0) {
-      await follower.decrement("metrics_following");
-    }
-
-    if (followee && followee.metrics_followers > 0) {
-      await followee.decrement("metrics_followers");
-    }
 
     res.json(buildSuccessResponse({ message: "User unfollowed successfully" }));
   } catch (error) {
@@ -229,15 +261,6 @@ const deleteFollowRecord = async (req, res, next) => {
     const followee = await User.findByPk(follow.followee_id);
 
     await follow.destroy();
-
-    // Adjust metrics (best effort)
-    if (follower && follower.metrics_following > 0) {
-      await follower.decrement("metrics_following");
-    }
-
-    if (followee && followee.metrics_followers > 0) {
-      await followee.decrement("metrics_followers");
-    }
 
     res.json(buildSuccessResponse({ id, deleted: true }));
   } catch (error) {

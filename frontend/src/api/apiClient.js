@@ -15,6 +15,7 @@ class ApiClient {
     this.baseURL = API_BASE_URL;
     this.token = localStorage.getItem("authToken");
     this.onUnauthenticated = null; // Callback for 401 errors
+    this.onUserUpdate = null; // Callback for /me endpoint responses
   }
 
   setToken(token) {
@@ -32,6 +33,30 @@ class ApiClient {
 
   setUnauthenticatedCallback(callback) {
     this.onUnauthenticated = callback;
+  }
+
+  setUserUpdateCallback(callback) {
+    this.onUserUpdate = callback;
+  }
+
+  // Get current user from localStorage
+  getCachedUser() {
+    try {
+      const cachedUser = localStorage.getItem("currentUser");
+      return cachedUser ? JSON.parse(cachedUser) : null;
+    } catch (error) {
+      console.error("Error parsing cached user:", error);
+      return null;
+    }
+  }
+
+  // Set current user to localStorage
+  setCachedUser(user) {
+    if (user) {
+      localStorage.setItem("currentUser", JSON.stringify(user));
+    } else {
+      localStorage.removeItem("currentUser");
+    }
   }
 
   getHeaders() {
@@ -70,12 +95,21 @@ class ApiClient {
         // Handle 401 Unauthorized - trigger login modal
         if (response.status === 401) {
           this.setToken(null); // Clear invalid token
+          this.setCachedUser(null); // Clear cached user
           if (this.onUnauthenticated) {
             this.onUnauthenticated(); // Trigger login modal
           }
         }
 
         throw error;
+      }
+
+      // Intercept /me endpoint response and update cached user
+      if (endpoint === "/auth/me" && data.success && data.data) {
+        this.setCachedUser(data.data);
+        if (this.onUserUpdate) {
+          this.onUserUpdate(data.data);
+        }
       }
 
       return data;
@@ -137,6 +171,7 @@ class ApiClient {
         // Handle 401 Unauthorized - trigger login modal
         if (response.status === 401) {
           this.setToken(null); // Clear invalid token
+          this.setCachedUser(null); // Clear cached user
           if (this.onUnauthenticated) {
             this.onUnauthenticated(); // Trigger login modal
           }

@@ -309,8 +309,8 @@ const getHomeTravelers = async (req, res) => {
   try {
     const { limit = 12 } = req.query;
 
-    // Get users with most trips
-    const travelers = await User.findAll({
+    // Get all users
+    const users = await User.findAll({
       attributes: [
         "id",
         "email",
@@ -318,22 +318,46 @@ const getHomeTravelers = async (req, res) => {
         "preferred_name",
         "photo_url",
         "city_id",
-        "metrics_trips",
-        "metrics_followers",
-        "metrics_following",
       ],
-      where: {
-        metrics_trips: { [Op.gt]: 0 },
-      },
-      order: [
-        ["metrics_trips", "DESC"],
-        ["metrics_followers", "DESC"],
-      ],
-      limit: parseInt(limit),
+      limit: parseInt(limit) * 3, // Get more to filter and sort
     });
 
+    // Calculate dynamic counts for each user
+    const { Follow, Trip } = require("../models/sequelize");
+    const usersWithCounts = await Promise.all(
+      users.map(async (user) => {
+        const trips_count = await Trip.count({
+          where: { author_id: user.id }
+        });
+        
+        const followers_count = await Follow.count({
+          where: { followee_id: user.id }
+        });
+        
+        const following_count = await Follow.count({
+          where: { follower_id: user.id }
+        });
+
+        return {
+          user,
+          trips_count,
+          followers_count,
+          following_count,
+        };
+      })
+    );
+
+    // Filter users with at least one trip and sort
+    const travelers = usersWithCounts
+      .filter(u => u.trips_count > 0)
+      .sort((a, b) => {
+        if (b.trips_count !== a.trips_count) return b.trips_count - a.trips_count;
+        return b.followers_count - a.followers_count;
+      })
+      .slice(0, parseInt(limit));
+
     // Format response
-    const formattedTravelers = travelers.map((user) => ({
+    const formattedTravelers = travelers.map(({ user, trips_count, followers_count, following_count }) => ({
       id: user.id,
       email: user.email,
       name: user.preferred_name || user.full_name,
@@ -342,9 +366,9 @@ const getHomeTravelers = async (req, res) => {
       photo_url: getFullImageUrl(user.photo_url),
       picture: getFullImageUrl(user.photo_url),
       city_id: user.city_id,
-      metrics_my_trips: user.metrics_trips || 0,
-      metrics_followers: user.metrics_followers || 0,
-      metrics_following: user.metrics_following || 0,
+      trips_count,
+      followers_count,
+      following_count,
     }));
 
     return res.json(

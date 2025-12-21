@@ -15,16 +15,28 @@ export const useAuth = () => {
 };
 
 export const AuthProvider = ({ children, currentPageName }) => {
-  const [user, setUser] = useState(null);
+  // Initialize user from localStorage to prevent UI blink on refresh
+  const [user, setUser] = useState(() => apiClient.getCachedUser());
   const [loading, setLoading] = useState(true);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const navigate = useNavigate();
 
+  // Wrapper for setUser that also updates localStorage
+  const updateUser = (newUser) => {
+    setUser(newUser);
+    apiClient.setCachedUser(newUser);
+  };
+
   useEffect(() => {
     // Register callback to show login modal on 401 errors
     apiClient.setUnauthenticatedCallback(() => {
-      setUser(null);
+      updateUser(null);
       setIsLoginModalOpen(true);
+    });
+
+    // Register callback to auto-update user when /me endpoint is called
+    apiClient.setUserUpdateCallback((backendUser) => {
+      updateUser(backendUser);
     });
 
     // Load user once on initial mount
@@ -32,7 +44,7 @@ export const AuthProvider = ({ children, currentPageName }) => {
       if (authService.isAuthenticated()) {
         try {
           const backendUser = await authService.me();
-          setUser(backendUser);
+          updateUser(backendUser);
 
           // Update photo if needed
           if (backendUser.picture && !backendUser.photo_url) {
@@ -55,7 +67,7 @@ export const AuthProvider = ({ children, currentPageName }) => {
           }
         } catch (error) {
           console.error("Error loading user data:", error);
-          setUser(null);
+          updateUser(null);
         }
       }
       setLoading(false);
@@ -63,9 +75,10 @@ export const AuthProvider = ({ children, currentPageName }) => {
 
     loadUser();
 
-    // Cleanup callback on unmount
+    // Cleanup callbacks on unmount
     return () => {
       apiClient.setUnauthenticatedCallback(null);
+      apiClient.setUserUpdateCallback(null);
     };
   }, [currentPageName, navigate]);
 
@@ -81,15 +94,15 @@ export const AuthProvider = ({ children, currentPageName }) => {
     if (authService.isAuthenticated()) {
       try {
         const backendUser = await authService.me();
-        setUser(backendUser);
+        updateUser(backendUser);
         return backendUser;
       } catch (error) {
         console.error("Error refreshing user:", error);
-        setUser(null);
+        updateUser(null);
         return null;
       }
     }
-    setUser(null);
+    updateUser(null);
     return null;
   };
 

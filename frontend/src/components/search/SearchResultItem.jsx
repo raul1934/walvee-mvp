@@ -190,13 +190,13 @@ export default function SearchResultItem({ result, onClose, onPlaceClick }) {
             <span className="flex items-center gap-1">
               <Users className="w-3 h-3" />
               {formatNumber(
-                result.followers || result.metrics_followers || 0
+                result.followers || result.followers_count || 0
               )}{" "}
               followers
             </span>
             <span className="flex items-center gap-1">
               <TrendingUp className="w-3 h-3" />
-              {formatNumber(result.metrics_my_trips || 0)} trips
+              {formatNumber(result.trips || result.trips_count || 0)} trips
             </span>
           </div>
 

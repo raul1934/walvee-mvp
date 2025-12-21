@@ -51,9 +51,9 @@ export default function Navbar({ user, onMenuClick, openLoginModal }) {
     },
   });
 
-  const myTrips = liveUser?.metrics_my_trips || 0;
-  const followers = liveUser?.metrics_followers || 0;
-  const following = liveUser?.metrics_following || 0;
+  const myTrips = liveUser?.trips_count || 0;
+  const followers = liveUser?.followers_count || 0;
+  const following = liveUser?.following_count || 0;
 
   const handleSearchOpen = () => {
     setIsSearchOpen(true);

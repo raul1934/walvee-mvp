@@ -47,13 +47,13 @@ export default function UserListItem({ user, currentUser, onFollowToggle }) {
           <div className="flex items-center gap-4 mt-3 text-xs">
             <span className="text-gray-400">
               <span className="font-semibold text-white">
-                {user.metrics_trips || user.metrics_my_trips || 0}
+                {user.trips_count || 0}
               </span>{" "}
               trips
             </span>
             <span className="text-gray-400">
               <span className="font-semibold text-white">
-                {user.metrics_followers || 0}
+                {user.followers_count || 0}
               </span>{" "}
               followers
             </span>

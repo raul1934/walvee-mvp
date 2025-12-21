@@ -63,12 +63,6 @@ const likeTrip = async (req, res, next) => {
     // Update trip likes count
     await trip.increment("likes_count");
 
-    // Update trip author's likes received metric
-    const author = await User.findByPk(trip.author_id);
-    if (author) {
-      await author.increment("metrics_likes_received");
-    }
-
     res.status(201).json(buildSuccessResponse(like));
   } catch (error) {
     next(error);
@@ -106,14 +100,6 @@ const unlikeTrip = async (req, res, next) => {
     // Update trip likes count
     if (trip && trip.likes_count > 0) {
       await trip.decrement("likes_count");
-    }
-
-    // Update trip author's likes received metric
-    if (trip) {
-      const author = await User.findByPk(trip.author_id);
-      if (author && author.metrics_likes_received > 0) {
-        await author.decrement("metrics_likes_received");
-      }
     }
 
     res.json(buildSuccessResponse({ message: "Trip unliked successfully" }));

@@ -33,7 +33,6 @@ import ImagePlaceholder from "../components/common/ImagePlaceholder";
 import StealModal from "../components/trip/StealModal";
 import TravelerTips from "../components/trip/TravelerTips";
 import { findPlaceInTrip } from "../components/utils/placeId";
-import { updateUserKPIs, updateTripKPIs } from "../components/utils/kpiManager";
 import { formatNumber } from "../components/utils/numberFormatter";
 import { getPriceRangeInfo } from "../components/utils/priceFormatter";
 import CitiesScroller from "../components/common/CitiesScroller";
@@ -302,18 +301,6 @@ export default function TripDetails() {
         })
       );
 
-      // Optimistically update current user's following count
-      if (previousUser) {
-        const newUser = {
-          ...previousUser,
-          metrics_following: Math.max(
-            0,
-            (previousUser.metrics_following || 0) + 1
-          ),
-        };
-        queryClient.setQueryData(["currentUser"], newUser);
-      }
-
       return { previousFollow, previousUser, startTime };
     },
     onError: (err, variables, context) => {
@@ -347,19 +334,8 @@ export default function TripDetails() {
         })
       );
 
-      // Update KPIs in background (non-blocking)
-      Promise.all([
-        // Update current user's following count
-        updateUserKPIs(currentUser.id, { following: 1 }),
-        // Update trip author's followers count
-        updateUserKPIs(tripData.created_by, { followers: 1 }),
-      ])
-        .then(() => {
-          queryClient.invalidateQueries(["currentUser"]);
-        })
-        .catch((error) => {
-          console.error("[Follow] KPI update failed (non-critical):", error);
-        });
+      // Invalidate queries to refresh counts
+      queryClient.invalidateQueries(["currentUser"]);
     },
     onSettled: () => {
       followActionRef.current = false;
@@ -402,18 +378,6 @@ export default function TripDetails() {
         })
       );
 
-      // Optimistically update current user's following count
-      if (previousUser) {
-        const newUser = {
-          ...previousUser,
-          metrics_following: Math.max(
-            0,
-            (previousUser.metrics_following || 0) - 1
-          ),
-        };
-        queryClient.setQueryData(["currentUser"], newUser);
-      }
-
       return { previousFollow, previousUser, startTime };
     },
     onError: (err, variables, context) => {
@@ -447,22 +411,10 @@ export default function TripDetails() {
         })
       );
 
-      // Update KPIs in background (non-blocking)
-      Promise.all([
-        // Update current user's following count
-        updateUserKPIs(currentUser.id, { following: -1 }),
-        // Update trip author's followers count
-        updateUserKPIs(tripData.created_by, { followers: -1 }),
-      ])
-        .then(() => {
-          queryClient.invalidateQueries(["currentUser"]);
-        })
-        .catch((error) => {
-          console.error("[Unfollow] KPI update failed (non-critical):", error);
-        });
+      // Invalidate queries to refresh counts
+      queryClient.invalidateQueries(["currentUser"]);
     },
   });
-
   const likeMutation = useMutation({
     mutationFn: async () => {
       if (!currentUser || !tripId) throw new Error("Not authenticated");
@@ -544,13 +496,8 @@ export default function TripDetails() {
         })
       );
 
-      // Update trip KPIs
-      try {
-        await updateTripKPIs(tripId, { likes: 1 });
-        await queryClient.invalidateQueries(["trip", tripId]);
-      } catch (error) {
-        console.error("[Like] Trip KPI update failed:", error);
-      }
+      // Invalidate trip query to refresh like count
+      await queryClient.invalidateQueries(["trip", tripId]);
     },
   });
 
@@ -625,13 +572,8 @@ export default function TripDetails() {
         })
       );
 
-      // Update trip KPIs
-      try {
-        await updateTripKPIs(tripId, { likes: -1 });
-        await queryClient.invalidateQueries(["trip", tripId]);
-      } catch (error) {
-        console.error("[Unlike] Trip KPI update failed:", error);
-      }
+      // Invalidate trip query to refresh like count
+      await queryClient.invalidateQueries(["trip", tripId]);
     },
   });
 

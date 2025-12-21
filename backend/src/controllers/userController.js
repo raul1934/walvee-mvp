@@ -52,7 +52,27 @@ const getUserById = async (req, res, next) => {
         .json(buildErrorResponse("RESOURCE_NOT_FOUND", "User not found"));
     }
 
-    res.json(buildSuccessResponse(user));
+    // Add dynamic counts
+    const { Follow, Trip } = require("../models/sequelize");
+    
+    const followers_count = await Follow.count({
+      where: { followee_id: id },
+    });
+    
+    const following_count = await Follow.count({
+      where: { follower_id: id },
+    });
+    
+    const trips_count = await Trip.count({
+      where: { author_id: id },
+    });
+
+    const userObj = user.toJSON();
+    userObj.followers_count = followers_count;
+    userObj.following_count = following_count;
+    userObj.trips_count = trips_count;
+
+    res.json(buildSuccessResponse(userObj));
   } catch (error) {
     next(error);
   }
@@ -114,11 +134,35 @@ const getUserStats = async (req, res, next) => {
         .json(buildErrorResponse("RESOURCE_NOT_FOUND", "User not found"));
     }
 
+    // Calculate stats dynamically
+    const { Follow, Trip, TripLike } = require("../models/sequelize");
+    
+    const followers_count = await Follow.count({
+      where: { followee_id: id },
+    });
+    
+    const following_count = await Follow.count({
+      where: { follower_id: id },
+    });
+    
+    const trips_count = await Trip.count({
+      where: { author_id: id },
+    });
+    
+    const likesReceived = await TripLike.count({
+      include: [{
+        model: Trip,
+        as: 'trip',
+        where: { author_id: id },
+        required: true,
+      }],
+    });
+
     const stats = {
-      followers: user.metrics_followers || 0,
-      following: user.metrics_following || 0,
-      trips: user.metrics_trips || 0,
-      likesReceived: user.metrics_likes_received || 0,
+      followers: followers_count,
+      following: following_count,
+      trips: trips_count,
+      likesReceived: likesReceived,
     };
 
     res.json(buildSuccessResponse(stats));
