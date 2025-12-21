@@ -96,6 +96,13 @@ function PagesContent() {
           <Route path="/Profile" element={<Profile />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/profile/:userId" element={<Profile />} />
+          <Route path="/profile/followers" element={<Profile />} />
+          <Route path="/profile/followees" element={<Profile />} />
+          <Route path="/profile/following" element={<Profile />} />
+          <Route path="/profile/favorites" element={<Profile />} />
+          <Route path="/profile/favourites" element={<Profile />} />
+
+          <Route path="/profile/edit" element={<EditProfile />} />
 
           <Route path="/EditProfile" element={<EditProfile />} />
 

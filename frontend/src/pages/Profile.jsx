@@ -24,7 +24,7 @@ import FavoriteCard from "../components/profile/FavoriteCard";
 import UserListItem from "../components/profile/UserListItem";
 import PlaceModal from "../components/city/PlaceModal";
 import ProfileTripFilters from "../components/profile/ProfileTripFilters";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { createPageUrl, createProfileUrl } from "@/utils";
 import EditProfilePanel from "../components/profile/EditProfilePanel";
 import { getTripDestinationName } from "@/components/utils/cityFormatter";
@@ -47,6 +47,22 @@ export default function Profile() {
   const targetUserId = !isEmailInUserId && profileUserId ? profileUserId : null;
 
   const [activeView, setActiveView] = useState("trips");
+  const location = useLocation();
+
+  // Initialize activeView based on the URL path (support /profile/followers, /profile/followees, /profile/following, /profile/favorites)
+  useEffect(() => {
+    const path = (location.pathname || "").toLowerCase();
+    if (path.endsWith("/followers")) {
+      setActiveView("followers");
+    } else if (path.endsWith("/followees") || path.endsWith("/following")) {
+      setActiveView("following");
+    } else if (path.endsWith("/favorites") || path.endsWith("/favourites")) {
+      setActiveView("favorites");
+    } else {
+      // Keep previous view if already set, default to trips
+      setActiveView((prev) => prev || "trips");
+    }
+  }, [location.pathname]);
   const [selectedPlace, setSelectedPlace] = useState(null);
   const [isPlaceModalOpen, setIsPlaceModalOpen] = useState(false);
   const [tripFilter, setTripFilter] = useState(null);
@@ -674,20 +690,40 @@ export default function Profile() {
   };
 
   const scrollToTrips = () => {
+    const base =
+      !isOwnProfile && profileUser?.id
+        ? createProfileUrl(profileUser.id)
+        : createProfileUrl();
+    navigate(`${base}`);
     setActiveView("trips");
   };
 
   const showFavorites = () => {
+    const base =
+      !isOwnProfile && profileUser?.id
+        ? createProfileUrl(profileUser.id)
+        : createProfileUrl();
+    navigate(`${base}/favorites`);
     setActiveView("favorites");
     // If not authenticated, subsequent API calls will trigger 401 and show login modal
   };
 
   const showFollowers = () => {
+    const base =
+      !isOwnProfile && profileUser?.id
+        ? createProfileUrl(profileUser.id)
+        : createProfileUrl();
+    navigate(`${base}/followers`);
     setActiveView("followers");
     // If not authenticated, subsequent API calls will trigger 401 and show login modal
   };
 
   const showFollowing = () => {
+    const base =
+      !isOwnProfile && profileUser?.id
+        ? createProfileUrl(profileUser.id)
+        : createProfileUrl();
+    navigate(`${base}/followees`);
     setActiveView("following");
     // If not authenticated, subsequent API calls will trigger 401 and show login modal
   };
@@ -881,7 +917,9 @@ export default function Profile() {
               <div className="text-xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
                 {followersCount}
               </div>
-              <div className="text-[10px] text-gray-400 mt-0.5">Followers</div>
+              <div className="text-[10px] text-gray-400 mt-0.5">
+                {isOwnProfile ? "My Followers" : "Followers"}
+              </div>
             </button>
 
             <button
@@ -896,60 +934,10 @@ export default function Profile() {
               <div className="text-xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
                 {followingCount}
               </div>
-              <div className="text-[10px] text-gray-400 mt-0.5">Following</div>
+              <div className="text-[10px] text-gray-400 mt-0.5">
+                {isOwnProfile ? "My Followees" : "Following"}
+              </div>
             </button>
-          </div>
-
-          {/* Location & Join Date - Inline compact */}
-          <div className="space-y-2 mb-4 pb-4 border-b border-[#2A2B35]">
-            <div className="flex items-center gap-2 text-xs text-gray-400">
-              <MapPin className="w-3 h-3 text-blue-400 shrink-0" />
-              <span className="truncate">
-                {profileUser.city && profileUser.country ? (
-                  <>
-                    {profileUser.city},{" "}
-                    {profileUser.country.includes("-")
-                      ? profileUser.country.split("-")[1].trim()
-                      : profileUser.country}
-                  </>
-                ) : (
-                  profileUser.city || "Location not set"
-                )}
-              </span>
-            </div>
-
-            <div className="flex items-center gap-2 text-xs text-gray-400">
-              <Calendar className="w-3 h-3 text-blue-400 shrink-0" />
-              <span>
-                {profileUser.created_date
-                  ? format(new Date(profileUser.created_date), "MMM yyyy")
-                  : "Recently"}
-              </span>
-            </div>
-          </div>
-
-          {/* Trips/Places/Countries Stats - Compact */}
-          <div className="bg-[#0D0D0D] rounded-lg p-3 mb-4">
-            <div className="grid grid-cols-3 gap-2">
-              <div className="text-center">
-                <div className="text-lg font-bold text-white">{totalTrips}</div>
-                <div className="text-[10px] text-gray-500">trips</div>
-              </div>
-
-              <div className="text-center border-x border-[#2A2B35]">
-                <div className="text-lg font-bold text-white">
-                  {totalPlaces}
-                </div>
-                <div className="text-[10px] text-gray-500">places</div>
-              </div>
-
-              <div className="text-center">
-                <div className="text-lg font-bold text-white">
-                  {uniqueCountries}
-                </div>
-                <div className="text-[10px] text-gray-500">countries</div>
-              </div>
-            </div>
           </div>
 
           {/* Navigation Buttons - Compact */}
@@ -993,42 +981,108 @@ export default function Profile() {
             </button>
 
             <button
-              onClick={showFavorites}
-              disabled={!currentUser || userFavorites.length === 0}
+              onClick={showFollowers}
+              disabled={!currentUser || followersCount === 0}
               className={`w-full flex items-center justify-between px-3 py-2 rounded-lg transition-colors text-left ${
-                !currentUser || userFavorites.length === 0
+                !currentUser || followersCount === 0
                   ? "bg-[#0D0D0D] opacity-50 cursor-not-allowed"
-                  : activeView === "favorites"
+                  : activeView === "followers"
                   ? "bg-blue-600 text-white"
                   : "bg-[#0D0D0D] hover:bg-[#2A2B35]"
               }`}
             >
               <span className="text-xs font-medium text-white">
-                {isOwnProfile ? "My favorites" : `${firstName}'s favorites`}
+                {isOwnProfile ? "My Followers" : "Followers"}
               </span>
               <div className="flex items-center gap-1.5">
                 <span
                   className={`text-[10px] ${
-                    !currentUser || userFavorites.length === 0
+                    !currentUser || followersCount === 0
                       ? "text-gray-600"
-                      : activeView === "favorites"
+                      : activeView === "followers"
                       ? "text-white"
                       : "text-blue-400"
                   }`}
                 >
-                  {userFavorites.length}
+                  {followersCount}
                 </span>
                 <ArrowRight
                   className={`w-3 h-3 ${
-                    !currentUser || userFavorites.length === 0
+                    !currentUser || followersCount === 0
                       ? "text-gray-600"
-                      : activeView === "favorites"
+                      : activeView === "followers"
                       ? "text-white"
                       : "text-blue-400"
                   }`}
                 />
               </div>
             </button>
+
+            <button
+              onClick={showFollowing}
+              disabled={!currentUser}
+              className={`w-full flex items-center justify-between px-3 py-2 rounded-lg transition-colors text-left ${
+                !currentUser
+                  ? "bg-[#0D0D0D] opacity-50 cursor-not-allowed"
+                  : activeView === "following"
+                  ? "bg-blue-600 text-white"
+                  : "bg-[#0D0D0D] hover:bg-[#2A2B35]"
+              }`}
+            >
+              <span className="text-xs font-medium text-white">
+                {isOwnProfile ? "My Followees" : "Following"}
+              </span>
+              <div className="flex items-center gap-1.5">
+                <span
+                  className={`text-[10px] ${
+                    !currentUser
+                      ? "text-gray-600"
+                      : activeView === "following"
+                      ? "text-white"
+                      : "text-blue-400"
+                  }`}
+                >
+                  {followingCount}
+                </span>
+                <ArrowRight
+                  className={`w-3 h-3 ${
+                    !currentUser
+                      ? "text-gray-600"
+                      : activeView === "following"
+                      ? "text-white"
+                      : "text-blue-400"
+                  }`}
+                />
+              </div>
+            </button>
+          </div>
+
+          {/* Location & Join Date - Inline compact */}
+          <div className="space-y-2 mb-4 pb-4 border-b border-[#2A2B35]">
+            <div className="flex items-center gap-2 text-xs text-gray-400">
+              <MapPin className="w-3 h-3 text-blue-400 shrink-0" />
+              <span className="truncate">
+                {profileUser.city && profileUser.country ? (
+                  <>
+                    {profileUser.city},{" "}
+                    {profileUser.country.includes("-")
+                      ? profileUser.country.split("-")[1].trim()
+                      : profileUser.country}
+                  </>
+                ) : (
+                  profileUser.city || "Location not set"
+                )}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2 text-xs text-gray-400">
+              <Calendar className="w-3 h-3 text-blue-400 shrink-0" />
+              <span>
+                {profileUser.created_date
+                  ? format(new Date(profileUser.created_date), "MMM yyyy")
+                  : "Recently"}
+              </span>
+            </div>
           </div>
 
           {/* Action Button */}

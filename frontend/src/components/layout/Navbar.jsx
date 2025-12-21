@@ -147,7 +147,7 @@ export default function Navbar({ user, onMenuClick, openLoginModal }) {
                     </Link>
 
                     <Link
-                      to={createProfileUrl()}
+                      to={`${createProfileUrl()}/followers`}
                       className="text-center hover:opacity-80 transition-opacity"
                     >
                       <div className="text-lg font-bold text-white">
@@ -159,7 +159,7 @@ export default function Navbar({ user, onMenuClick, openLoginModal }) {
                     </Link>
 
                     <Link
-                      to={createProfileUrl()}
+                      to={`${createProfileUrl()}/followees`}
                       className="text-center hover:opacity-80 transition-opacity"
                     >
                       <div className="text-lg font-bold text-white">

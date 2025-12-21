@@ -120,6 +120,12 @@ export const TripLike = {
     return response.data;
   },
 
+  // Allow filtering likes by query params (e.g., { liker_id }) to match Firestore API
+  async filter(conditions = {}) {
+    const response = await apiClient.get(endpoints.tripLikes.list, conditions);
+    return response.data;
+  },
+
   async delete(id) {
     await apiClient.delete(endpoints.tripLikes.delete(id));
     return { id, deleted: true };

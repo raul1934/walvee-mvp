@@ -53,9 +53,19 @@ export default function FavoriteCard({
     }
   };
 
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      handleClick();
+    }
+  };
+
   return (
-    <button
+    <div
+      role="button"
+      tabIndex={0}
       onClick={handleClick}
+      onKeyDown={handleKeyDown}
       className="bg-[#1A1B23] rounded-xl overflow-hidden border border-[#2A2B35] hover:border-blue-500/30 transition-all group relative w-full text-left"
     >
       {/* Image */}
@@ -153,6 +163,6 @@ export default function FavoriteCard({
           </p>
         )}
       </div>
-    </button>
+    </div>
   );
 }

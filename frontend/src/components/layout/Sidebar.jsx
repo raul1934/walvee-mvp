@@ -56,7 +56,7 @@ export default function Sidebar({ isOpen, onClose, user, openLoginModal }) {
                 </Link>
 
                 <Link
-                  to={createPageUrl("EditProfile")}
+                  to="/profile/edit"
                   className="text-white text-base py-[7px] hover:opacity-85 transition-opacity focus:outline-none focus:ring-2 focus:ring-[#1E66FF] focus:ring-offset-2 focus:ring-offset-[#0D0D0D] rounded"
                   onClick={onClose}
                 >
