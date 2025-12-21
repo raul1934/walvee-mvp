@@ -233,6 +233,13 @@ export const endpoints = {
     check: (tripId) => `/trip-likes/check/${tripId}`,
   },
 
+  // Place Favorites
+  placeFavorites: {
+    list: "/place-favorites",
+    create: "/place-favorites",
+    delete: (id) => `/place-favorites/${id}`,
+  },
+
   // Follows
   follows: {
     followers: (userId) => `/follows/followers/${userId}`,

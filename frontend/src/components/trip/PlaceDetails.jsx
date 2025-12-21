@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Review } from "@/api/entities";
 import { apiClient } from "@/api/apiClient";
+import { useFavorites } from "@/components/hooks/useFavorites";
 import {
   X,
   Clock,
@@ -190,6 +191,11 @@ export default function PlaceDetails({
   });
 
   const queryClient = useQueryClient();
+
+  // Favorites hook
+  const { isPlaceFavorited, togglePlaceFavorite, isTogglingPlace } = useFavorites(user);
+  const placeId = enrichedPlace.id || enrichedPlace.place_id;
+  const isFavorited = isPlaceFavorited(placeId);
 
   const headerRef = useRef(null);
   const tabsRef = useRef(null);
@@ -561,6 +567,7 @@ export default function PlaceDetails({
     { id: "general", label: "General", Icon: Info },
     { id: "reviews", label: "Reviews", Icon: Star },
     { id: "photos", label: "Photos", Icon: Camera },
+    { id: "favorites", label: "Favorites", Icon: Heart },
     { id: "directions", label: "Directions", Icon: Navigation },
   ];
 
@@ -1106,6 +1113,62 @@ export default function PlaceDetails({
                 </p>
               </div>
             )}
+          </div>
+        )}
+
+        {activeTab === "favorites" && (
+          <div className="p-6">
+            <div className="bg-[#111827] rounded-xl p-6 border border-[#1F1F1F] text-center">
+              <div className="mb-4">
+                <Heart
+                  className={`w-16 h-16 mx-auto mb-4 ${
+                    isFavorited
+                      ? "fill-red-500 text-red-500"
+                      : "text-gray-400"
+                  }`}
+                />
+                <h3 className="text-xl font-bold text-white mb-2">
+                  {isFavorited ? "Added to Favorites" : "Add to Favorites"}
+                </h3>
+                <p className="text-gray-400 text-sm">
+                  {isFavorited
+                    ? "You've saved this place to your favorites. Remove it to stop seeing it in your favorites list."
+                    : "Save this place to quickly access it later. Your favorites are synced across all devices."}
+                </p>
+              </div>
+
+              <Button
+                onClick={async () => {
+                  if (!user) {
+                    openLoginModal?.();
+                    return;
+                  }
+                  try {
+                    await togglePlaceFavorite(placeId);
+                  } catch (error) {
+                    console.error("Error toggling favorite:", error);
+                  }
+                }}
+                disabled={isTogglingPlace}
+                className={`w-full h-12 font-semibold text-base ${
+                  isFavorited
+                    ? "bg-red-600 hover:bg-red-700"
+                    : "bg-gradient-to-r from-blue-600 to-purple-600 hover:opacity-90"
+                }`}
+              >
+                {isTogglingPlace ? (
+                  <>
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                    {isFavorited ? "Removing..." : "Adding..."}
+                  </>
+                ) : (
+                  <>
+                    <Heart className={`w-5 h-5 mr-2 ${isFavorited ? "fill-white" : ""}`} />
+                    {isFavorited ? "Remove from Favorites" : "Add to Favorites"}
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
         )}
 

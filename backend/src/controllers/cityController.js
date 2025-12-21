@@ -696,6 +696,8 @@ const getCityTrips = async (req, res, next) => {
                   ? day.activities
                       .filter((a) => a.placeDetails)
                       .map((a) => ({
+                        id: a.placeDetails.id,
+                        place_id: a.placeDetails.google_place_id,
                         name: a.placeDetails.name,
                         address: a.placeDetails.address,
                         rating: a.placeDetails.rating

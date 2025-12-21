@@ -250,6 +250,22 @@ const migrations = [
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     `,
   },
+  {
+    name: "create_place_favorites_table",
+    up: `
+      CREATE TABLE IF NOT EXISTS place_favorites (
+        id CHAR(36) PRIMARY KEY,
+        place_id INT NOT NULL,
+        user_id CHAR(36) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (place_id) REFERENCES places(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        UNIQUE KEY unique_place_favorite (place_id, user_id),
+        INDEX idx_place_id (place_id),
+        INDEX idx_user_id (user_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `,
+  },
 ];
 
 const runMigrations = async () => {

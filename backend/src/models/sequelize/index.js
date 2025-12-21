@@ -18,6 +18,7 @@ const City = require("./City");
 const Place = require("./Place");
 const PlacePhoto = require("./PlacePhoto");
 const CityPhoto = require("./CityPhoto");
+const PlaceFavorite = require("./PlaceFavorite");
 
 // Define associations
 Country.hasMany(City, { foreignKey: "country_id", as: "cities" });
@@ -130,6 +131,12 @@ Place.hasMany(TripItineraryActivity, {
   as: "itineraryActivities",
 });
 
+// Place Favorite associations
+User.hasMany(PlaceFavorite, { foreignKey: "user_id", as: "placeFavorites" });
+PlaceFavorite.belongsTo(User, { foreignKey: "user_id", as: "user" });
+Place.hasMany(PlaceFavorite, { foreignKey: "place_id", as: "favorites" });
+PlaceFavorite.belongsTo(Place, { foreignKey: "place_id", as: "place" });
+
 module.exports = {
   sequelize,
   User,
@@ -151,4 +158,5 @@ module.exports = {
   Place,
   PlacePhoto,
   CityPhoto,
+  PlaceFavorite,
 };

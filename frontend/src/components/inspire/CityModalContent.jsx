@@ -169,6 +169,7 @@ export default function CityModalContent({ cityName, user, onAddToTrip }) {
   }, [topPlaces, placeCategory]);
 
   const handlePlaceClick = (place) => {
+    console.log("Place clicked:", place);
     setSelectedPlace(place);
     setIsPlaceModalOpen(true);
   };

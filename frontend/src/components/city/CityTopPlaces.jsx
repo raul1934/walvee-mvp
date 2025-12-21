@@ -4,8 +4,6 @@ import { motion } from "framer-motion";
 import ImagePlaceholder from "../common/ImagePlaceholder";
 import { getCompactPriceDisplay } from "../utils/priceFormatter"; // Added import
 
-// Removed getPriceRangeSymbol as it's replaced by getCompactPriceDisplay
-
 export default function CityTopPlaces({
   places,
   cityName,
@@ -51,7 +49,7 @@ export default function CityTopPlaces({
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {places.map((place, idx) => {
-          const placeId = place.place_id || place.name;
+          const placeId = place.id || place.place_id || place.name;
           const hasError = imageErrors.has(placeId);
           const priceDisplay = getCompactPriceDisplay(place.price_level); // Changed from priceSymbol to priceDisplay
 

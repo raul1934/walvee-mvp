@@ -192,11 +192,12 @@ export default function City({ cityNameOverride, isModal = false }) {
         day.places?.forEach((place) => {
           if (!place.name) return;
 
-          const key = place.place_id || place.name;
+          const key = place.id || place.place_id || place.name;
           placeCount[key] = (placeCount[key] || 0) + 1;
 
           if (!placeDetails[key]) {
             placeDetails[key] = {
+              id: place.id,
               name: place.name,
               address: place.address,
               place_id: place.place_id,

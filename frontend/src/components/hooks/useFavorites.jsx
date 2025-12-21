@@ -1,16 +1,18 @@
 import { useState, useCallback } from "react";
 import { TripLike } from "@/api/entities";
+import { apiClient, endpoints } from "@/api/apiClient";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+
 /**
- * Global favorites hook - manages favorites across the entire app
- * Provides consistent favorite state and operations
+ * Global favorites hook - manages both trip and place favorites
+ * Detects type automatically based on data structure
  */
 export function useFavorites(user) {
   const queryClient = useQueryClient();
 
-  // Fetch user's favorites
-  const { data: favorites = [], isLoading } = useQuery({
-    queryKey: ["favorites", user?.id],
+  // Fetch user's trip favorites
+  const { data: tripFavorites = [], isLoading: isLoadingTrips } = useQuery({
+    queryKey: ["tripFavorites", user?.id],
     queryFn: async () => {
       if (!user?.id) {
         return [];
@@ -30,81 +32,149 @@ export function useFavorites(user) {
     cacheTime: 10 * 60 * 1000, // 10 minutes
   });
 
-  // Add favorite mutation
-  const addFavoriteMutation = useMutation({
-    mutationFn: async (placeData) => {
-      // Note: useFavorites appears to be for place favorites, not trip likes
-      // This may need different endpoint/service - using tripId for now
-      // TODO: Review if this should use a different endpoint for place favorites
-      const tripId = placeData.trip_id || placeData.id;
-      if (!tripId) {
-        throw new Error("useFavorites: tripId required for TripLike.create");
+  // Fetch user's place favorites
+  const { data: placeFavorites = [], isLoading: isLoadingPlaces } = useQuery({
+    queryKey: ["placeFavorites", user?.id],
+    queryFn: async () => {
+      if (!user?.id) {
+        return [];
       }
+      const response = await apiClient.get(endpoints.placeFavorites.list);
+      return response.data?.favorites || [];
+    },
+    enabled: !!user?.id,
+    staleTime: 5 * 60 * 1000,
+    cacheTime: 10 * 60 * 1000,
+  });
+
+  // Add trip favorite mutation
+  const addTripFavoriteMutation = useMutation({
+    mutationFn: async (tripId) => {
       return await TripLike.create(tripId);
     },
-    onSuccess: (data) => {
-      // Invalidate and refetch
-      queryClient.invalidateQueries({ queryKey: ["favorites", user?.id] });
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["tripFavorites", user?.id] });
     },
     onError: (error) => {
-      console.error("[useFavorites] Error adding favorite:", error);
+      console.error("[useFavorites] Error adding trip favorite:", error);
     },
   });
 
-  // Remove favorite mutation
-  const removeFavoriteMutation = useMutation({
+  // Remove trip favorite mutation
+  const removeTripFavoriteMutation = useMutation({
     mutationFn: async (favoriteId) => {
       return await TripLike.delete(favoriteId);
     },
     onSuccess: () => {
-      // Invalidate and refetch
-      queryClient.invalidateQueries({ queryKey: ["favorites", user?.id] });
+      queryClient.invalidateQueries({ queryKey: ["tripFavorites", user?.id] });
     },
     onError: (error) => {
-      console.error("[useFavorites] Error removing favorite:", error);
+      console.error("[useFavorites] Error removing trip favorite:", error);
     },
   });
 
-  // Check if a place is favorited
-  const isFavorited = useCallback(
+  // Add place favorite mutation
+  const addPlaceFavoriteMutation = useMutation({
+    mutationFn: async (placeId) => {
+      return await apiClient.post(endpoints.placeFavorites.create, {
+        place_id: placeId,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["placeFavorites", user?.id] });
+    },
+    onError: (error) => {
+      console.error("[useFavorites] Error adding place favorite:", error);
+    },
+  });
+
+  // Remove place favorite mutation
+  const removePlaceFavoriteMutation = useMutation({
+    mutationFn: async (favoriteId) => {
+      return await apiClient.delete(endpoints.placeFavorites.delete(favoriteId));
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["placeFavorites", user?.id] });
+    },
+    onError: (error) => {
+      console.error("[useFavorites] Error removing place favorite:", error);
+    },
+  });
+
+  // Check if a place is favorited (by place ID)
+  const isPlaceFavorited = useCallback(
+    (placeId) => {
+      if (!placeId) return false;
+      return placeFavorites.some((fav) => fav.place_id === placeId);
+    },
+    [placeFavorites]
+  );
+
+  // Get place favorite by place ID
+  const getPlaceFavorite = useCallback(
+    (placeId) => {
+      if (!placeId) return null;
+      return placeFavorites.find((fav) => fav.place_id === placeId);
+    },
+    [placeFavorites]
+  );
+
+  // Check if a trip is favorited (legacy - by place name)
+  const isTripFavorited = useCallback(
     (placeName) => {
       if (!placeName) return false;
 
       const normalizedName = placeName.toLowerCase().trim();
-      const found = favorites.some(
+      return tripFavorites.some(
         (fav) => fav.place_name?.toLowerCase().trim() === normalizedName
       );
-
-      return found;
     },
-    [favorites]
+    [tripFavorites]
   );
 
-  // Get favorite by place name
-  const getFavoriteByName = useCallback(
+  // Get trip favorite by place name (legacy)
+  const getTripFavoriteByName = useCallback(
     (placeName) => {
       if (!placeName) return null;
 
       const normalizedName = placeName.toLowerCase().trim();
-      return favorites.find(
+      return tripFavorites.find(
         (fav) => fav.place_name?.toLowerCase().trim() === normalizedName
       );
     },
-    [favorites]
+    [tripFavorites]
   );
 
-  // Toggle favorite
-  const toggleFavorite = useCallback(
+  // Toggle place favorite
+  const togglePlaceFavorite = useCallback(
+    async (placeId) => {
+      if (!user) {
+        throw new Error("User not authenticated");
+      }
+
+      const existingFavorite = getPlaceFavorite(placeId);
+
+      if (existingFavorite) {
+        await removePlaceFavoriteMutation.mutateAsync(existingFavorite.id);
+      } else {
+        await addPlaceFavoriteMutation.mutateAsync(placeId);
+      }
+    },
+    [user, getPlaceFavorite, addPlaceFavoriteMutation, removePlaceFavoriteMutation]
+  );
+
+  // Toggle trip favorite (legacy - kept for backward compatibility)
+  const toggleTripFavorite = useCallback(
     async (placeData, destination) => {
       if (!user) {
         throw new Error("User not authenticated");
       }
 
       const placeName = placeData.name || placeData.place_name;
-      const existingFavorite = getFavoriteByName(placeName);
+      const existingFavorite = getTripFavoriteByName(placeName);
 
       if (existingFavorite) {
-        await removeFavoriteMutation.mutateAsync(existingFavorite.id);
+        await removeTripFavoriteMutation.mutateAsync(existingFavorite.id);
       } else {
         // Extract city and country from destination or place data
         let city = placeData.city;
@@ -124,24 +194,43 @@ export function useFavorites(user) {
           country = addressParts[addressParts.length - 1] || "";
         }
 
-        await addFavoriteMutation.mutateAsync({
-          ...placeData,
-          place_name: placeName,
-          city: city || "Unknown",
-          country: country || "Unknown",
-        });
+        const tripId = placeData.trip_id || placeData.id;
+        if (!tripId) {
+          throw new Error("Trip ID required");
+        }
+
+        await addTripFavoriteMutation.mutateAsync(tripId);
       }
     },
-    [user, getFavoriteByName, addFavoriteMutation, removeFavoriteMutation]
+    [user, getTripFavoriteByName, addTripFavoriteMutation, removeTripFavoriteMutation]
   );
 
   return {
-    favorites,
-    isLoading,
-    isFavorited,
-    getFavoriteByName,
-    toggleFavorite,
+    // Place favorites
+    placeFavorites,
+    isPlaceFavorited,
+    getPlaceFavorite,
+    togglePlaceFavorite,
+    isTogglingPlace:
+      addPlaceFavoriteMutation.isPending || removePlaceFavoriteMutation.isPending,
+    
+    // Trip favorites (legacy)
+    tripFavorites,
+    isTripFavorited,
+    getTripFavoriteByName,
+    toggleTripFavorite,
+    isTogglingTrip:
+      addTripFavoriteMutation.isPending || removeTripFavoriteMutation.isPending,
+    
+    // Combined state
+    isLoading: isLoadingTrips || isLoadingPlaces,
+    
+    // Backward compatibility (points to trip favorites)
+    favorites: tripFavorites,
+    isFavorited: isTripFavorited,
+    getFavoriteByName: getTripFavoriteByName,
+    toggleFavorite: toggleTripFavorite,
     isToggling:
-      addFavoriteMutation.isPending || removeFavoriteMutation.isPending,
+      addTripFavoriteMutation.isPending || removeTripFavoriteMutation.isPending,
   };
 }
