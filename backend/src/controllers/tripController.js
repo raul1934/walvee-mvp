@@ -9,6 +9,7 @@ const {
   TripSteal,
   TripReview,
   Place,
+  PlacePhoto,
 } = require("../models/sequelize");
 const { Op } = require("sequelize");
 const {
@@ -136,6 +137,19 @@ const getTrips = async (req, res, next) => {
                     "name",
                     "address",
                     "price_level",
+                  ],
+                  include: [
+                    {
+                      model: PlacePhoto,
+                      as: "photos",
+                      attributes: [
+                        "url_small",
+                        "url_medium",
+                        "url_large",
+                        "photo_order",
+                      ],
+                      order: [["photo_order", "ASC"]],
+                    },
                   ],
                 },
               ],
@@ -401,6 +415,19 @@ const createTrip = async (req, res, next) => {
                     "address",
                     "price_level",
                   ],
+                  include: [
+                    {
+                      model: PlacePhoto,
+                      as: "photos",
+                      attributes: [
+                        "url_small",
+                        "url_medium",
+                        "url_large",
+                        "photo_order",
+                      ],
+                      order: [["photo_order", "ASC"]],
+                    },
+                  ],
                 },
               ],
             },
@@ -526,6 +553,19 @@ const updateTrip = async (req, res, next) => {
                     "name",
                     "address",
                     "price_level",
+                  ],
+                  include: [
+                    {
+                      model: PlacePhoto,
+                      as: "photos",
+                      attributes: [
+                        "url_small",
+                        "url_medium",
+                        "url_large",
+                        "photo_order",
+                      ],
+                      order: [["photo_order", "ASC"]],
+                    },
                   ],
                 },
               ],
@@ -743,6 +783,13 @@ async function formatTripResponse(trip) {
                   photo: a.placeDetails.photos?.[0]
                     ? getFullImageUrl(a.placeDetails.photos[0].url_medium)
                     : null,
+                  photos: a.placeDetails.photos
+                    ? a.placeDetails.photos.map((p) => ({
+                        url_small: getFullImageUrl(p.url_small),
+                        url_medium: getFullImageUrl(p.url_medium),
+                        url_large: getFullImageUrl(p.url_large),
+                      }))
+                    : [],
                 }))
             : [],
           activities: day.activities

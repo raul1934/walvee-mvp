@@ -204,7 +204,7 @@ export default function City({ cityNameOverride, isModal = false }) {
               price_level: place.price_level,
               types: place.types || [],
               mentions: 0,
-              photo: place.photos?.[0] || null,
+              photo: place.photo || place.photos?.[0] || null,
               photos: place.photos || [],
             };
           }

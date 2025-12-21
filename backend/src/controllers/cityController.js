@@ -443,7 +443,10 @@ const getCityTrips = async (req, res, next) => {
       User,
       TripTag,
       TripPlace,
+      TripItineraryDay,
+      TripItineraryActivity,
       Place,
+      PlacePhoto,
     } = require("../models/sequelize");
     const { paginate, buildPaginationMeta } = require("../utils/helpers");
 
@@ -494,6 +497,57 @@ const getCityTrips = async (req, res, next) => {
               attributes: ["id", "latitude", "longitude", "google_place_id"],
             },
           ],
+        },
+        {
+          model: TripItineraryDay,
+          as: "itineraryDays",
+          attributes: ["id", "day_number", "title"],
+          include: [
+            {
+              model: TripItineraryActivity,
+              as: "activities",
+              attributes: [
+                "time",
+                "name",
+                "location",
+                "description",
+                "activity_order",
+                "place_id",
+              ],
+              include: [
+                {
+                  model: Place,
+                  as: "placeDetails",
+                  attributes: [
+                    "id",
+                    "latitude",
+                    "longitude",
+                    "rating",
+                    "user_ratings_total",
+                    "google_place_id",
+                    "name",
+                    "address",
+                    "price_level",
+                  ],
+                  include: [
+                    {
+                      model: PlacePhoto,
+                      as: "photos",
+                      attributes: [
+                        "url_small",
+                        "url_medium",
+                        "url_large",
+                        "photo_order",
+                      ],
+                      order: [["photo_order", "ASC"]],
+                    },
+                  ],
+                },
+              ],
+              order: [["activity_order", "ASC"]],
+            },
+          ],
+          order: [["day_number", "ASC"]],
         },
       ],
       order: [[sortBy, order.toUpperCase()]],
@@ -633,6 +687,47 @@ const getCityTrips = async (req, res, next) => {
           locations: cities.map((c) => c.name),
           cities: cities,
           places: trip.places || [],
+          itinerary: trip.itineraryDays
+            ? trip.itineraryDays.map((day) => ({
+                day: day.day_number,
+                title: day.title,
+                places: day.activities
+                  ? day.activities
+                      .filter((a) => a.placeDetails)
+                      .map((a) => ({
+                        name: a.placeDetails.name,
+                        address: a.placeDetails.address,
+                        rating: a.placeDetails.rating
+                          ? parseFloat(a.placeDetails.rating)
+                          : null,
+                        price_level: a.placeDetails.price_level,
+                        types: [],
+                        description: a.description || "",
+                        photo: a.placeDetails.photos?.[0]
+                          ? require("../utils/helpers").getFullImageUrl(
+                              a.placeDetails.photos[0].url_medium
+                            )
+                          : null,
+                        photos: a.placeDetails.photos
+                          ? a.placeDetails.photos.map((p) => ({
+                              url_small:
+                                require("../utils/helpers").getFullImageUrl(
+                                  p.url_small
+                                ),
+                              url_medium:
+                                require("../utils/helpers").getFullImageUrl(
+                                  p.url_medium
+                                ),
+                              url_large:
+                                require("../utils/helpers").getFullImageUrl(
+                                  p.url_large
+                                ),
+                            }))
+                          : [],
+                      }))
+                  : [],
+              }))
+            : [],
         };
       })
     );
