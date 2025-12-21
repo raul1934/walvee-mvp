@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Camera, MapPin, X } from "lucide-react";
 import UserAvatar from "../common/UserAvatar";
 import { useNotification } from "@/contexts/NotificationContext";
+import { formatCityName } from "@/components/utils/cityFormatter";
 
 const MAX_BIO_LENGTH = 200;
 
@@ -37,7 +38,7 @@ export default function EditProfilePanel({ user, onClose, onSave }) {
     // Support both legacy string fields and new nested city object
     city:
       user?.city && typeof user.city === "object"
-        ? user.city.name || ""
+        ? formatCityName(user.city.name)
         : user?.city || "",
     country:
       user?.city && typeof user.city === "object"
@@ -56,7 +57,7 @@ export default function EditProfilePanel({ user, onClose, onSave }) {
   useEffect(() => {
     // If backend provides nested city object, prefer it
     if (user?.city && typeof user.city === "object") {
-      const name = user.city.name || "";
+      const name = formatCityName(user.city.name) || "";
       const country = user.city.country || user.country || "";
       const state = user.city.state || "";
       const display = country
@@ -125,7 +126,7 @@ export default function EditProfilePanel({ user, onClose, onSave }) {
   };
 
   const handleLocationSelect = (city) => {
-    const cityName = city.name || "";
+    const cityName = formatCityName(city.name) || "";
     const countryName = city.country?.name || city.country || "";
     const displayText = countryName
       ? `${cityName}${city.state ? `, ${city.state}` : ""}, ${countryName}`
@@ -334,7 +335,7 @@ export default function EditProfilePanel({ user, onClose, onSave }) {
         </div>
 
         {/* Content */}
-        <div className="flex-1 px-6 py-6 overflow-y-auto walvee-scroll">
+        <div className="flex-1 px-6 py-6 overflow-y-auto walvee-scroll pb-32">
           <div className="max-w-2xl mx-auto">
             <form onSubmit={handleSubmit} className="space-y-6">
               {/* Profile Photo */}
@@ -515,7 +516,7 @@ export default function EditProfilePanel({ user, onClose, onSave }) {
                             className="w-full text-left px-4 py-2 hover:bg-[#111317] text-sm text-gray-200"
                           >
                             <div className="font-medium">
-                              {city.name}
+                              {city.name ? formatCityName(city.name) : ""}
                               {city.state ? `, ${city.state}` : ""}
                             </div>
                             <div className="text-xs text-gray-400">

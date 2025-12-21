@@ -8,6 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Camera, MapPin, Search, ArrowLeft } from "lucide-react";
 import UserAvatar from "../components/common/UserAvatar";
+import { formatCityName } from "@/components/utils/cityFormatter";
+import { apiClient, endpoints } from "@/api/apiClient";
 import { useNotification } from "@/contexts/NotificationContext";
 
 const MAX_BIO_LENGTH = 200;
@@ -20,6 +22,10 @@ export default function EditProfile() {
   const [loading, setLoading] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [locationQuery, setLocationQuery] = useState("");
+  const [locationSuggestions, setLocationSuggestions] = useState([]);
+  const [searchingCities, setSearchingCities] = useState(false);
+  const searchTimeoutRef = useRef(null);
+  const [selectedCityId, setSelectedCityId] = useState(null);
 
   const [formData, setFormData] = useState({
     full_name: "",
@@ -38,28 +44,75 @@ export default function EditProfile() {
 
   useEffect(() => {
     if (user) {
+      // Normalize city fields: support nested `user.city` object or legacy strings
+      let cityName = "";
+      let countryName = "";
+      let cityId = null;
+
+      if (user.city && typeof user.city === "object") {
+        cityName = formatCityName(user.city.name);
+        countryName = user.city.country || user.country || "";
+        cityId = user.city.id || null;
+      } else {
+        cityName = formatCityName(user.city);
+        countryName = user.country || "";
+      }
+
       setFormData({
         full_name: user.full_name || "",
         preferred_name: user.preferred_name || "",
         bio: user.bio || "",
-        city: user.city || "",
-        country: user.country || "",
+        city: cityName,
+        country: countryName,
+        city_id: cityId,
         photo_url: user.photo_url || user.picture || "",
       });
+      setSelectedCityId(cityId);
 
-      if (user.city && user.country) {
-        setLocationQuery(`${user.city}, ${user.country}`);
+      if (cityName || countryName) {
+        const display = countryName
+          ? `${cityName}${
+              user.city?.state ? `, ${user.city.state}` : ""
+            }, ${countryName}`
+          : cityName;
+        setLocationQuery(display);
       }
     }
   }, [user]);
 
   const handleLocationChange = (value) => {
     setLocationQuery(value);
+    setSelectedCityId(null);
+
     // Simple parsing: assume format is "City, Country"
     const parts = value.split(",").map((p) => p.trim());
     const city = parts[0] || "";
     const country = parts.length > 1 ? parts[parts.length - 1] : "";
-    setFormData((prev) => ({ ...prev, city, country }));
+    setFormData((prev) => ({ ...prev, city, country, city_id: null }));
+
+    // Debounce and search
+    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+    if (!value || value.trim().length < 2) {
+      setLocationSuggestions([]);
+      return;
+    }
+
+    searchTimeoutRef.current = setTimeout(async () => {
+      setSearchingCities(true);
+      try {
+        const resp = await apiClient.get(endpoints.cities.search, {
+          query: value.trim(),
+        });
+        if (resp && resp.success && resp.data)
+          setLocationSuggestions(resp.data);
+        else setLocationSuggestions([]);
+      } catch (err) {
+        console.error("City search failed:", err);
+        setLocationSuggestions([]);
+      } finally {
+        setSearchingCities(false);
+      }
+    }, 300);
   };
 
   const handlePhotoUpload = async (e) => {
@@ -100,6 +153,24 @@ export default function EditProfile() {
     }
   };
 
+  const handleLocationSelect = (city) => {
+    const cityName = formatCityName(city.name) || "";
+    const countryName = city.country?.name || city.country || "";
+    const display = countryName
+      ? `${cityName}${city.state ? `, ${city.state}` : ""}, ${countryName}`
+      : cityName;
+
+    setSelectedCityId(city.id);
+    setLocationQuery(display);
+    setFormData((prev) => ({
+      ...prev,
+      city: cityName,
+      country: countryName,
+      city_id: city.id,
+    }));
+    setLocationSuggestions([]);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -121,6 +192,11 @@ export default function EditProfile() {
         city: formData.city.trim(),
         country: formData.country.trim(),
       };
+
+      // If a canonical city was selected, send city_id to backend
+      if (formData.city_id || selectedCityId) {
+        updateData.city_id = formData.city_id || selectedCityId;
+      }
 
       if (formData.photo_url) {
         updateData.photo_url = formData.photo_url;
@@ -151,7 +227,7 @@ export default function EditProfile() {
 
   return (
     <div className="min-h-screen bg-[#0A0B0F] pt-16">
-      <div className="container mx-auto px-4 py-8 max-w-2xl">
+      <div className="container mx-auto px-4 py-8 max-w-2xl pb-32">
         <div className="flex items-center gap-4 mb-8">
           <Button
             variant="ghost"
@@ -297,6 +373,27 @@ export default function EditProfile() {
                   placeholder="e.g., Paris, France"
                   className="bg-[#0D0D0D] border-gray-700 text-white pl-10 h-12"
                 />
+                {/* Suggestions dropdown */}
+                {locationSuggestions.length > 0 && (
+                  <div className="absolute left-0 right-0 mt-2 bg-[#0B0C0F] border border-[#2A2B35] rounded-lg shadow-lg z-30 max-h-48 overflow-y-auto location-suggestions-scroll">
+                    {locationSuggestions.map((city) => (
+                      <button
+                        key={city.id}
+                        type="button"
+                        onClick={() => handleLocationSelect(city)}
+                        className="w-full text-left px-4 py-2 hover:bg-[#111317] text-sm text-gray-200"
+                      >
+                        <div className="font-medium">
+                          {formatCityName(city.name)}
+                          {city.state ? `, ${city.state}` : ""}
+                        </div>
+                        <div className="text-xs text-gray-400">
+                          {city.country?.name || city.country}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </div>

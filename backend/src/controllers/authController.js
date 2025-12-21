@@ -34,8 +34,14 @@ if (config.google.clientID && config.google.clientSecret) {
             user = await User.findOne({ where: { email } });
 
             if (user) {
-              await user.update({ google_id: googleId });
+              // If the user exists by email, attach google id and only set
+              // photo_url from provider when there's no existing photo set.
+              const updates = { google_id: googleId };
+              if (!user.photo_url && photoUrl) updates.photo_url = photoUrl;
+              if (!user.full_name && fullName) updates.full_name = fullName;
+              await user.update(updates);
             } else {
+              // New user created from Google - safe to set provider photo
               user = await User.create({
                 email,
                 google_id: googleId,
@@ -44,7 +50,11 @@ if (config.google.clientID && config.google.clientSecret) {
               });
             }
           } else {
-            await user.update({ full_name: fullName, photo_url: photoUrl });
+            // Existing user found by google_id: update name but do not
+            // overwrite an existing photo_url unless it's missing
+            const updates = { full_name: fullName };
+            if (!user.photo_url && photoUrl) updates.photo_url = photoUrl;
+            await user.update(updates);
           }
 
           return done(null, user);
