@@ -19,12 +19,7 @@ const getFollowers = async (req, res, next) => {
         {
           model: User,
           as: "follower",
-          attributes: [
-            "id",
-            "full_name",
-            "preferred_name",
-            "photo_url",
-          ],
+          attributes: ["id", "full_name", "preferred_name", "photo_url"],
         },
       ],
       offset,
@@ -36,22 +31,22 @@ const getFollowers = async (req, res, next) => {
     const followersWithCounts = await Promise.all(
       follows.map(async (f) => {
         const follower = f.follower.toJSON();
-        
+
         // Count trips
         const trips_count = await Trip.count({
-          where: { author_id: follower.id }
+          where: { author_id: follower.id },
         });
-        
+
         // Count followers
         const followers_count = await Follow.count({
-          where: { followee_id: follower.id }
+          where: { followee_id: follower.id },
         });
-        
+
         // Count following
         const following_count = await Follow.count({
-          where: { follower_id: follower.id }
+          where: { follower_id: follower.id },
         });
-        
+
         return {
           ...follower,
           trips_count,
@@ -81,12 +76,7 @@ const getFollowing = async (req, res, next) => {
         {
           model: User,
           as: "followee",
-          attributes: [
-            "id",
-            "full_name",
-            "preferred_name",
-            "photo_url",
-          ],
+          attributes: ["id", "full_name", "preferred_name", "photo_url"],
         },
       ],
       offset,
@@ -98,22 +88,22 @@ const getFollowing = async (req, res, next) => {
     const followingWithCounts = await Promise.all(
       follows.map(async (f) => {
         const followee = f.followee.toJSON();
-        
+
         // Count trips
         const trips_count = await Trip.count({
-          where: { author_id: followee.id }
+          where: { author_id: followee.id },
         });
-        
+
         // Count followers
         const followers_count = await Follow.count({
-          where: { followee_id: followee.id }
+          where: { followee_id: followee.id },
         });
-        
+
         // Count following
         const following_count = await Follow.count({
-          where: { follower_id: followee.id }
+          where: { follower_id: followee.id },
         });
-        
+
         return {
           ...followee,
           trips_count,

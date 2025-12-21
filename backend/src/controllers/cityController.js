@@ -872,7 +872,12 @@ const getSuggestedCitiesByCountry = async (req, res, next) => {
 const getCityLocals = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { page = 1, limit = 20, sortBy = "trips_count", order = "desc" } = req.query;
+    const {
+      page = 1,
+      limit = 20,
+      sortBy = "trips_count",
+      order = "desc",
+    } = req.query;
 
     // Verify city exists
     const city = await City.findByPk(id, {
@@ -889,10 +894,19 @@ const getCityLocals = async (req, res, next) => {
     const countryName = city.country?.name || "";
     const fullCityName = `${cityName}, ${countryName}`;
 
-    const { User, Trip, Follow, City: CityModel } = require("../models/sequelize");
+    const {
+      User,
+      Trip,
+      Follow,
+      City: CityModel,
+    } = require("../models/sequelize");
     const { paginate, buildPaginationMeta } = require("../utils/helpers");
 
-    const { page: pageNum, limit: limitNum, offset } = paginate(page, limit, 100);
+    const {
+      page: pageNum,
+      limit: limitNum,
+      offset,
+    } = paginate(page, limit, 100);
 
     // Get users who have this city_id
     const { count: total, rows: users } = await User.findAndCountAll({
@@ -928,11 +942,12 @@ const getCityLocals = async (req, res, next) => {
     // Add dynamic counts for each user
     const usersWithCounts = await Promise.all(
       users.map(async (user) => {
-        const [trips_count, followers_count, following_count] = await Promise.all([
-          Trip.count({ where: { author_id: user.id } }),
-          Follow.count({ where: { followee_id: user.id } }),
-          Follow.count({ where: { follower_id: user.id } }),
-        ]);
+        const [trips_count, followers_count, following_count] =
+          await Promise.all([
+            Trip.count({ where: { author_id: user.id } }),
+            Follow.count({ where: { followee_id: user.id } }),
+            Follow.count({ where: { follower_id: user.id } }),
+          ]);
 
         const cityName = user.cityData
           ? `${user.cityData.name}, ${user.cityData.country?.name || ""}`
