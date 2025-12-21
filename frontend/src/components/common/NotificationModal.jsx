@@ -44,7 +44,7 @@ export default function NotificationModal({
       aria-modal
     >
       <div
-        className={`relative w-full max-w-md rounded-2xl p-6 border border-[#2A2B35] shadow-2xl bg-gradient-to-br from-[#07080a] to-[#0b0c10] transform transition-all duration-220 ${
+        className={`relative w-full max-w-md rounded-2xl pt-6 pb-6 px-6 border border-[#2A2B35] shadow-2xl bg-gradient-to-br from-[#07080a] to-[#0b0c10] transform transition-all duration-220 ${
           mounted ? "opacity-100 scale-100" : "opacity-0 scale-95"
         }`}
         onClick={(e) => e.stopPropagation()}
@@ -58,21 +58,20 @@ export default function NotificationModal({
           <X className="w-4 h-4 text-gray-300" />
         </button>
 
-        <div className="flex items-start gap-4 mb-4">
+        {/* Icon centered in flow (non-absolute) so it occupies its own height */}
+        <div className="flex justify-center mb-2">
           <div
-            className={`${bg} w-14 h-14 rounded-xl flex items-center justify-center text-white shadow-lg shrink-0`}
+            className={`${bg} w-14 h-14 rounded-full flex items-center justify-center text-white shadow-2xl border-2 border-[#0B0C10]`}
           >
             <Icon className="w-6 h-6" />
           </div>
+        </div>
 
-          <div className="min-w-0">
-            <h3 className="text-xl font-bold text-white leading-tight">
-              {title}
-            </h3>
-            {message && (
-              <p className="text-sm text-gray-300 mt-1 truncate">{message}</p>
-            )}
-          </div>
+        <div className="text-center">
+          <h3 className="text-xl font-bold text-white leading-tight">
+            {title}
+          </h3>
+          {message && <p className="text-sm text-gray-300 mt-2">{message}</p>}
         </div>
 
         <div className="flex justify-end">

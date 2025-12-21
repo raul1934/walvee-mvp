@@ -30,6 +30,13 @@ const createEntityService = (entityEndpoints) => ({
     return response.data;
   },
 
+  // Alias for simple filtering by query params (keeps compatibility with Firestore API)
+  async filter(conditions = {}) {
+    // Reuse the list endpoint with query params
+    const response = await apiClient.get(entityEndpoints.list, conditions);
+    return response.data;
+  },
+
   async list(options = {}) {
     const response = await apiClient.get(entityEndpoints.list, options);
     return response.data;

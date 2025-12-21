@@ -23,10 +23,11 @@ export default function ComingSoonModal({
     return () => document.removeEventListener("keydown", handleEscape);
   }, [isOpen, onClose]);
 
+  const { showNotification } = useNotification();
+
   if (!isOpen) return null;
 
   const handlePrimary = () => {
-    const { showNotification } = useNotification();
     if (onPrimary) {
       onPrimary();
     } else {

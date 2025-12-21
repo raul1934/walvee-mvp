@@ -13,6 +13,7 @@ const MAX_BIO_LENGTH = 200;
 
 export default function EditProfilePanel({ user, onClose, onSave }) {
   const queryClient = useQueryClient();
+  const { showNotification } = useNotification();
   const fileInputRef = useRef(null);
 
   const [loading, setLoading] = useState(false);
@@ -49,8 +50,6 @@ export default function EditProfilePanel({ user, onClose, onSave }) {
   const handlePhotoUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
-    const { showNotification } = useNotification();
 
     if (!file.type.startsWith("image/")) {
       showNotification({
@@ -101,8 +100,7 @@ export default function EditProfilePanel({ user, onClose, onSave }) {
     e.preventDefault();
 
     if (!formData.preferred_name.trim()) {
-      const { showNotification: notify } = useNotification();
-      notify({
+      showNotification({
         type: "error",
         title: "Validation",
         message: "Please enter your preferred name",

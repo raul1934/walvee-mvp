@@ -358,7 +358,8 @@ export default React.memo(
                   <CitiesScroller
                     cities={scrollerCities}
                     className="text-sm"
-                    makeLinks={true}
+                    makeLinks={false}
+                    useButtons={true}
                   />
                 </div>
               </div>

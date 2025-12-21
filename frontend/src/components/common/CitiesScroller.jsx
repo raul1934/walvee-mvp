@@ -1,17 +1,19 @@
 import React, { useRef, useState, useEffect } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { createCityUrl } from "@/utils";
 
 export default function CitiesScroller({
   cities,
   className = "",
   makeLinks = true,
+  useButtons = false,
   showSeparators = true,
 }) {
   const scrollRef = useRef(null);
   const [showLeftArrow, setShowLeftArrow] = useState(false);
   const [showRightArrow, setShowRightArrow] = useState(false);
+  const navigate = useNavigate();
 
   const checkScroll = () => {
     const element = scrollRef.current;
@@ -52,7 +54,21 @@ export default function CitiesScroller({
 
   // If only one city
   if (cities.length === 1) {
-    if (makeLinks) {
+    if (useButtons && cities[0].id) {
+      return (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            navigate(createCityUrl(cities[0].id));
+          }}
+          className={`${className} hover:text-blue-400 transition-colors text-left`}
+        >
+          {cities[0].name}
+        </button>
+      );
+    }
+
+    if (makeLinks && cities[0].id) {
       return (
         <Link
           to={createCityUrl(cities[0].id)}
@@ -63,6 +79,7 @@ export default function CitiesScroller({
         </Link>
       );
     }
+
     return <span className={className}>{cities[0].name}</span>;
   }
 
@@ -88,7 +105,18 @@ export default function CitiesScroller({
       >
         {cities.map((city, idx) => (
           <React.Fragment key={idx}>
-            {makeLinks ? (
+            {useButtons && city.id ? (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigate(createCityUrl(city.id));
+                }}
+                className="whitespace-nowrap hover:text-blue-400 transition-colors text-left"
+              >
+                {city.name}
+              </button>
+            ) : makeLinks && city.id ? (
               <Link
                 to={createCityUrl(city.id)}
                 onClick={(e) => e.stopPropagation()}

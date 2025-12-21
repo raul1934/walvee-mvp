@@ -192,6 +192,7 @@ export default function PlaceDetails({
   });
 
   const queryClient = useQueryClient();
+  const { showNotification } = useNotification();
 
   // Favorites hook
   const { isPlaceFavorited, togglePlaceFavorite, isTogglingPlace } =
@@ -243,7 +244,6 @@ export default function PlaceDetails({
   });
 
   const handleSubmitReview = async () => {
-    const { showNotification } = useNotification();
     if (!reviewComment.trim()) {
       showNotification({
         type: "error",
