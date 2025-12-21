@@ -778,7 +778,7 @@ async function formatTripResponse(trip) {
                     ? parseFloat(a.placeDetails.rating)
                     : null,
                   price_level: a.placeDetails.price_level,
-                  types: [],
+                  types: a.placeDetails.types || [],
                   description: a.description || "",
                   photo: a.placeDetails.photos?.[0]
                     ? getFullImageUrl(a.placeDetails.photos[0].url_medium)

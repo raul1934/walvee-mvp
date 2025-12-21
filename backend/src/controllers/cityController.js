@@ -528,6 +528,7 @@ const getCityTrips = async (req, res, next) => {
                     "name",
                     "address",
                     "price_level",
+                    "types",
                   ],
                   include: [
                     {
@@ -701,7 +702,7 @@ const getCityTrips = async (req, res, next) => {
                           ? parseFloat(a.placeDetails.rating)
                           : null,
                         price_level: a.placeDetails.price_level,
-                        types: [],
+                        types: a.placeDetails.types || [],
                         description: a.description || "",
                         photo: a.placeDetails.photos?.[0]
                           ? require("../utils/helpers").getFullImageUrl(
