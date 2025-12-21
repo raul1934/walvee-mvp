@@ -5,7 +5,12 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { getPriceRangeInfo } from "../utils/priceFormatter";
 import ImagePlaceholder from "../common/ImagePlaceholder";
 
-export default function FavoriteCard({ favorite, currentUser, isOwnProfile, onPlaceClick }) {
+export default function FavoriteCard({
+  favorite,
+  currentUser,
+  isOwnProfile,
+  onPlaceClick,
+}) {
   const [imageError, setImageError] = React.useState(false);
   const queryClient = useQueryClient();
 
@@ -16,14 +21,14 @@ export default function FavoriteCard({ favorite, currentUser, isOwnProfile, onPl
       return await TripLike.delete(favorite.id);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries(['favorites', currentUser?.id]);
-    }
+      queryClient.invalidateQueries(["favorites", currentUser?.id]);
+    },
   });
 
   const handleDelete = (e) => {
     e.preventDefault();
     e.stopPropagation();
-    
+
     if (window.confirm(`Remove ${favorite.place_name} from favorites?`)) {
       deleteFavoriteMutation.mutate();
     }
@@ -41,9 +46,9 @@ export default function FavoriteCard({ favorite, currentUser, isOwnProfile, onPl
         types: favorite.category ? [favorite.category] : [],
         photos: favorite.photo_url ? [favorite.photo_url] : [],
         city: favorite.city,
-        country: favorite.country
+        country: favorite.country,
       };
-      
+
       onPlaceClick(placeData);
     }
   };
@@ -65,7 +70,7 @@ export default function FavoriteCard({ favorite, currentUser, isOwnProfile, onPl
             onError={() => setImageError(true)}
           />
         )}
-        
+
         {/* Favorite Heart Badge */}
         <div className="absolute top-3 right-3 w-8 h-8 bg-pink-600 rounded-full flex items-center justify-center shadow-lg">
           <Heart className="w-4 h-4 text-white fill-current" />
@@ -93,32 +98,41 @@ export default function FavoriteCard({ favorite, currentUser, isOwnProfile, onPl
         <h3 className="font-bold text-white mb-1 truncate">
           {favorite.place_name}
         </h3>
-        
+
         <div className="flex items-center gap-1 text-xs text-gray-400 mb-3">
           <MapPin className="w-3 h-3 shrink-0" />
-          <span className="truncate">{favorite.city}, {favorite.country}</span>
+          <span className="truncate">
+            {favorite.city}, {favorite.country}
+          </span>
         </div>
 
         <div className="flex items-center gap-3 flex-wrap">
-          {favorite.rating && (
-            <div className="flex items-center gap-1">
-              <Star className="w-3 h-3 fill-yellow-500 text-yellow-500" />
-              <span className="text-xs font-semibold text-yellow-500">
-                {favorite.rating.toFixed(1)}
-              </span>
-            </div>
-          )}
+          {(() => {
+            const rating =
+              favorite.rating !== undefined && favorite.rating !== null
+                ? parseFloat(favorite.rating)
+                : null;
+
+            return rating !== null && !Number.isNaN(rating) ? (
+              <div className="flex items-center gap-1">
+                <Star className="w-3 h-3 fill-yellow-500 text-yellow-500" />
+                <span className="text-xs font-semibold text-yellow-500">
+                  {rating.toFixed(1)}
+                </span>
+              </div>
+            ) : null;
+          })()}
 
           {priceInfo && (
             <>
-              {favorite.rating && <span className="text-xs text-gray-600">•</span>}
+              {favorite.rating && (
+                <span className="text-xs text-gray-600">•</span>
+              )}
               <div className="flex items-center gap-1">
                 <span className={`text-sm font-bold ${priceInfo.color}`}>
                   {priceInfo.symbol}
                 </span>
-                <span className="text-xs text-gray-400">
-                  {priceInfo.label}
-                </span>
+                <span className="text-xs text-gray-400">{priceInfo.label}</span>
               </div>
             </>
           )}
@@ -127,7 +141,7 @@ export default function FavoriteCard({ favorite, currentUser, isOwnProfile, onPl
             <>
               <span className="text-xs text-gray-600">•</span>
               <span className="text-xs text-gray-400 capitalize">
-                {favorite.category.replace(/_/g, ' ')}
+                {favorite.category.replace(/_/g, " ")}
               </span>
             </>
           )}

@@ -97,7 +97,16 @@ export default function CityTopPlaces({
                       <>
                         <Star className="w-3.5 h-3.5 text-yellow-400 fill-yellow-400" />
                         <span className="text-xs font-bold text-white">
-                          {place.rating.toFixed(1)}
+                          {(() => {
+                            const rating =
+                              place.rating !== undefined &&
+                              place.rating !== null
+                                ? parseFloat(place.rating)
+                                : null;
+                            return rating !== null && !Number.isNaN(rating)
+                              ? rating.toFixed(1)
+                              : "";
+                          })()}
                         </span>
                       </>
                     ) : null}
@@ -142,7 +151,16 @@ export default function CityTopPlaces({
                       <div className="flex items-center gap-1">
                         <Star className="w-3 h-3 text-yellow-400 fill-yellow-400" />
                         <span className="font-semibold text-white">
-                          {place.rating.toFixed(1)}
+                          {(() => {
+                            const rating =
+                              place.rating !== undefined &&
+                              place.rating !== null
+                                ? parseFloat(place.rating)
+                                : null;
+                            return rating !== null && !Number.isNaN(rating)
+                              ? rating.toFixed(1)
+                              : "";
+                          })()}
                         </span>
                         {place.user_ratings_total && (
                           <span className="text-gray-500">

@@ -237,13 +237,13 @@ export function useFavorites(user) {
 
     // Combined state
     isLoading: isLoadingTrips || isLoadingPlaces,
-
-    // Backward compatibility (points to trip favorites)
-    favorites: tripFavorites,
-    isFavorited: isTripFavorited,
-    getFavoriteByName: getTripFavoriteByName,
-    toggleFavorite: toggleTripFavorite,
+    // Backward compatibility (points to place favorites)
+    favorites: placeFavorites,
+    isFavorited: isPlaceFavorited,
+    getFavoriteByName: getPlaceFavorite,
+    toggleFavorite: togglePlaceFavorite,
     isToggling:
-      addTripFavoriteMutation.isPending || removeTripFavoriteMutation.isPending,
+      addPlaceFavoriteMutation.isPending ||
+      removePlaceFavoriteMutation.isPending,
   };
 }

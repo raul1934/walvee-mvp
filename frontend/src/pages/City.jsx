@@ -1,7 +1,12 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Trip } from "@/api/entities";
 import { useQuery } from "@tanstack/react-query";
-import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import {
+  useNavigate,
+  useParams,
+  useSearchParams,
+  useLocation,
+} from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { MapPin } from "lucide-react";
@@ -34,6 +39,55 @@ export default function City({ cityNameOverride, isModal = false }) {
   const [imageErrors, setImageErrors] = useState(new Set());
 
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // Map URL segments to tab ids
+  const tabForSegment = (segment) => {
+    if (!segment) return "all";
+    switch (segment.toLowerCase()) {
+      case "top-places":
+        return "places";
+      case "locals":
+        return "locals";
+      case "favorites":
+      case "favourites":
+        return "favorites";
+      default:
+        return "all";
+    }
+  };
+
+  const segmentForTab = (tabId) => {
+    switch (tabId) {
+      case "places":
+        return "top-places";
+      case "locals":
+        return "locals";
+      case "favorites":
+        return "favorites";
+      default:
+        return "";
+    }
+  };
+
+  // When tabs change, update URL
+  const handleTabChange = (tabId) => {
+    setActiveTab(tabId);
+    const seg = segmentForTab(tabId);
+    const base = `/city/${cityId}`;
+    navigate(seg ? `${base}/${seg}` : base, { replace: false });
+  };
+
+  // Sync active tab from URL on mount and when location changes
+  useEffect(() => {
+    const pathParts = location.pathname.split("/").filter(Boolean);
+    // Expected: ['city', '<id>', '<segment>']
+    const segment = pathParts[2] || "";
+    const tab = tabForSegment(segment);
+    if (tab !== activeTab) {
+      setActiveTab(tab);
+    }
+  }, [location.pathname]);
   const observerRef = useRef();
   const loadingRef = useRef(false);
   const placesObserverRef = useRef();
@@ -176,7 +230,10 @@ export default function City({ cityNameOverride, isModal = false }) {
 
   useEffect(() => {
     setOffset(0);
-    setActiveTab("all");
+    // Preserve tab from URL when switching cities
+    const parts = location.pathname.split("/").filter(Boolean);
+    const seg = parts[2] || "";
+    setActiveTab(tabForSegment(seg));
     setPlacesOffset(0);
     setPlaceCategory("all");
   }, [cityName]);
@@ -405,7 +462,7 @@ export default function City({ cityNameOverride, isModal = false }) {
 
       <CityNavigation
         activeTab={activeTab}
-        onTabChange={setActiveTab}
+        onTabChange={handleTabChange}
         cityName={cityName}
         user={user}
         placeCategory={placeCategory}
@@ -521,12 +578,14 @@ export default function City({ cityNameOverride, isModal = false }) {
         )}
 
         {activeTab === "favorites" && (
-          <CityFavorites
-            cityName={cityName}
-            user={user}
-            onPlaceClick={handlePlaceClick}
-            openLoginModal={openLoginModal}
-          />
+          <div className="container mx-auto px-6">
+            <CityFavorites
+              cityName={cityName}
+              user={user}
+              onPlaceClick={handlePlaceClick}
+              openLoginModal={openLoginModal}
+            />
+          </div>
         )}
 
         <CityExplore

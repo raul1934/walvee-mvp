@@ -2,6 +2,7 @@ const {
   PlaceFavorite,
   Place,
   PlacePhoto,
+  City,
   User,
 } = require("../models/sequelize");
 const {
@@ -100,21 +101,43 @@ const getUserPlaceFavorites = async (req, res, next) => {
               as: "photos",
               attributes: ["id", "url_small", "url_medium", "url_large"],
             },
+            {
+              model: City,
+              as: "city",
+              attributes: ["id", "name"],
+            },
           ],
         },
       ],
       order: [["created_at", "DESC"]],
     });
-
     const formattedFavorites = favorites.map((favorite) => {
-      const place = favorite.place;
+      const place = favorite.place || {};
+      // Attempt to derive city from place.city if available
+      const cityName = place.city?.name || place.city_name || null;
+
       return {
+        // Favorite record
         id: favorite.id,
         place_id: favorite.place_id,
         user_id: favorite.user_id,
         created_at: favorite.created_at,
+
+        // Compatibility top-level fields expected by frontend components
+        place_name: place.name || null,
+        place_address: place.address || place.vicinity || null,
+        city: cityName,
+        rating: place.rating || null,
+        price_level: place.price_level || null,
+        category: (place.types && place.types[0]) || null,
+        photo_url: place.photos?.[0]
+          ? getFullImageUrl(place.photos[0].url_medium)
+          : null,
+
+        // Nested place object for more structured access
         place: {
           id: place.id,
+          google_place_id: place.google_place_id,
           name: place.name,
           types: place.types || [],
           vicinity: place.vicinity,

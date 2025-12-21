@@ -21,9 +21,23 @@ export default function CityFavorites({
 
     return favorites.filter((fav) => {
       const favCity = (fav.city || "").toLowerCase().trim();
-      return favCity === cityNameOnly || favCity === normalizedCityName;
+      const favAddress = (fav.place_address || "").toLowerCase();
+
+      // Match by explicit city field, or by checking if the address contains the city
+      return (
+        favCity === cityNameOnly ||
+        favCity === normalizedCityName ||
+        favAddress.includes(cityNameOnly) ||
+        favAddress.includes(normalizedCityName)
+      );
     });
   }, [favorites, cityName]);
+
+  // Debug logs to help diagnose missing favorites on city page
+  React.useEffect(() => {
+    console.debug("[CityFavorites] total favorites:", favorites.length);
+    console.debug("[CityFavorites] filtered for city:", cityFavorites.length);
+  }, [favorites, cityFavorites]);
 
   if (!user) {
     return (
@@ -81,12 +95,17 @@ export default function CityFavorites({
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {cityFavorites.map((favorite) => {
           const priceInfo = getPriceRangeInfo(favorite.price_level);
+          const rating =
+            favorite.rating !== undefined && favorite.rating !== null
+              ? parseFloat(favorite.rating)
+              : null;
 
           return (
             <button
               key={favorite.id}
               onClick={() =>
                 onPlaceClick({
+                  id: favorite.place?.id || favorite.place_id,
                   name: favorite.place_name,
                   address: favorite.place_address,
                   place_id: favorite.place_id,
@@ -125,11 +144,11 @@ export default function CityFavorites({
                   </p>
 
                   <div className="flex items-center gap-2 flex-wrap">
-                    {favorite.rating && (
+                    {rating !== null && !Number.isNaN(rating) && (
                       <div className="flex items-center gap-1">
                         <Star className="w-3 h-3 fill-yellow-500 text-yellow-500" />
                         <span className="text-xs font-semibold text-yellow-500">
-                          {favorite.rating.toFixed(1)}
+                          {rating.toFixed(1)}
                         </span>
                       </div>
                     )}
