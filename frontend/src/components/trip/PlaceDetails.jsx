@@ -27,6 +27,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useNotification } from "@/contexts/NotificationContext";
 import UserAvatar from "../common/UserAvatar";
 import ImagePlaceholder from "../common/ImagePlaceholder";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -242,18 +243,31 @@ export default function PlaceDetails({
   });
 
   const handleSubmitReview = async () => {
+    const { showNotification } = useNotification();
     if (!reviewComment.trim()) {
-      alert("Please write a comment");
+      showNotification({
+        type: "error",
+        title: "Validation",
+        message: "Please write a comment",
+      });
       return;
     }
 
     if (reviewRating === 0) {
-      alert("Please select a star rating");
+      showNotification({
+        type: "error",
+        title: "Validation",
+        message: "Please select a star rating",
+      });
       return;
     }
 
     if (priceLevel > 0 && !reviewPriceOpinion) {
-      alert("Please select your opinion about the price");
+      showNotification({
+        type: "error",
+        title: "Validation",
+        message: "Please select your opinion about the price",
+      });
       return;
     }
 

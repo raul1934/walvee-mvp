@@ -32,6 +32,7 @@ import PlaceDetails from "../components/trip/PlaceDetails";
 import ImagePlaceholder from "../components/common/ImagePlaceholder";
 import StealModal from "../components/trip/StealModal";
 import ComingSoonModal from "@/components/common/ComingSoonModal";
+import { useNotification } from "@/contexts/NotificationContext";
 import TravelerTips from "../components/trip/TravelerTips";
 import { findPlaceInTrip } from "../components/utils/placeId";
 import { formatNumber } from "../components/utils/numberFormatter";
@@ -320,7 +321,11 @@ export default function TripDetails() {
         })
       );
 
-      alert("Couldn't follow now. Please try again.");
+      showNotification({
+        type: "error",
+        title: "Follow failed",
+        message: "Couldn't follow now. Please try again.",
+      });
     },
     onSuccess: async (data) => {
       queryClient.setQueryData(
@@ -397,7 +402,11 @@ export default function TripDetails() {
         })
       );
 
-      alert("Couldn't unfollow now. Please try again.");
+      showNotification({
+        type: "error",
+        title: "Unfollow failed",
+        message: "Couldn't unfollow now. Please try again.",
+      });
     },
     onSuccess: async () => {
       queryClient.setQueryData(
@@ -485,7 +494,11 @@ export default function TripDetails() {
         })
       );
 
-      alert("Couldn't like now. Please try again.");
+      showNotification({
+        type: "error",
+        title: "Like failed",
+        message: "Couldn't like now. Please try again.",
+      });
     },
     onSuccess: async (data) => {
       queryClient.setQueryData(["likeStatus", tripId, currentUser?.id], data);
@@ -561,7 +574,11 @@ export default function TripDetails() {
         })
       );
 
-      alert("Couldn't unlike now. Please try again.");
+      showNotification({
+        type: "error",
+        title: "Unlike failed",
+        message: "Couldn't unlike now. Please try again.",
+      });
     },
     onSuccess: async () => {
       queryClient.setQueryData(["likeStatus", tripId, currentUser?.id], null);
@@ -1087,12 +1104,20 @@ export default function TripDetails() {
       if (response?.data?.clonedTrip?.id) {
         navigate(`/trip?id=${response.data.clonedTrip.id}`);
       } else {
-        alert("Trip cloned successfully!");
+        showNotification({
+          type: "success",
+          title: "Trip copied",
+          message: "Trip cloned successfully!",
+        });
       }
     } catch (error) {
       console.error("Error creating derivation:", error);
       setIsStealLoading(false);
-      alert("Something went wrong. Please try again.");
+      showNotification({
+        type: "error",
+        title: "Error",
+        message: "Something went wrong. Please try again.",
+      });
     }
   };
 
@@ -1143,6 +1168,7 @@ export default function TripDetails() {
   };
 
   const [isComingSoonOpen, setIsComingSoonOpen] = React.useState(false);
+  const { showNotification } = useNotification();
 
   // Memoize expensive calculations - MUST be before any conditional returns
   const cities = React.useMemo(() => {
@@ -2238,7 +2264,11 @@ export default function TripDetails() {
                           newComment.trim()
                         );
                       } catch (err) {
-                        alert(err.message || "Error posting comment");
+                        showNotification({
+                          type: "error",
+                          title: "Comment error",
+                          message: err.message || "Error posting comment",
+                        });
                       }
                     }}
                     disabled={postCommentMutation.isLoading}
@@ -2298,13 +2328,6 @@ export default function TripDetails() {
           "Publish or keep private",
         ]}
         primaryLabel="Notify me"
-        onPrimary={() => {
-          try {
-            window.alert(
-              "Thanks — we'll notify you when the trip editor is ready!"
-            );
-          } catch (e) {}
-        }}
       />
     </div>
   );

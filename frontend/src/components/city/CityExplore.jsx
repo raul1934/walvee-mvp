@@ -203,14 +203,6 @@ export default function CityExplore({
           "Collections & saving",
         ]}
         primaryLabel="Notify me"
-        onPrimary={() => {
-          // simple demo action — replace with subscription API if needed
-          try {
-            window.alert(
-              "Great — we'll let you know when this feature is available."
-            );
-          } catch (e) {}
-        }}
       />
     </div>
   );

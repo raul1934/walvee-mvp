@@ -3,6 +3,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { authService } from "@/api/authService";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
+import { useNotification } from "@/contexts/NotificationContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -50,6 +51,7 @@ export default function Onboarding() {
   const [formErrors, setFormErrors] = useState({});
 
   const navigate = useNavigate();
+  const { showNotification } = useNotification();
 
   useEffect(() => {
     const loadUser = async () => {
@@ -169,7 +171,11 @@ export default function Onboarding() {
 
   const handleSubmit = async () => {
     if (!formData.terms_accepted) {
-      alert("You need to accept the terms to continue");
+      showNotification({
+        type: "error",
+        title: "Terms required",
+        message: "You need to accept the terms to continue",
+      });
       return;
     }
 
@@ -225,7 +231,11 @@ export default function Onboarding() {
       navigate(createPageUrl("Home"));
     } catch (error) {
       console.error("Error updating profile:", error);
-      alert("Error saving profile. Please try again.");
+      showNotification({
+        type: "error",
+        title: "Error",
+        message: "Error saving profile. Please try again.",
+      });
     } finally {
       setLoading(false);
     }
@@ -479,9 +489,12 @@ export default function Onboarding() {
                           }
                           // Enforce minimum age 13
                           if (age < 13) {
-                            alert(
-                              "You must be at least 13 years old to use this service."
-                            );
+                            showNotification({
+                              type: "error",
+                              title: "Age requirement",
+                              message:
+                                "You must be at least 13 years old to use this service.",
+                            });
                             setFormData({ ...formData, birth_date: "" });
                           }
                           // clear any previous validation errors

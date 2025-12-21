@@ -29,9 +29,11 @@ import { createPageUrl, createProfileUrl } from "@/utils";
 import EditProfilePanel from "../components/profile/EditProfilePanel";
 import { getTripDestinationName } from "@/components/utils/cityFormatter";
 import { useAuth } from "@/contexts/AuthContext";
+import { useNotification } from "@/contexts/NotificationContext";
 
 export default function Profile() {
   const { user: currentUser, openLoginModal } = useAuth();
+  const { showNotification } = useNotification();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const { userId: urlUserId } = useParams();
@@ -533,7 +535,11 @@ export default function Profile() {
         ["profileUser", profileUser?.id],
         context.previousUser
       );
-      alert("Couldn't follow now. Please try again.");
+      showNotification({
+        type: "error",
+        title: "Follow failed",
+        message: "Couldn't follow now. Please try again.",
+      });
     },
     onSuccess: async (data) => {
       queryClient.setQueryData(
@@ -608,7 +614,11 @@ export default function Profile() {
         ["profileUser", profileUser?.id],
         context.previousUser
       );
-      alert("Couldn't unfollow now. Please try again.");
+      showNotification({
+        type: "error",
+        title: "Unfollow failed",
+        message: "Couldn't unfollow now. Please try again.",
+      });
     },
     onSuccess: async () => {
       queryClient.setQueryData(
@@ -634,9 +644,12 @@ export default function Profile() {
   const handleFollowClick = () => {
     // Cannot follow a user if their ID is not known (i.e., profile was built only from public trip data)
     if (!profileUser?.id) {
-      alert(
-        "Cannot follow this user as their full profile information is not available."
-      );
+      showNotification({
+        type: "error",
+        title: "Action not available",
+        message:
+          "Cannot follow this user as their full profile information is not available.",
+      });
       return;
     }
 

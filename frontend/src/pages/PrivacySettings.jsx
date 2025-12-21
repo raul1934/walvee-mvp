@@ -5,6 +5,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Shield, AlertTriangle, Download, Trash2 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
+import { useNotification } from "@/contexts/NotificationContext";
 
 export default function PrivacySettings() {
   const [user, setUser] = useState(null);
@@ -14,6 +15,8 @@ export default function PrivacySettings() {
     consent_demographics: false,
     marketing_opt_in: false,
   });
+
+  const { showNotification } = useNotification();
 
   useEffect(() => {
     const loadUser = async () => {
@@ -52,10 +55,18 @@ export default function PrivacySettings() {
       }
 
       await User.updateMe(updateData);
-      alert("Preferências atualizadas com sucesso!");
+      showNotification({
+        type: "success",
+        title: "Sucesso",
+        message: "Preferências atualizadas com sucesso!",
+      });
     } catch (error) {
       console.error("Error updating consents:", error);
-      alert("Erro ao atualizar preferências");
+      showNotification({
+        type: "error",
+        title: "Erro",
+        message: "Erro ao atualizar preferências",
+      });
     } finally {
       setLoading(false);
     }
@@ -74,7 +85,11 @@ export default function PrivacySettings() {
       URL.revokeObjectURL(url);
     } catch (error) {
       console.error("Error exporting data:", error);
-      alert("Erro ao exportar dados");
+      showNotification({
+        type: "error",
+        title: "Erro",
+        message: "Erro ao exportar dados",
+      });
     }
   };
 
@@ -97,7 +112,12 @@ export default function PrivacySettings() {
 
     try {
       // Note: Account deletion would need backend implementation
-      alert("Para excluir sua conta, entre em contato com suporte@walvee.com");
+      showNotification({
+        type: "info",
+        title: "Contato",
+        message:
+          "Para excluir sua conta, entre em contato com suporte@walvee.com",
+      });
     } catch (error) {
       console.error("Error deleting account:", error);
     }

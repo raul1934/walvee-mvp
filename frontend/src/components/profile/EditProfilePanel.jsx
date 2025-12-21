@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Camera, MapPin, X } from "lucide-react";
 import UserAvatar from "../common/UserAvatar";
+import { useNotification } from "@/contexts/NotificationContext";
 
 const MAX_BIO_LENGTH = 200;
 
@@ -39,7 +40,7 @@ export default function EditProfilePanel({ user, onClose, onSave }) {
   const handleLocationChange = (value) => {
     setLocationQuery(value);
     // Simple parsing: assume format is "City, Country"
-    const parts = value.split(',').map(p => p.trim());
+    const parts = value.split(",").map((p) => p.trim());
     const city = parts[0] || "";
     const country = parts.length > 1 ? parts[parts.length - 1] : "";
     setFormData((prev) => ({ ...prev, city, country }));
@@ -49,13 +50,23 @@ export default function EditProfilePanel({ user, onClose, onSave }) {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    const { showNotification } = useNotification();
+
     if (!file.type.startsWith("image/")) {
-      alert("Please select an image file");
+      showNotification({
+        type: "error",
+        title: "Invalid file",
+        message: "Please select an image file",
+      });
       return;
     }
 
     if (file.size > 5 * 1024 * 1024) {
-      alert("Image size must be less than 5MB");
+      showNotification({
+        type: "error",
+        title: "File too large",
+        message: "Image size must be less than 5MB",
+      });
       return;
     }
 
@@ -65,7 +76,11 @@ export default function EditProfilePanel({ user, onClose, onSave }) {
       setFormData((prev) => ({ ...prev, photo_url: fileUrl }));
     } catch (error) {
       console.error("Error uploading photo:", error);
-      alert("Failed to upload photo. Please try again.");
+      showNotification({
+        type: "error",
+        title: "Upload failed",
+        message: "Failed to upload photo. Please try again.",
+      });
     } finally {
       setUploadingPhoto(false);
     }
@@ -86,7 +101,12 @@ export default function EditProfilePanel({ user, onClose, onSave }) {
     e.preventDefault();
 
     if (!formData.preferred_name.trim()) {
-      alert("Please enter your preferred name");
+      const { showNotification: notify } = useNotification();
+      notify({
+        type: "error",
+        title: "Validation",
+        message: "Please enter your preferred name",
+      });
       return;
     }
 
@@ -131,7 +151,11 @@ export default function EditProfilePanel({ user, onClose, onSave }) {
       onSave();
     } catch (error) {
       console.error("Error updating profile:", error);
-      alert("Failed to update profile. Please try again.");
+      showNotification({
+        type: "error",
+        title: "Update failed",
+        message: "Failed to update profile. Please try again.",
+      });
     } finally {
       setLoading(false);
     }

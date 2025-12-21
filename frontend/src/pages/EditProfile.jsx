@@ -8,12 +8,14 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Camera, MapPin, Search, ArrowLeft } from "lucide-react";
 import UserAvatar from "../components/common/UserAvatar";
+import { useNotification } from "@/contexts/NotificationContext";
 
 const MAX_BIO_LENGTH = 200;
 
 export default function EditProfile() {
   const { user, userLoading } = useAuth();
   const fileInputRef = useRef(null);
+  const { showNotification } = useNotification();
 
   const [loading, setLoading] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
@@ -54,7 +56,7 @@ export default function EditProfile() {
   const handleLocationChange = (value) => {
     setLocationQuery(value);
     // Simple parsing: assume format is "City, Country"
-    const parts = value.split(',').map(p => p.trim());
+    const parts = value.split(",").map((p) => p.trim());
     const city = parts[0] || "";
     const country = parts.length > 1 ? parts[parts.length - 1] : "";
     setFormData((prev) => ({ ...prev, city, country }));
@@ -65,12 +67,20 @@ export default function EditProfile() {
     if (!file) return;
 
     if (!file.type.startsWith("image/")) {
-      alert("Please select an image file");
+      showNotification({
+        type: "error",
+        title: "Invalid file",
+        message: "Please select an image file",
+      });
       return;
     }
 
     if (file.size > 5 * 1024 * 1024) {
-      alert("Image size must be less than 5MB");
+      showNotification({
+        type: "error",
+        title: "File too large",
+        message: "Image size must be less than 5MB",
+      });
       return;
     }
 
@@ -80,7 +90,11 @@ export default function EditProfile() {
       setFormData((prev) => ({ ...prev, photo_url: fileUrl }));
     } catch (error) {
       console.error("Error uploading photo:", error);
-      alert("Failed to upload photo. Please try again.");
+      showNotification({
+        type: "error",
+        title: "Upload failed",
+        message: "Failed to upload photo. Please try again.",
+      });
     } finally {
       setUploadingPhoto(false);
     }
@@ -90,7 +104,11 @@ export default function EditProfile() {
     e.preventDefault();
 
     if (!formData.preferred_name.trim()) {
-      alert("Please enter your preferred name");
+      showNotification({
+        type: "error",
+        title: "Validation",
+        message: "Please enter your preferred name",
+      });
       return;
     }
 
@@ -113,7 +131,11 @@ export default function EditProfile() {
       window.location.href = createProfileUrl();
     } catch (error) {
       console.error("Error updating profile:", error);
-      alert("Failed to update profile. Please try again.");
+      showNotification({
+        type: "error",
+        title: "Update failed",
+        message: "Failed to update profile. Please try again.",
+      });
     } finally {
       setLoading(false);
     }

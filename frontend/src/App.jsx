@@ -2,6 +2,7 @@ import "./App.css";
 import Pages from "@/pages/index.jsx";
 import { Toaster } from "@/components/ui/toaster";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { NotificationProvider } from "@/contexts/NotificationContext";
 
 // Read Vite env vars (prefixed with VITE_)
 const isDev = import.meta.env.MODE === "development";
@@ -43,8 +44,10 @@ const queryClient = new QueryClient({
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <Pages />
-      <Toaster />
+      <NotificationProvider>
+        <Pages />
+        <Toaster />
+      </NotificationProvider>
     </QueryClientProvider>
   );
 }
