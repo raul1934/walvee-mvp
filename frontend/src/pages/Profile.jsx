@@ -290,48 +290,35 @@ export default function Profile() {
 
   const fetchFollowRecords = async ({ pageParam = 0, type, userId }) => {
     // Follow records require authentication and user IDs
-    if (!userId || !currentUser) return { data: [], nextPage: undefined };
-
-    const filterOptions =
-      type === "followers" ? { followee_id: userId } : { follower_id: userId };
+    if (!userId || !currentUser) {
+      return { data: [], nextPage: undefined, total: 0 };
+    }
 
     try {
-      const followRecords = await Follow.filter(filterOptions, {
+      const options = {
+        page: pageParam + 1, // Backend uses 1-based page numbers
         limit: USERS_PAGE_SIZE,
-        offset: pageParam * USERS_PAGE_SIZE,
-      });
+      };
 
-      if (followRecords.length === 0) {
-        return { data: [], nextPage: undefined };
-      }
+      // Use the correct Follow methods - they now return full response with pagination
+      const response = type === "followers" 
+        ? await Follow.getFollowers(userId, options)
+        : await Follow.getFollowing(userId, options);
 
-      const userIds = followRecords.map((follow) =>
-        type === "followers" ? follow.follower_id : follow.followee_id
-      );
-
-      // Fetch user details for the current page of follower/followee IDs
-      // Check if userIds is empty before making a filter call
-      if (userIds.length === 0) {
-        return { data: [], nextPage: undefined };
-      }
-      const users = await User.filter({ id: { in: userIds } });
-
-      // Ensure order is preserved and filter out any users not found
-      const orderedUsers = userIds
-        .map((id) => users.find((u) => u.id === id))
-        .filter(Boolean);
+      const users = response?.data || [];
+      const total = response?.pagination?.total || 0;
 
       return {
-        data: orderedUsers,
-        nextPage:
-          followRecords.length === USERS_PAGE_SIZE ? pageParam + 1 : undefined,
+        data: users,
+        total,
+        nextPage: users.length === USERS_PAGE_SIZE ? pageParam + 1 : undefined,
       };
     } catch (error) {
       console.error(
         "[Profile] Error fetching follow records (requires authentication):",
         error
       );
-      return { data: [], nextPage: undefined };
+      return { data: [], nextPage: undefined, total: 0 };
     }
   };
 
@@ -353,9 +340,11 @@ export default function Profile() {
     enabled: !!profileUser?.id && !!currentUser && activeView === "followers", // Only enabled when followers view is active AND authenticated
     initialPageParam: 0,
     staleTime: 5 * 60 * 1000,
+    refetchOnMount: true,
   });
 
   const followers = followersPages?.pages?.flatMap((page) => page.data) || [];
+  const actualFollowersCount = followersPages?.pages?.[0]?.total ?? null;
 
   const {
     data: followingPages,
@@ -375,9 +364,44 @@ export default function Profile() {
     enabled: !!profileUser?.id && !!currentUser && activeView === "following", // Only enabled when following view is active AND authenticated
     initialPageParam: 0,
     staleTime: 5 * 60 * 1000,
+    refetchOnMount: true,
   });
 
   const following = followingPages?.pages?.flatMap((page) => page.data) || [];
+  const actualFollowingCount = followingPages?.pages?.[0]?.total ?? null;
+
+  // Fetch follower/following counts separately for accurate stats display
+  const { data: followerCountData } = useQuery({
+    queryKey: ["followerCount", profileUser?.id],
+    queryFn: async () => {
+      if (!profileUser?.id || !currentUser) return 0;
+      try {
+        const response = await Follow.getFollowers(profileUser.id, { page: 1, limit: 1 });
+        return response?.pagination?.total || 0;
+      } catch (error) {
+        console.error("[Profile] Error fetching follower count:", error);
+        return 0;
+      }
+    },
+    enabled: !!profileUser?.id && !!currentUser,
+    staleTime: 2 * 60 * 1000, // Cache for 2 minutes
+  });
+
+  const { data: followingCountData } = useQuery({
+    queryKey: ["followingCount", profileUser?.id],
+    queryFn: async () => {
+      if (!profileUser?.id || !currentUser) return 0;
+      try {
+        const response = await Follow.getFollowing(profileUser.id, { page: 1, limit: 1 });
+        return response?.pagination?.total || 0;
+      } catch (error) {
+        console.error("[Profile] Error fetching following count:", error);
+        return 0;
+      }
+    },
+    enabled: !!profileUser?.id && !!currentUser,
+    staleTime: 2 * 60 * 1000, // Cache for 2 minutes
+  });
 
   const isFollowing = !!followStatus;
 
@@ -781,10 +805,10 @@ export default function Profile() {
     profileUser.preferred_name ||
     profileUser.full_name?.split(" ")[0] ||
     "Traveler";
-  const myTrips = profileUser.metrics_my_trips || totalTrips;
-  // Followers/Following counts are only accurate if authenticated and full profile data is available
-  const followersCount = profileUser.metrics_followers || 0;
-  const followingCount = profileUser.metrics_following || 0;
+  const myTrips = totalTrips; // Use actual fetched trips count
+  // Use actual counts from queries, fallback to metrics if not available
+  const followersCount = followerCountData ?? actualFollowersCount ?? profileUser.metrics_followers ?? 0;
+  const followingCount = followingCountData ?? actualFollowingCount ?? profileUser.metrics_following ?? 0;
 
   return (
     <div className="min-h-screen bg-[#0A0B0F] pt-16">
@@ -882,9 +906,9 @@ export default function Profile() {
 
             <button
               onClick={showFollowing}
-              disabled={!currentUser || followingCount === 0}
+              disabled={!currentUser}
               className={`text-center transition-opacity ${
-                !currentUser || followingCount === 0
+                !currentUser
                   ? "opacity-50 cursor-not-allowed"
                   : "hover:opacity-80"
               }`}

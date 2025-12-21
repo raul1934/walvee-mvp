@@ -172,7 +172,7 @@ export const Follow = {
       endpoints.follows.followers(userId),
       options
     );
-    return response.data;
+    return response; // Return full response to access pagination.total
   },
 
   async getFollowing(userId, options = {}) {
@@ -180,7 +180,7 @@ export const Follow = {
       endpoints.follows.following(userId),
       options
     );
-    return response.data;
+    return response; // Return full response to access pagination.total
   },
 
   async check(userId) {

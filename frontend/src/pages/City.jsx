@@ -499,12 +499,14 @@ export default function City({ cityNameOverride, isModal = false }) {
                         : placeCategory.replace(/_/g, " ")}{" "}
                       found in {cityName}.
                     </p>
-                    <button
-                      onClick={() => setPlaceCategory("all")}
-                      className="text-blue-400 hover:text-blue-300 underline"
-                    >
-                      Show all places
-                    </button>
+                    {placeCategory !== "all" && (
+                      <button
+                        onClick={() => setPlaceCategory("all")}
+                        className="text-blue-400 hover:text-blue-300 underline"
+                      >
+                        Show all places
+                      </button>
+                    )}
                   </div>
                 </div>
               )}

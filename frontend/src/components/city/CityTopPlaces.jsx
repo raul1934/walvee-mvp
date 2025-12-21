@@ -40,22 +40,7 @@ export default function CityTopPlaces({
   }
 
   if (!places || places.length === 0) {
-    return (
-      <div className="container mx-auto px-6 text-center py-20">
-        <div className="max-w-md mx-auto">
-          <div className="w-20 h-20 bg-gradient-to-br from-purple-600/20 to-pink-600/20 rounded-2xl flex items-center justify-center mx-auto mb-6">
-            <MapPin className="w-10 h-10 text-purple-400" />
-          </div>
-          <h3 className="text-2xl font-bold text-white mb-4">
-            No places found yet
-          </h3>
-          <p className="text-gray-400">
-            Places will appear here as travelers add them to their trips in{" "}
-            {cityName}.
-          </p>
-        </div>
-      </div>
-    );
+    return null;
   }
 
   return (

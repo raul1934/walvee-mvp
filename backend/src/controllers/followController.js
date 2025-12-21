@@ -19,7 +19,15 @@ const getFollowers = async (req, res, next) => {
         {
           model: User,
           as: "follower",
-          attributes: ["id", "full_name", "preferred_name", "photo_url"],
+          attributes: [
+            "id",
+            "full_name",
+            "preferred_name",
+            "photo_url",
+            "metrics_trips",
+            "metrics_followers",
+            "metrics_following",
+          ],
         },
       ],
       offset,
@@ -48,7 +56,15 @@ const getFollowing = async (req, res, next) => {
         {
           model: User,
           as: "followee",
-          attributes: ["id", "full_name", "preferred_name", "photo_url"],
+          attributes: [
+            "id",
+            "full_name",
+            "preferred_name",
+            "photo_url",
+            "metrics_trips",
+            "metrics_followers",
+            "metrics_following",
+          ],
         },
       ],
       offset,
