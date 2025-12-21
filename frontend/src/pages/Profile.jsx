@@ -24,8 +24,8 @@ import FavoriteCard from "../components/profile/FavoriteCard";
 import UserListItem from "../components/profile/UserListItem";
 import PlaceModal from "../components/city/PlaceModal";
 import ProfileTripFilters from "../components/profile/ProfileTripFilters";
-import { useNavigate, useParams, useLocation } from "react-router-dom";
-import { createPageUrl, createProfileUrl } from "@/utils";
+import { Link, useNavigate, useParams, useLocation } from "react-router-dom";
+import { createPageUrl, createProfileUrl, createCityUrl } from "@/utils";
 import EditProfilePanel from "../components/profile/EditProfilePanel";
 import { getTripDestinationName } from "@/components/utils/cityFormatter";
 import { useAuth } from "@/contexts/AuthContext";
@@ -68,6 +68,8 @@ export default function Profile() {
   const [tripFilter, setTripFilter] = useState(null);
 
   const isViewingOwnProfileWithoutParams = !targetUserEmail && !targetUserId;
+
+  // userCity will be defined after we fetch profileUser (see below)
 
   // Helper to try getting full user data when authenticated
   const tryGetFullUserData = async (email, id) => {
@@ -126,7 +128,9 @@ export default function Profile() {
               full_name: firstTrip.author_name || "Traveler",
               preferred_name: firstTrip.author_name?.split(" ")[0],
               photo_url: firstTrip.author_photo,
-              created_date: firstTrip.created_date,
+              // Normalize created date fields for frontend compatibility
+              created_at: firstTrip.created_at || firstTrip.created_date,
+              created_date: firstTrip.created_date || firstTrip.created_at,
               // Basic placeholder fields if not fully authenticated
               id: null, // ID will be filled if authenticated below
               bio: null,
@@ -188,6 +192,24 @@ export default function Profile() {
     staleTime: 0,
     cacheTime: 5 * 60 * 1000,
   });
+
+  const userCity = React.useMemo(() => {
+    if (!profileUser) return null;
+    const userSource = profileUser || currentUser;
+    if (!userSource) return null;
+    if (userSource.city && typeof userSource.city === "object") {
+      return userSource.city;
+    }
+    const name = userSource.city || userSource.city_name;
+    if (name) {
+      return {
+        id: userSource.city_id || null,
+        name,
+        country: userSource.country || null,
+      };
+    }
+    return null;
+  }, [profileUser]);
 
   const isOwnProfile =
     currentUser?.id === profileUser?.id ||
@@ -907,12 +929,7 @@ export default function Profile() {
 
             <button
               onClick={showFollowers}
-              disabled={!currentUser || followersCount === 0}
-              className={`text-center transition-opacity ${
-                !currentUser || followersCount === 0
-                  ? "opacity-50 cursor-not-allowed"
-                  : "hover:opacity-80"
-              }`}
+              className={`text-center hover:opacity-80 transition-opacity`}
             >
               <div className="text-xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
                 {followersCount}
@@ -924,12 +941,7 @@ export default function Profile() {
 
             <button
               onClick={showFollowing}
-              disabled={!currentUser}
-              className={`text-center transition-opacity ${
-                !currentUser
-                  ? "opacity-50 cursor-not-allowed"
-                  : "hover:opacity-80"
-              }`}
+              className={`text-center hover:opacity-80 transition-opacity`}
             >
               <div className="text-xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
                 {followingCount}
@@ -982,11 +994,8 @@ export default function Profile() {
 
             <button
               onClick={showFollowers}
-              disabled={!currentUser || followersCount === 0}
               className={`w-full flex items-center justify-between px-3 py-2 rounded-lg transition-colors text-left ${
-                !currentUser || followersCount === 0
-                  ? "bg-[#0D0D0D] opacity-50 cursor-not-allowed"
-                  : activeView === "followers"
+                activeView === "followers"
                   ? "bg-blue-600 text-white"
                   : "bg-[#0D0D0D] hover:bg-[#2A2B35]"
               }`}
@@ -1020,11 +1029,8 @@ export default function Profile() {
 
             <button
               onClick={showFollowing}
-              disabled={!currentUser}
               className={`w-full flex items-center justify-between px-3 py-2 rounded-lg transition-colors text-left ${
-                !currentUser
-                  ? "bg-[#0D0D0D] opacity-50 cursor-not-allowed"
-                  : activeView === "following"
+                activeView === "following"
                   ? "bg-blue-600 text-white"
                   : "bg-[#0D0D0D] hover:bg-[#2A2B35]"
               }`}
@@ -1061,26 +1067,56 @@ export default function Profile() {
           <div className="space-y-2 mb-4 pb-4 border-b border-[#2A2B35]">
             <div className="flex items-center gap-2 text-xs text-gray-400">
               <MapPin className="w-3 h-3 text-blue-400 shrink-0" />
-              <span className="truncate">
-                {profileUser.city && profileUser.country ? (
-                  <>
-                    {profileUser.city},{" "}
-                    {profileUser.country.includes("-")
-                      ? profileUser.country.split("-")[1].trim()
-                      : profileUser.country}
-                  </>
+              <div className="truncate">
+                {userCity ? (
+                  userCity.id ? (
+                    <Link
+                      to={createCityUrl(userCity.id)}
+                      className="text-sm font-medium hover:text-blue-400 transition-colors"
+                    >
+                      {userCity.name}
+                      {userCity.country ? `, ${userCity.country}` : ""}
+                    </Link>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        navigate(
+                          `${createPageUrl("Search")}?q=${encodeURIComponent(
+                            userCity.name
+                          )}`
+                        )
+                      }
+                      className="text-sm font-medium hover:text-blue-400 transition-colors text-left"
+                    >
+                      {userCity.name}
+                      {userCity.country ? `, ${userCity.country}` : ""}
+                    </button>
+                  )
                 ) : (
-                  profileUser.city || "Location not set"
+                  <span className="text-sm">Location not set</span>
                 )}
-              </span>
+              </div>
             </div>
 
             <div className="flex items-center gap-2 text-xs text-gray-400">
               <Calendar className="w-3 h-3 text-blue-400 shrink-0" />
               <span>
-                {profileUser.created_date
-                  ? format(new Date(profileUser.created_date), "MMM yyyy")
-                  : "Recently"}
+                {profileUser.created_at ||
+                profileUser.created_date ||
+                profileUser.createdAt ||
+                profileUser.createdDate
+                  ? // Show the actual account creation date (day + month + year)
+                    `Joined ${format(
+                      new Date(
+                        profileUser.created_at ||
+                          profileUser.created_date ||
+                          profileUser.createdAt ||
+                          profileUser.createdDate
+                      ),
+                      "MMM dd, yyyy"
+                    )}`
+                  : "Joined Recently"}
               </span>
             </div>
           </div>

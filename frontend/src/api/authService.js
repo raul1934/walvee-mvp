@@ -64,7 +64,9 @@ export const authService = {
     } catch (error) {
       console.error("Logout error:", error);
     } finally {
+      // Clear authentication token and cached user data from storage
       apiClient.setToken(null);
+      apiClient.setCachedUser(null);
       window.location.href = "/";
     }
   },

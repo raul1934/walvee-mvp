@@ -68,6 +68,26 @@ const getUserById = async (req, res, next) => {
     });
 
     const userObj = user.toJSON();
+
+    // Include nested city object when available for frontend convenience
+    if (userObj.city_id) {
+      const city = await City.findByPk(userObj.city_id, {
+        include: [
+          { model: require("../models/sequelize").Country, as: "country" },
+        ],
+      });
+
+      if (city) {
+        userObj.city = {
+          id: city.id,
+          name: city.name,
+          country: city.country ? city.country.name : null,
+        };
+        // Keep legacy fields for backward compatibility
+        userObj.city_name = city.name;
+        userObj.country = city.country ? city.country.name : userObj.country;
+      }
+    }
     userObj.followers_count = followers_count;
     userObj.following_count = following_count;
     userObj.trips_count = trips_count;

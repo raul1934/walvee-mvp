@@ -1,5 +1,6 @@
 import React from "react";
 import { User } from "@/api/entities";
+import authService from "@/api/authService";
 import { Link, useNavigate } from "react-router-dom";
 import { createPageUrl, createProfileUrl } from "@/utils";
 export default function Sidebar({ isOpen, onClose, user, openLoginModal }) {
@@ -8,7 +9,8 @@ export default function Sidebar({ isOpen, onClose, user, openLoginModal }) {
   const handleSignOut = async () => {
     try {
       onClose();
-      await User.signOut();
+      // Use the authService signOut which handles token cleanup and redirect
+      await authService.signOut();
       navigate(createPageUrl("Home"));
     } catch (error) {
       console.error("Error signing out:", error);
