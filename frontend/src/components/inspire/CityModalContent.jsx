@@ -48,7 +48,11 @@ export default function CityModalContent({ cityName, user, onAddToTrip }) {
       const cityNameOnly = normalizedCityName.split(",")[0].trim();
 
       let filtered = allTrips.filter((trip) => {
-        const destination = trip.destination?.toLowerCase().trim() || "";
+        const destinationRaw =
+          trip.destination && typeof trip.destination === "object"
+            ? trip.destination.name
+            : trip.destination || "";
+        const destination = destinationRaw.toLowerCase().trim();
         const destinationCity = destination.split(",")[0].trim();
 
         if (
@@ -59,7 +63,11 @@ export default function CityModalContent({ cityName, user, onAddToTrip }) {
         }
 
         const locations =
-          trip.locations?.map((loc) => loc.toLowerCase().trim()) || [];
+          trip.locations?.map((loc) =>
+            typeof loc === "string"
+              ? loc.toLowerCase().trim()
+              : (loc.name || "").toLowerCase().trim()
+          ) || [];
 
         return locations.some((loc) => {
           const locCity = loc.split(",")[0].trim();

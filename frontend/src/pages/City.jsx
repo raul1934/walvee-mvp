@@ -289,7 +289,11 @@ export default function City({ cityNameOverride, isModal = false }) {
 
     let combined = [...tripsPlaces];
 
-    const cityNameOnly = cityName?.split(",")[0].trim().toLowerCase() || "";
+    const cityNameOnly =
+      (cityName && (typeof cityName === "string" ? cityName : cityName.name))
+        ?.split(",")[0]
+        .trim()
+        .toLowerCase() || "";
 
     combined = combined.filter((place) => {
       const placeAddress = place.address?.toLowerCase() || "";

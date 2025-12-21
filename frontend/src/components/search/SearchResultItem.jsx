@@ -93,7 +93,11 @@ export default function SearchResultItem({ result, onClose, onPlaceClick }) {
           </h3>
           <div className="flex items-center gap-2 text-xs text-gray-400 mb-2">
             <MapPin className="w-3 h-3 shrink-0" />
-            <span className="truncate">{result.destination}</span>
+            <span className="truncate">
+              {result.destination && typeof result.destination === "object"
+                ? result.destination.name
+                : result.destination}
+            </span>
           </div>
           <div className="flex items-center gap-3 text-xs text-gray-500">
             <span className="flex items-center gap-1">

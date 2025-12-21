@@ -1,6 +1,6 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import { createPageUrl, createCityUrl } from "@/utils";
+import { createPageUrl, createCityUrl, createProfileUrl } from "@/utils";
 import { MapPin, Users } from "lucide-react";
 import { motion } from "framer-motion";
 import UserAvatar from "../common/UserAvatar";
@@ -146,12 +146,7 @@ export default function CityExplore({
                 transition={{ delay: idx * 0.05 }}
                 className="text-center"
               >
-                <Link
-                  to={`${createPageUrl("Profile")}?email=${encodeURIComponent(
-                    local.id
-                  )}`}
-                  className="block group"
-                >
+                <Link to={createProfileUrl(local.id)} className="block group">
                   <div className="relative mb-3 inline-block">
                     <UserAvatar
                       src={local.avatar}

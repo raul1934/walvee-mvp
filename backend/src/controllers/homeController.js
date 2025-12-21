@@ -55,6 +55,11 @@ const getHomeTrips = async (req, res) => {
           attributes: ["id", "name"],
           include: [
             {
+              model: Country,
+              as: "country",
+              attributes: ["id", "name"],
+            },
+            {
               model: CityPhoto,
               as: "photos",
               attributes: ["url_small", "url_medium", "url_large"],
@@ -150,11 +155,28 @@ const getHomeTrips = async (req, res) => {
       // Calculate duration_days from itinerary
       const durationDays = trip.itineraryDays ? trip.itineraryDays.length : 0;
 
+      // Build nested destination object (prefer destinationCity when available)
+      const destinationObj = trip.destinationCity
+        ? {
+            id: trip.destinationCity.id,
+            name: `${trip.destinationCity.name}${
+              trip.destinationCity.country?.name
+                ? `, ${trip.destinationCity.country.name}`
+                : ""
+            }`,
+            photo: getFullImageUrl(
+              trip.destinationCity.photos?.[0]?.url_medium
+            ),
+          }
+        : trip.destination
+        ? { name: trip.destination }
+        : null;
+
       return {
         id: trip.id,
         title: trip.title,
         description: trip.description,
-        destination: trip.destination,
+        destination: destinationObj,
         duration: trip.duration,
         duration_days: durationDays,
         budget: trip.budget,

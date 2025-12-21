@@ -187,8 +187,15 @@ export function useFavorites(user) {
         let city = placeData.city;
         let country = placeData.country;
 
+        // destination may be a nested object { id, name } or a legacy string
         if (destination && !city) {
-          const parts = destination.split(",").map((p) => p.trim());
+          let destinationName = "";
+          if (typeof destination === "object" && destination.name) {
+            destinationName = destination.name;
+          } else if (typeof destination === "string") {
+            destinationName = destination;
+          }
+          const parts = destinationName.split(",").map((p) => p.trim());
           city = parts[0];
           country = parts[1] || "";
         }

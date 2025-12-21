@@ -14,8 +14,8 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Trip, TripLike, TripSteal } from "@/api/entities";
 import TripItinerary from "./TripItinerary";
 import TripCardViewToggle from "./TripCardViewToggle";
-import { Link } from "react-router-dom";
-import { createPageUrl, createProfileUrl } from "@/utils";
+import { Link, useNavigate } from "react-router-dom";
+import { createPageUrl, createProfileUrl, createCityUrl } from "@/utils";
 import UserAvatar from "../common/UserAvatar";
 import ImagePlaceholder from "../common/ImagePlaceholder";
 import StealModal from "../trip/StealModal";
@@ -40,6 +40,7 @@ export default React.memo(
     const [isStealModalOpen, setIsStealModalOpen] = React.useState(false);
 
     const queryClient = useQueryClient();
+    const navigate = useNavigate();
 
     // Determine valid images - filter out broken ones and provide a fallback if none exist
     const validImages = React.useMemo(() => {
@@ -68,6 +69,9 @@ export default React.memo(
     const sharesCount = trip.shares || 0;
 
     const cities = React.useMemo(() => getTripCities(trip), [trip]);
+    // Primary city (first item) is displayed next to the pin; avoid duplicating it in the scroller
+    const primaryCity = cities && cities.length > 0 ? cities[0] : null;
+    const scrollerCities = cities && cities.length > 1 ? cities.slice(1) : [];
 
     const likeMutation = useMutation({
       mutationFn: async (shouldLike) => {
@@ -312,11 +316,49 @@ export default React.memo(
               {/* Updated Location Display */}
               <div className="flex items-center gap-2 text-sm text-gray-400 mb-3 min-w-0">
                 <MapPin className="w-4 h-4 text-blue-400 shrink-0" />
+
+                {/* Primary city link (after the pin) */}
+                <div className="min-w-0 text-sm text-gray-200 font-medium truncate">
+                  {primaryCity ? (
+                    primaryCity.id ? (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          navigate(createCityUrl(primaryCity.id));
+                        }}
+                        className="hover:text-blue-400 transition-colors text-left"
+                      >
+                        {primaryCity.name}
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          navigate(
+                            `${createPageUrl("Search")}?q=${encodeURIComponent(
+                              primaryCity.name
+                            )}`
+                          );
+                        }}
+                        className="hover:text-blue-400 transition-colors text-left"
+                      >
+                        {primaryCity.name}
+                      </button>
+                    )
+                  ) : (
+                    "Unknown destination"
+                  )}
+                </div>
+
                 <div className="min-w-0 flex-1">
                   <CitiesScroller
-                    cities={cities}
+                    cities={scrollerCities}
                     className="text-sm"
-                    makeLinks={false}
+                    makeLinks={true}
                   />
                 </div>
               </div>

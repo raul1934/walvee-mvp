@@ -731,11 +731,37 @@ async function formatTripResponse(trip) {
   }
 
   const citiesWithIds = Array.from(cityMap.values());
+  // Build nested destination object (prefer destinationCity relation if present)
+  let destinationObj = null;
+  if (tripData.destinationCity && tripData.destinationCity.name) {
+    // Try to find matching city in citiesWithIds to include country name if available
+    const matchedById = citiesWithIds.find(
+      (c) => c.id && c.id === tripData.destinationCity.id
+    );
+    if (matchedById) {
+      destinationObj = { id: matchedById.id || null, name: matchedById.name };
+    } else {
+      destinationObj = {
+        id: tripData.destinationCity.id,
+        name: tripData.destinationCity.name,
+      };
+    }
+  } else if (destination) {
+    // try to match the destination name against discovered citiesWithIds
+    const matched = citiesWithIds.find((c) =>
+      c.name.toLowerCase().startsWith(destCityName.toLowerCase())
+    );
+    if (matched) {
+      destinationObj = { id: matched.id || null, name: matched.name };
+    } else {
+      destinationObj = { name: destination };
+    }
+  }
 
   return {
     id: tripData.id,
     title: tripData.title,
-    destination: tripData.destination,
+    destination: destinationObj,
     description: tripData.description,
     duration: tripData.duration,
     duration_days: durationDays,

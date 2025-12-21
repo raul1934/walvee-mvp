@@ -27,6 +27,7 @@ import ProfileTripFilters from "../components/profile/ProfileTripFilters";
 import { useNavigate, useParams } from "react-router-dom";
 import { createPageUrl, createProfileUrl } from "@/utils";
 import EditProfilePanel from "../components/profile/EditProfilePanel";
+import { getTripDestinationName } from "@/components/utils/cityFormatter";
 import { useAuth } from "@/contexts/AuthContext";
 
 export default function Profile() {
@@ -195,7 +196,7 @@ export default function Profile() {
 
     return userTrips.filter((trip) => {
       if (typeof tripFilter === "string") {
-        const city = trip.destination?.split(",")[0]?.trim();
+        const city = getTripDestinationName(trip);
         return city === tripFilter;
       }
 
@@ -421,7 +422,13 @@ export default function Profile() {
 
   const uniqueCountries = new Set(
     userTrips
-      .map((trip) => trip.destination?.split(",").pop()?.trim())
+      .map((trip) => {
+        const destination =
+          trip.destination && typeof trip.destination === "object"
+            ? trip.destination.name
+            : trip.destination;
+        return destination?.split(",").pop()?.trim();
+      })
       .filter(Boolean)
   ).size;
 

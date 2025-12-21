@@ -2,7 +2,11 @@ import React, { useState, useRef, useEffect } from "react";
 import { MapPin, Calendar, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-export default function ProfileTripFilters({ trips, activeFilter, onFilterChange }) {
+export default function ProfileTripFilters({
+  trips,
+  activeFilter,
+  onFilterChange,
+}) {
   const cityScrollRef = useRef(null);
   const yearScrollRef = useRef(null);
   const [filterType, setFilterType] = useState("city");
@@ -12,12 +16,16 @@ export default function ProfileTripFilters({ trips, activeFilter, onFilterChange
   // Extract unique cities from trips
   const cities = React.useMemo(() => {
     const cityMap = new Map();
-    
-    trips.forEach(trip => {
-      if (trip.destination) {
-        const parts = trip.destination.split(',');
+
+    trips.forEach((trip) => {
+      const destinationRaw =
+        trip.destination && typeof trip.destination === "object"
+          ? trip.destination.name
+          : trip.destination;
+      if (destinationRaw) {
+        const parts = destinationRaw.split(",");
         const city = parts[0]?.trim();
-        
+
         if (city) {
           if (!cityMap.has(city)) {
             cityMap.set(city, { name: city, count: 1 });
@@ -27,19 +35,18 @@ export default function ProfileTripFilters({ trips, activeFilter, onFilterChange
         }
       }
     });
-    
-    return Array.from(cityMap.values())
-      .sort((a, b) => b.count - a.count);
+
+    return Array.from(cityMap.values()).sort((a, b) => b.count - a.count);
   }, [trips]);
 
   // Extract unique years from trips
   const years = React.useMemo(() => {
     const yearMap = new Map();
-    
-    trips.forEach(trip => {
+
+    trips.forEach((trip) => {
       if (trip.start_date) {
         const year = new Date(trip.start_date).getFullYear();
-        
+
         if (!yearMap.has(year)) {
           yearMap.set(year, { year, count: 1 });
         } else {
@@ -47,39 +54,40 @@ export default function ProfileTripFilters({ trips, activeFilter, onFilterChange
         }
       }
     });
-    
-    return Array.from(yearMap.values())
-      .sort((a, b) => b.year - a.year);
+
+    return Array.from(yearMap.values()).sort((a, b) => b.year - a.year);
   }, [trips]);
 
   // Check if scroll is needed for cities
   useEffect(() => {
     const checkCityScroll = () => {
       if (cityScrollRef.current) {
-        const hasOverflow = cityScrollRef.current.scrollWidth > cityScrollRef.current.clientWidth;
+        const hasOverflow =
+          cityScrollRef.current.scrollWidth > cityScrollRef.current.clientWidth;
         setShowCityArrows(hasOverflow);
       }
     };
 
     checkCityScroll();
-    window.addEventListener('resize', checkCityScroll);
-    
-    return () => window.removeEventListener('resize', checkCityScroll);
+    window.addEventListener("resize", checkCityScroll);
+
+    return () => window.removeEventListener("resize", checkCityScroll);
   }, [cities, filterType]);
 
   // Check if scroll is needed for years
   useEffect(() => {
     const checkYearScroll = () => {
       if (yearScrollRef.current) {
-        const hasOverflow = yearScrollRef.current.scrollWidth > yearScrollRef.current.clientWidth;
+        const hasOverflow =
+          yearScrollRef.current.scrollWidth > yearScrollRef.current.clientWidth;
         setShowYearArrows(hasOverflow);
       }
     };
 
     checkYearScroll();
-    window.addEventListener('resize', checkYearScroll);
-    
-    return () => window.removeEventListener('resize', checkYearScroll);
+    window.addEventListener("resize", checkYearScroll);
+
+    return () => window.removeEventListener("resize", checkYearScroll);
   }, [years, filterType]);
 
   const scrollCity = (direction) => {
@@ -126,7 +134,7 @@ export default function ProfileTripFilters({ trips, activeFilter, onFilterChange
           <MapPin className="w-3.5 h-3.5" />
           By city
         </button>
-        
+
         <button
           onClick={() => {
             setFilterType("year");
@@ -161,7 +169,7 @@ export default function ProfileTripFilters({ trips, activeFilter, onFilterChange
             <div
               ref={cityScrollRef}
               className="flex gap-2 overflow-x-auto scrollbar-hide scroll-smooth flex-1"
-              style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+              style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
             >
               {cities.map((city) => (
                 <button
@@ -175,9 +183,17 @@ export default function ProfileTripFilters({ trips, activeFilter, onFilterChange
                 >
                   <MapPin className="w-4 h-4" />
                   <div className="text-center">
-                    <div className="text-xs font-semibold whitespace-nowrap">{city.name}</div>
-                    <div className={`text-[10px] ${activeFilter === city.name ? 'text-blue-100' : 'text-gray-500'}`}>
-                      {city.count} {city.count === 1 ? 'trip' : 'trips'}
+                    <div className="text-xs font-semibold whitespace-nowrap">
+                      {city.name}
+                    </div>
+                    <div
+                      className={`text-[10px] ${
+                        activeFilter === city.name
+                          ? "text-blue-100"
+                          : "text-gray-500"
+                      }`}
+                    >
+                      {city.count} {city.count === 1 ? "trip" : "trips"}
                     </div>
                   </div>
                 </button>
@@ -216,7 +232,7 @@ export default function ProfileTripFilters({ trips, activeFilter, onFilterChange
             <div
               ref={yearScrollRef}
               className="flex gap-2 overflow-x-auto scrollbar-hide scroll-smooth flex-1"
-              style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+              style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
             >
               {years.map((yearData) => (
                 <button
@@ -231,8 +247,14 @@ export default function ProfileTripFilters({ trips, activeFilter, onFilterChange
                   <Calendar className="w-4 h-4" />
                   <div className="text-center">
                     <div className="text-xs font-semibold">{yearData.year}</div>
-                    <div className={`text-[10px] ${activeFilter === yearData.year ? 'text-blue-100' : 'text-gray-500'}`}>
-                      {yearData.count} {yearData.count === 1 ? 'trip' : 'trips'}
+                    <div
+                      className={`text-[10px] ${
+                        activeFilter === yearData.year
+                          ? "text-blue-100"
+                          : "text-gray-500"
+                      }`}
+                    >
+                      {yearData.count} {yearData.count === 1 ? "trip" : "trips"}
                     </div>
                   </div>
                 </button>
