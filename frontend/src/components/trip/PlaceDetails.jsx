@@ -30,7 +30,6 @@ import UserAvatar from "../common/UserAvatar";
 import ImagePlaceholder from "../common/ImagePlaceholder";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getPriceRangeInfo } from "../utils/priceFormatter";
-import { useFavorites } from "../hooks/useFavorites";
 import { tr } from "date-fns/locale";
 
 const getPriceRangeText = (priceLevel) => {
@@ -199,10 +198,6 @@ export default function PlaceDetails({
   const priceLevel = enrichedPlace.price_level || 0;
   const priceInfo = getPriceRangeInfo(enrichedPlace.price_level);
 
-  const { isFavorited, toggleFavorite, isToggling } = useFavorites(user);
-
-  const isFavorite = isFavorited(enrichedPlace.name);
-
   const { data: userReviews = [] } = useQuery({
     queryKey: ["reviews", "place", enrichedPlace.place_id],
     queryFn: async () => {
@@ -219,23 +214,6 @@ export default function PlaceDetails({
     },
     enabled: !!enrichedPlace.place_id && activeTab === "reviews",
   });
-
-  const handleFavoriteToggle = async () => {
-    try {
-      // If not authenticated, the API call will trigger 401 and show login modal
-      const placeDataForToggle = {
-        ...enrichedPlace,
-        city: enrichedPlace.city || trip?.destination?.split(",")[0],
-        country:
-          enrichedPlace.country || trip?.destination?.split(",")[1]?.trim(),
-      };
-
-      await toggleFavorite(placeDataForToggle, trip?.destination);
-    } catch (error) {
-      console.error("[PlaceDetails] Error toggling favorite:", error);
-      alert("Error saving favorite. Please try again.");
-    }
-  };
 
   const addReviewMutation = useMutation({
     mutationFn: async (reviewData) => {
@@ -584,7 +562,6 @@ export default function PlaceDetails({
     { id: "reviews", label: "Reviews", Icon: Star },
     { id: "photos", label: "Photos", Icon: Camera },
     { id: "directions", label: "Directions", Icon: Navigation },
-    { id: "favorites", label: "Favorites", Icon: Heart },
   ];
 
   const formatOpeningHours = () => {
@@ -1222,62 +1199,6 @@ export default function PlaceDetails({
                 Open in Maps
               </Button>
             </div>
-          </div>
-        )}
-
-        {activeTab === "favorites" && (
-          <div className="space-y-4 p-6">
-            <h3 className="text-lg font-semibold text-white">
-              Save to Favorites
-            </h3>
-
-            <Button
-              onClick={handleFavoriteToggle}
-              disabled={isToggling}
-              className={`w-full ${
-                isFavorite
-                  ? "bg-red-600 hover:bg-red-700"
-                  : "bg-gradient-to-r from-blue-600 to-purple-600 hover:opacity-90"
-              }`}
-            >
-              {isToggling ? (
-                <>
-                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
-                  {isFavorite ? "Removing..." : "Adding..."}
-                </>
-              ) : (
-                <>
-                  <Heart
-                    className={`w-5 h-5 mr-2 ${isFavorite ? "fill-white" : ""}`}
-                  />
-                  {isFavorite ? "Remove from Favorites" : "Add to Favorites"}
-                </>
-              )}
-            </Button>
-
-            <div className="bg-[#111827] rounded-xl p-4 border border-[#1F1F1F]">
-              <p className="text-gray-300 text-sm leading-relaxed">
-                {isFavorite
-                  ? "✅ This place is saved to your favorites. We'll remind you about it when you're creating a trip itinerary in this city."
-                  : "💡 Save this place to quickly find it later. We'll remind you about your favorite spots when you're planning trips in this city."}
-              </p>
-            </div>
-
-            {isFavorite && (
-              <div className="bg-blue-950/30 border border-blue-500/30 rounded-xl p-4">
-                <h4 className="font-semibold text-white text-sm mb-2">
-                  Smart Suggestions
-                </h4>
-                <p className="text-blue-200 text-xs leading-relaxed">
-                  Your favorites help us provide better recommendations and will
-                  appear automatically when you create new trips to{" "}
-                  {trip?.destination?.split(",")[0] ||
-                    place.formatted_address?.split(",")[1]?.trim() ||
-                    "this city"}
-                  .
-                </p>
-              </div>
-            )}
           </div>
         )}
       </div>
