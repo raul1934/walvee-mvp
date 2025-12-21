@@ -19,6 +19,10 @@ router.post(
 );
 
 // Remove place from favorites
-router.delete("/:id", authenticate, placeFavoriteController.deletePlaceFavorite);
+router.delete(
+  "/:id",
+  authenticate,
+  placeFavoriteController.deletePlaceFavorite
+);
 
 module.exports = router;

@@ -193,7 +193,8 @@ export default function PlaceDetails({
   const queryClient = useQueryClient();
 
   // Favorites hook
-  const { isPlaceFavorited, togglePlaceFavorite, isTogglingPlace } = useFavorites(user);
+  const { isPlaceFavorited, togglePlaceFavorite, isTogglingPlace } =
+    useFavorites(user);
   const placeId = enrichedPlace.id || enrichedPlace.place_id;
   const isFavorited = isPlaceFavorited(placeId);
 
@@ -1122,9 +1123,7 @@ export default function PlaceDetails({
               <div className="mb-4">
                 <Heart
                   className={`w-16 h-16 mx-auto mb-4 ${
-                    isFavorited
-                      ? "fill-red-500 text-red-500"
-                      : "text-gray-400"
+                    isFavorited ? "fill-red-500 text-red-500" : "text-gray-400"
                   }`}
                 />
                 <h3 className="text-xl font-bold text-white mb-2">
@@ -1163,7 +1162,11 @@ export default function PlaceDetails({
                   </>
                 ) : (
                   <>
-                    <Heart className={`w-5 h-5 mr-2 ${isFavorited ? "fill-white" : ""}`} />
+                    <Heart
+                      className={`w-5 h-5 mr-2 ${
+                        isFavorited ? "fill-white" : ""
+                      }`}
+                    />
                     {isFavorited ? "Remove from Favorites" : "Add to Favorites"}
                   </>
                 )}

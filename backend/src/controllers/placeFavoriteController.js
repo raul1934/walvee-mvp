@@ -132,7 +132,9 @@ const getUserPlaceFavorites = async (req, res, next) => {
       };
     });
 
-    return res.status(200).json(buildSuccessResponse({ favorites: formattedFavorites }));
+    return res
+      .status(200)
+      .json(buildSuccessResponse({ favorites: formattedFavorites }));
   } catch (error) {
     next(error);
   }

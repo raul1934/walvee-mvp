@@ -91,7 +91,9 @@ export function useFavorites(user) {
   // Remove place favorite mutation
   const removePlaceFavoriteMutation = useMutation({
     mutationFn: async (favoriteId) => {
-      return await apiClient.delete(endpoints.placeFavorites.delete(favoriteId));
+      return await apiClient.delete(
+        endpoints.placeFavorites.delete(favoriteId)
+      );
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["placeFavorites", user?.id] });
@@ -160,7 +162,12 @@ export function useFavorites(user) {
         await addPlaceFavoriteMutation.mutateAsync(placeId);
       }
     },
-    [user, getPlaceFavorite, addPlaceFavoriteMutation, removePlaceFavoriteMutation]
+    [
+      user,
+      getPlaceFavorite,
+      addPlaceFavoriteMutation,
+      removePlaceFavoriteMutation,
+    ]
   );
 
   // Toggle trip favorite (legacy - kept for backward compatibility)
@@ -202,7 +209,12 @@ export function useFavorites(user) {
         await addTripFavoriteMutation.mutateAsync(tripId);
       }
     },
-    [user, getTripFavoriteByName, addTripFavoriteMutation, removeTripFavoriteMutation]
+    [
+      user,
+      getTripFavoriteByName,
+      addTripFavoriteMutation,
+      removeTripFavoriteMutation,
+    ]
   );
 
   return {
@@ -212,8 +224,9 @@ export function useFavorites(user) {
     getPlaceFavorite,
     togglePlaceFavorite,
     isTogglingPlace:
-      addPlaceFavoriteMutation.isPending || removePlaceFavoriteMutation.isPending,
-    
+      addPlaceFavoriteMutation.isPending ||
+      removePlaceFavoriteMutation.isPending,
+
     // Trip favorites (legacy)
     tripFavorites,
     isTripFavorited,
@@ -221,10 +234,10 @@ export function useFavorites(user) {
     toggleTripFavorite,
     isTogglingTrip:
       addTripFavoriteMutation.isPending || removeTripFavoriteMutation.isPending,
-    
+
     // Combined state
     isLoading: isLoadingTrips || isLoadingPlaces,
-    
+
     // Backward compatibility (points to trip favorites)
     favorites: tripFavorites,
     isFavorited: isTripFavorited,
