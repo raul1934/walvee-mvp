@@ -1,6 +1,7 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import { createPageUrl, createCityUrl, createProfileUrl } from "@/utils";
+import ComingSoonModal from "@/components/common/ComingSoonModal";
 import { MapPin, Users } from "lucide-react";
 import { motion } from "framer-motion";
 import UserAvatar from "../common/UserAvatar";
@@ -13,6 +14,7 @@ export default function CityExplore({
   currentCity,
   countryId,
 }) {
+  const [isComingSoonOpen, setIsComingSoonOpen] = React.useState(false);
   // Extract country from currentCity (format: "City, Country")
   const country = currentCity?.split(",")[1]?.trim();
   const currentCityName = currentCity?.split(",")[0]?.trim();
@@ -132,10 +134,26 @@ export default function CityExplore({
       {/* Top Contributors */}
       {featuredLocals && featuredLocals.length > 0 && (
         <div>
-          <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-3">
-            <Users className="w-6 h-6 text-purple-400" />
-            Top Contributors
-          </h2>
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-2xl font-bold text-white flex items-center gap-3">
+              <Users className="w-6 h-6 text-purple-400" />
+              Top Contributors
+            </h2>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setIsComingSoonOpen(true);
+                }}
+                className="text-xs text-gray-400 hover:text-white bg-[#0D0D0D] px-3 py-1 rounded-full border border-[#2A2B35]"
+              >
+                Coming soon
+              </button>
+            </div>
+          </div>
 
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
             {featuredLocals.map((local, idx) => (
@@ -172,6 +190,28 @@ export default function CityExplore({
           </div>
         </div>
       )}
+
+      <ComingSoonModal
+        isOpen={isComingSoonOpen}
+        onClose={() => setIsComingSoonOpen(false)}
+        title="More ways to connect"
+        description="We're rolling out richer profiles, direct messages, and local badges soon. Want to be notified when these go live?"
+        features={[
+          "Richer user profiles",
+          "Direct messaging",
+          "Local contributor badges",
+          "Collections & saving",
+        ]}
+        primaryLabel="Notify me"
+        onPrimary={() => {
+          // simple demo action — replace with subscription API if needed
+          try {
+            window.alert(
+              "Great — we'll let you know when this feature is available."
+            );
+          } catch (e) {}
+        }}
+      />
     </div>
   );
 }
