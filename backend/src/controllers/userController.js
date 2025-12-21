@@ -54,15 +54,15 @@ const getUserById = async (req, res, next) => {
 
     // Add dynamic counts
     const { Follow, Trip } = require("../models/sequelize");
-    
+
     const followers_count = await Follow.count({
       where: { followee_id: id },
     });
-    
+
     const following_count = await Follow.count({
       where: { follower_id: id },
     });
-    
+
     const trips_count = await Trip.count({
       where: { author_id: id },
     });
@@ -136,26 +136,28 @@ const getUserStats = async (req, res, next) => {
 
     // Calculate stats dynamically
     const { Follow, Trip, TripLike } = require("../models/sequelize");
-    
+
     const followers_count = await Follow.count({
       where: { followee_id: id },
     });
-    
+
     const following_count = await Follow.count({
       where: { follower_id: id },
     });
-    
+
     const trips_count = await Trip.count({
       where: { author_id: id },
     });
-    
+
     const likesReceived = await TripLike.count({
-      include: [{
-        model: Trip,
-        as: 'trip',
-        where: { author_id: id },
-        required: true,
-      }],
+      include: [
+        {
+          model: Trip,
+          as: "trip",
+          where: { author_id: id },
+          required: true,
+        },
+      ],
     });
 
     const stats = {

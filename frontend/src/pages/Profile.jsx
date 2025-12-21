@@ -298,9 +298,10 @@ export default function Profile() {
       };
 
       // Use the correct Follow methods - they now return full response with pagination
-      const response = type === "followers" 
-        ? await Follow.getFollowers(userId, options)
-        : await Follow.getFollowing(userId, options);
+      const response =
+        type === "followers"
+          ? await Follow.getFollowers(userId, options)
+          : await Follow.getFollowing(userId, options);
 
       const users = response?.data || [];
       const total = response?.pagination?.total || 0;
@@ -373,7 +374,10 @@ export default function Profile() {
     queryFn: async () => {
       if (!profileUser?.id || !currentUser) return 0;
       try {
-        const response = await Follow.getFollowers(profileUser.id, { page: 1, limit: 1 });
+        const response = await Follow.getFollowers(profileUser.id, {
+          page: 1,
+          limit: 1,
+        });
         return response?.pagination?.total || 0;
       } catch (error) {
         console.error("[Profile] Error fetching follower count:", error);
@@ -389,7 +393,10 @@ export default function Profile() {
     queryFn: async () => {
       if (!profileUser?.id || !currentUser) return 0;
       try {
-        const response = await Follow.getFollowing(profileUser.id, { page: 1, limit: 1 });
+        const response = await Follow.getFollowing(profileUser.id, {
+          page: 1,
+          limit: 1,
+        });
         return response?.pagination?.total || 0;
       } catch (error) {
         console.error("[Profile] Error fetching following count:", error);

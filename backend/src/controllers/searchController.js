@@ -494,11 +494,11 @@ const searchOverlay = async (req, res, next) => {
       const travelersWithCounts = await Promise.all(
         travelers.map(async (user) => {
           const trips_count = await Trip.count({
-            where: { author_id: user.id }
+            where: { author_id: user.id },
           });
-          
+
           const followers_count = await Follow.count({
-            where: { followee_id: user.id }
+            where: { followee_id: user.id },
           });
 
           return {

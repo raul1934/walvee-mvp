@@ -14,12 +14,15 @@ export default function CityLocals({ cityName, cityId }) {
       if (!cityId) return { data: [], pagination: null };
 
       try {
-        const response = await apiClient.get(endpoints.cities.getLocals(cityId), {
-          page: 1,
-          limit: 50,
-          sortBy: "trips_count",
-          order: "desc",
-        });
+        const response = await apiClient.get(
+          endpoints.cities.getLocals(cityId),
+          {
+            page: 1,
+            limit: 50,
+            sortBy: "trips_count",
+            order: "desc",
+          }
+        );
 
         if (response.success && response.data) {
           return { data: response.data, pagination: response.pagination };

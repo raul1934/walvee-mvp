@@ -327,15 +327,15 @@ const getHomeTravelers = async (req, res) => {
     const usersWithCounts = await Promise.all(
       users.map(async (user) => {
         const trips_count = await Trip.count({
-          where: { author_id: user.id }
+          where: { author_id: user.id },
         });
-        
+
         const followers_count = await Follow.count({
-          where: { followee_id: user.id }
+          where: { followee_id: user.id },
         });
-        
+
         const following_count = await Follow.count({
-          where: { follower_id: user.id }
+          where: { follower_id: user.id },
         });
 
         return {
@@ -349,27 +349,30 @@ const getHomeTravelers = async (req, res) => {
 
     // Filter users with at least one trip and sort
     const travelers = usersWithCounts
-      .filter(u => u.trips_count > 0)
+      .filter((u) => u.trips_count > 0)
       .sort((a, b) => {
-        if (b.trips_count !== a.trips_count) return b.trips_count - a.trips_count;
+        if (b.trips_count !== a.trips_count)
+          return b.trips_count - a.trips_count;
         return b.followers_count - a.followers_count;
       })
       .slice(0, parseInt(limit));
 
     // Format response
-    const formattedTravelers = travelers.map(({ user, trips_count, followers_count, following_count }) => ({
-      id: user.id,
-      email: user.email,
-      name: user.preferred_name || user.full_name,
-      full_name: user.full_name,
-      preferred_name: user.preferred_name,
-      photo_url: getFullImageUrl(user.photo_url),
-      picture: getFullImageUrl(user.photo_url),
-      city_id: user.city_id,
-      trips_count,
-      followers_count,
-      following_count,
-    }));
+    const formattedTravelers = travelers.map(
+      ({ user, trips_count, followers_count, following_count }) => ({
+        id: user.id,
+        email: user.email,
+        name: user.preferred_name || user.full_name,
+        full_name: user.full_name,
+        preferred_name: user.preferred_name,
+        photo_url: getFullImageUrl(user.photo_url),
+        picture: getFullImageUrl(user.photo_url),
+        city_id: user.city_id,
+        trips_count,
+        followers_count,
+        following_count,
+      })
+    );
 
     return res.json(
       buildSuccessResponse(formattedTravelers, "Travelers fetched successfully")
