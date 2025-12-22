@@ -11,7 +11,6 @@ const {
 } = require("../models/sequelize");
 const { Op } = require("sequelize");
 const { sequelize } = require("../database/sequelize");
-const { query } = require("../database/connection");
 const {
   buildSuccessResponse,
   buildErrorResponse,
@@ -206,12 +205,14 @@ const getHomeTrips = async (req, res) => {
       // Get counts grouped by trip_id
       const tripIds = trips.map((t) => t.id);
       const counts = tripIds.length
-        ? await query(
-            `SELECT trip_id, COUNT(*) as c FROM trip_likes WHERE trip_id IN (${tripIds
-              .map(() => "?")
-              .join(",")}) GROUP BY trip_id`,
-            tripIds
-          )
+        ? (
+            await sequelize.query(
+              `SELECT trip_id, COUNT(*) as c FROM trip_likes WHERE trip_id IN (${tripIds
+                .map(() => "?")
+                .join(",")}) GROUP BY trip_id`,
+              { replacements: tripIds }
+            )
+          )[0]
         : [];
 
       const countsMap = counts.reduce((acc, row) => {
