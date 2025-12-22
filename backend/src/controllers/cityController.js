@@ -595,7 +595,7 @@ const getCityTrips = async (req, res, next) => {
               attributes: ["name"],
             },
           ],
-          through: { attributes: ["city_order"] },
+          through: { attributes: ["city_order"], timestamps: false },
           required: false,
         },
       ],

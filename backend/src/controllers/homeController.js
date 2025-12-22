@@ -68,7 +68,7 @@ const getHomeTrips = async (req, res) => {
                 limit: 3,
               },
             ],
-            through: { attributes: ["city_order"] },
+            through: { attributes: ["city_order"], timestamps: false },
             required: false,
           },
           {
@@ -155,7 +155,7 @@ const getHomeTrips = async (req, res) => {
                 limit: 3,
               },
             ],
-            through: { attributes: ["city_order"] },
+            through: { attributes: ["city_order"], timestamps: false },
             required: false,
           },
           {

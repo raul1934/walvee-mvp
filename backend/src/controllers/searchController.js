@@ -399,6 +399,7 @@ const searchOverlay = async (req, res, next) => {
           as: "cities",
           where: { id: cityIds },
           attributes: [],
+          through: { attributes: ["city_order"], timestamps: false },
         });
       } else {
         // Fallback: filter trips by associated city name when no exact city ID match is found
@@ -408,6 +409,7 @@ const searchOverlay = async (req, res, next) => {
           where: { name: { [Op.like]: `%${cityNameOnly}%` } },
           attributes: [],
           required: true,
+          through: { attributes: ["city_order"], timestamps: false },
         });
       }
     }
@@ -421,6 +423,7 @@ const searchOverlay = async (req, res, next) => {
           as: "cities",
           attributes: ["id", "name"],
           include: [{ model: Country, as: "country", attributes: ["name"] }],
+          through: { attributes: ["city_order"], timestamps: false },
           required: false,
         },
         {
