@@ -12,7 +12,8 @@ export default function Layout({ children }) {
     <div className="min-h-screen bg-[#0A0B0F] text-white">
       <Navbar
         user={user}
-        onMenuClick={() => setIsSidebarOpen(true)}
+        onMenuClick={() => setIsSidebarOpen((s) => !s)}
+        onCloseSidebar={() => setIsSidebarOpen(false)}
         openLoginModal={openLoginModal}
       />
 

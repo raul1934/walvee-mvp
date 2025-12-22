@@ -9,7 +9,7 @@ import { useGlobalSearch } from "../search/useGlobalSearch";
 import SearchOverlay from "../search/SearchOverlay";
 import PlaceModal from "../city/PlaceModal";
 
-export default function Navbar({ user, onMenuClick, openLoginModal }) {
+export default function Navbar({ user, onMenuClick, onCloseSidebar, openLoginModal }) {
   const [logoError, setLogoError] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [selectedPlace, setSelectedPlace] = useState(null);
@@ -124,8 +124,12 @@ export default function Navbar({ user, onMenuClick, openLoginModal }) {
             <div className="flex items-center gap-3">
               {/* Mobile Search Icon - aligned with bell */}
               <button
-                onClick={handleSearchOpen}
-                className="md:hidden w-10 h-10 flex items-center justify-center hover:opacity-80 transition-opacity"
+                onClick={() => {
+                  // Close sidebar if open when opening search on mobile
+                  onCloseSidebar?.();
+                  handleSearchOpen();
+                }}
+                className="md:hidden w-10 h-10 flex items-center justify-center hover:opacity-80 transition-opacity cursor-pointer"
                 aria-label="Search"
               >
                 <Search className="w-5 h-5 text-white" />
@@ -172,7 +176,13 @@ export default function Navbar({ user, onMenuClick, openLoginModal }) {
                   </div>
 
                   {/* Bell Icon */}
-                  <button className="w-10 h-10 flex items-center justify-center hover:opacity-80 transition-opacity">
+                  <button
+                    onClick={() => {
+                      // Close sidebar if open when interacting with top-right icons
+                      onCloseSidebar?.();
+                    }}
+                    className="w-10 h-10 flex items-center justify-center hover:opacity-80 transition-opacity cursor-pointer"
+                  >
                     <Bell className="w-5 h-5 text-white" />
                   </button>
 
