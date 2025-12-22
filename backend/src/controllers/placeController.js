@@ -13,6 +13,7 @@ const {
   buildSuccessResponse,
   buildErrorResponse,
   getFullImageUrl,
+  generateUUID,
 } = require("../utils/helpers");
 const {
   searchPlace,
@@ -268,6 +269,8 @@ const getTripPlacesEnriched = async (req, res, next) => {
         {
           model: TripPlace,
           as: "places",
+          separate: true,
+          order: [["display_order", "ASC"]],
           include: [
             {
               model: Place,
@@ -360,6 +363,24 @@ const getTripPlacesEnriched = async (req, res, next) => {
             // Update trip_place to link to cached place
             if (tripPlace.place_id !== place.id) {
               await tripPlace.update({ place_id: place.id });
+
+              try {
+                // Ensure trip_cities row exists for this trip and place's city
+                const placeCityId = place.city_id;
+                if (placeCityId) {
+                  // Insert with city_order = tripPlace.display_order or keep the min
+                  await Trip.sequelize.query(
+                    `INSERT INTO trip_cities (id, trip_id, city_id, city_order, created_at)
+                     VALUES (?, ?, ?, ?, NOW())
+                     ON DUPLICATE KEY UPDATE city_order = LEAST(city_order, VALUES(city_order))`,
+                    {
+                      replacements: [generateUUID(), tripPlace.trip_id, placeCityId, tripPlace.display_order || 0],
+                    }
+                  );
+                }
+              } catch (err) {
+                console.error("[Trip Cities Upsert] Error ensuring trip_cities row:", err.message);
+              }
             }
 
             // Fetch complete place with photos

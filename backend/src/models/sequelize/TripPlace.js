@@ -36,6 +36,10 @@ const TripPlace = sequelize.define(
     description: {
       type: DataTypes.TEXT,
     },
+    display_order: {
+      type: DataTypes.INTEGER,
+      defaultValue: 0,
+    },
     place_id: {
       type: DataTypes.INTEGER,
       allowNull: true,

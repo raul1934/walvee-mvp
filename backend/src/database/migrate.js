@@ -20,6 +20,46 @@ const migrations = [
     `,
   },
   {
+    name: "add_display_order_to_trip_places",
+    up: async (connection) => {
+      console.log("  -> Adding display_order column to trip_places if missing");
+
+      try {
+        await connection.query(
+          "ALTER TABLE trip_places ADD COLUMN display_order INT DEFAULT 0"
+        );
+        await connection.query(
+          "ALTER TABLE trip_places ADD INDEX idx_trip_place_display_order (display_order)"
+        );
+        console.log("    ✓ display_order column added to trip_places");
+      } catch (err) {
+        if (err && err.code === "ER_DUP_FIELDNAME") {
+          console.log("    -> display_order already exists on trip_places, skipping");
+        } else {
+          throw err;
+        }
+      }
+
+      // Backfill display_order values per trip using created_at order
+      try {
+        console.log("    -> Backfilling display_order for existing trip_places");
+        await connection.query(`
+          SET @curr_trip = NULL;
+          SET @rn = -1;
+          UPDATE trip_places tp
+          JOIN (
+            SELECT id, trip_id, (@rn := IF(@curr_trip = trip_id, @rn + 1, 0)) AS rn, (@curr_trip := trip_id) as _t
+            FROM (SELECT id, trip_id FROM trip_places ORDER BY trip_id, created_at, id) s
+          ) ranks ON tp.id = ranks.id
+          SET tp.display_order = ranks.rn;
+        `);
+        console.log("    ✓ Backfilled display_order for trip_places");
+      } catch (err) {
+        console.log("    -> Could not backfill trip_places.display_order (this may be OK)");
+      }
+    },
+  },
+  {
     name: "create_cities_table",
     up: `
       CREATE TABLE IF NOT EXISTS cities (
@@ -151,9 +191,11 @@ const migrations = [
         price_level INT,
         types JSON,
         description TEXT,
+        display_order INT DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (trip_id) REFERENCES trips(id) ON DELETE CASCADE,
-        INDEX idx_trip_id (trip_id)
+        INDEX idx_trip_id (trip_id),
+        INDEX idx_trip_place_display_order (display_order)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     `,
   },
@@ -237,13 +279,23 @@ const migrations = [
         }
       }
 
-      // Recalculate likes_count on trips to ensure consistency
-      await connection.query(`
+      // Recalculate likes_count on trips to ensure consistency (skip if column removed)
+      try {
+        await connection.query(`
           UPDATE trips
           SET likes_count = (
             SELECT COUNT(*) FROM trip_likes WHERE trip_likes.trip_id = trips.id
           )
         `);
+      } catch (err) {
+        if (err && err.code === "ER_BAD_FIELD_ERROR") {
+          console.log(
+            "  -> trips.likes_count column not present, skipping likes_count recalculation"
+          );
+        } else {
+          throw err;
+        }
+      }
     },
   },
   {
@@ -344,6 +396,44 @@ const migrations = [
           console.log(
             "  -> Unique constraint trip_cities_trip_id_city_id_unique already exists, skipping"
           );
+        } else {
+          throw err;
+        }
+      }
+    },
+  },
+  {
+    name: "backfill_trip_cities_city_order_from_places",
+    up: async (connection) => {
+      console.log("  -> Backfilling trip_cities.city_order from trip_places display_order where possible");
+      try {
+        await connection.query(`
+          UPDATE trip_cities tc
+          JOIN (
+            SELECT tp.trip_id, p.city_id, MIN(tp.display_order) AS min_order
+            FROM trip_places tp
+            JOIN places p ON tp.place_id = p.id
+            GROUP BY tp.trip_id, p.city_id
+          ) sub ON tc.trip_id = sub.trip_id AND tc.city_id = sub.city_id
+          SET tc.city_order = sub.min_order;
+        `);
+        console.log("    ✓ Backfilled trip_cities.city_order");
+      } catch (err) {
+        console.log("    -> Could not backfill trip_cities.city_order (this may be OK)");
+      }
+    },
+  },
+  {
+    name: "add_index_trip_cities_city_order",
+    up: async (connection) => {
+      try {
+        await connection.query(
+          "ALTER TABLE trip_cities ADD INDEX idx_trip_cities_city_order (city_order)"
+        );
+        console.log("    ✓ Added index idx_trip_cities_city_order");
+      } catch (err) {
+        if (err && err.code === "ER_DUP_KEYNAME") {
+          console.log("    -> Index idx_trip_cities_city_order already exists, skipping");
         } else {
           throw err;
         }

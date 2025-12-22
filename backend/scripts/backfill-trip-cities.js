@@ -58,16 +58,28 @@ async function backfillTripCities() {
 
     let inserted = 0;
     for (const t of tripsWithDest) {
+      const destCityId = t.destination_city_id || t.destinationCityId || null;
       const [[exists]] = await Trip.sequelize.query(
         "SELECT 1 FROM trip_cities WHERE trip_id = ? AND city_id = ? LIMIT 1",
-        { replacements: [t.id, t.destination_city_id] }
+        { replacements: [t.id, destCityId] }
       );
-      if (!exists) {
+      if (!exists && destCityId != null) {
+        // Attempt to derive city_order from existing trip_places if possible
+        const [[orderRow]] = await Trip.sequelize.query(
+          `SELECT MIN(tp.display_order) as min_order
+           FROM trip_places tp
+           JOIN places p ON tp.place_id = p.id
+           WHERE tp.trip_id = ? AND p.city_id = ?`,
+          { replacements: [t.id, destCityId] }
+        );
+        const orderVal = orderRow && orderRow.min_order != null ? orderRow.min_order : 0;
         await Trip.sequelize.query(
-          "INSERT INTO trip_cities (id, trip_id, city_id, city_order, created_at) VALUES (?, ?, ?, 0, NOW())",
-          { replacements: [uuidv4(), t.id, t.destination_city_id] }
+          "INSERT INTO trip_cities (id, trip_id, city_id, city_order, created_at) VALUES (?, ?, ?, ?, NOW())",
+          { replacements: [uuidv4(), t.id, destCityId, orderVal] }
         );
         inserted++;
+      } else if (!exists) {
+        console.log(`  -> Skipping insert for trip ${t.id} because destination_city_id is unavailable`);
       }
     }
     console.log(`Inserted ${inserted} rows from destination_city_id`);
@@ -176,9 +188,18 @@ async function backfillTripCities() {
             `DRY RUN: would insert ${trip.id} -> ${matchedCity.id} (${matchedCity.name})`
           );
         } else {
+          // Attempt to set city_order from trip_places if available
+          const [[orderRow]] = await Trip.sequelize.query(
+            `SELECT MIN(tp.display_order) as min_order
+             FROM trip_places tp
+             JOIN places p ON tp.place_id = p.id
+             WHERE tp.trip_id = ? AND p.city_id = ?`,
+            { replacements: [trip.id, matchedCity.id] }
+          );
+          const orderVal = orderRow && orderRow.min_order != null ? orderRow.min_order : 0;
           await Trip.sequelize.query(
-            "INSERT INTO trip_cities (id, trip_id, city_id, city_order, created_at) VALUES (?, ?, ?, 0, NOW())",
-            { replacements: [uuidv4(), trip.id, matchedCity.id] }
+            "INSERT INTO trip_cities (id, trip_id, city_id, city_order, created_at) VALUES (?, ?, ?, ?, NOW())",
+            { replacements: [uuidv4(), trip.id, matchedCity.id, orderVal] }
           );
         }
         matched++;

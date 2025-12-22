@@ -877,10 +877,11 @@ const seedData = async () => {
 
         // Insert places
         if (tripData.places && tripData.places.length > 0) {
-          for (const place of tripData.places) {
+          for (let i = 0; i < tripData.places.length; i++) {
+            const place = tripData.places[i];
             await connection.query(
-              `INSERT INTO trip_places (id, trip_id, name, address, rating, price_level, types, description)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+              `INSERT INTO trip_places (id, trip_id, name, address, rating, price_level, types, description, display_order)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
               [
                 generateUUID(),
                 tripId,
@@ -890,6 +891,7 @@ const seedData = async () => {
                 place.price_level,
                 JSON.stringify(place.types),
                 place.description,
+                i,
               ]
             );
           }

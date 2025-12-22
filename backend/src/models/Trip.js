@@ -75,12 +75,14 @@ class TripModel {
 
     // Insert places
     if (places && places.length > 0) {
-      for (const place of places) {
+      for (let i = 0; i < places.length; i++) {
+        const place = places[i];
+        const placeId = generateUUID();
         await query(
-          `INSERT INTO trip_places (id, trip_id, name, address, rating, price_level, types, description)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO trip_places (id, trip_id, name, address, rating, price_level, types, description, display_order)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
-            generateUUID(),
+            placeId,
             id,
             place.name,
             place.address || null,
@@ -88,8 +90,29 @@ class TripModel {
             place.priceLevel || null,
             place.types ? JSON.stringify(place.types) : null,
             place.description || null,
+            i,
           ]
         );
+
+        // If the incoming payload included a place_id we can link the trip to the city immediately
+        if (place.place_id) {
+          try {
+            const rows = await query("SELECT city_id FROM places WHERE id = ?", [
+              place.place_id,
+            ]);
+            const cityId = rows[0] && rows[0].city_id;
+            if (cityId) {
+              await query(
+                `INSERT INTO trip_cities (id, trip_id, city_id, city_order, created_at)
+                 VALUES (?, ?, ?, ?, NOW())
+                 ON DUPLICATE KEY UPDATE city_order = LEAST(city_order, VALUES(city_order))`,
+                [generateUUID(), id, cityId, i]
+              );
+            }
+          } catch (err) {
+            // Ignore failures here
+          }
+        }
       }
     }
 
@@ -203,12 +226,14 @@ class TripModel {
     // Handle places update if provided
     if (tripData.places) {
       await query("DELETE FROM trip_places WHERE trip_id = ?", [id]);
-      for (const place of tripData.places) {
+      for (let i = 0; i < tripData.places.length; i++) {
+        const place = tripData.places[i];
+        const placeId = generateUUID();
         await query(
-          `INSERT INTO trip_places (id, trip_id, name, address, rating, price_level, types, description)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO trip_places (id, trip_id, name, address, rating, price_level, types, description, display_order)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
-            generateUUID(),
+            placeId,
             id,
             place.name,
             place.address || null,
@@ -216,8 +241,28 @@ class TripModel {
             place.priceLevel || null,
             place.types ? JSON.stringify(place.types) : null,
             place.description || null,
+            i,
           ]
         );
+
+        if (place.place_id) {
+          try {
+            const rows = await query("SELECT city_id FROM places WHERE id = ?", [
+              place.place_id,
+            ]);
+            const cityId = rows[0] && rows[0].city_id;
+            if (cityId) {
+              await query(
+                `INSERT INTO trip_cities (id, trip_id, city_id, city_order, created_at)
+                 VALUES (?, ?, ?, ?, NOW())
+                 ON DUPLICATE KEY UPDATE city_order = LEAST(city_order, VALUES(city_order))`,
+                [generateUUID(), id, cityId, i]
+              );
+            }
+          } catch (err) {
+            // Ignore failures here
+          }
+        }
       }
     }
 
@@ -422,9 +467,9 @@ class TripModel {
       trip.id,
     ]);
 
-    // Get places
+    // Get places (ordered by display_order)
     const places = await query(
-      "SELECT name, address, rating, price_level, types, description FROM trip_places WHERE trip_id = ?",
+      "SELECT name, address, rating, price_level, types, description, display_order FROM trip_places WHERE trip_id = ? ORDER BY display_order ASC",
       [trip.id]
     );
 
@@ -465,7 +510,27 @@ class TripModel {
       [trip.id]
     );
 
-    const citiesFormatted = (cities || []).map((c) => ({
+    // If no explicit trip_cities rows exist yet, derive cities from trip_places where possible
+    let citiesToUse = cities;
+    if ((!cities || cities.length === 0)) {
+      const derived = await query(
+        `SELECT c.id, c.name, co.name as country, MIN(tp.display_order) as city_order
+           FROM trip_places tp
+           JOIN places p ON tp.place_id = p.id
+           JOIN cities c ON c.id = p.city_id
+           LEFT JOIN countries co ON co.id = c.country_id
+           WHERE tp.trip_id = ? AND p.city_id IS NOT NULL
+           GROUP BY c.id
+           ORDER BY MIN(tp.display_order) ASC`,
+        [trip.id]
+      );
+
+      if (derived && derived.length > 0) {
+        citiesToUse = derived;
+      }
+    }
+
+    const citiesFormatted = (citiesToUse || []).map((c) => ({
       id: c.id,
       name: c.name,
       country: c.country || null,
