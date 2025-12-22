@@ -75,10 +75,6 @@ const Trip = sequelize.define(
       type: DataTypes.BOOLEAN,
       defaultValue: false,
     },
-    likes_count: {
-      type: DataTypes.INTEGER,
-      defaultValue: 0,
-    },
     views_count: {
       type: DataTypes.INTEGER,
       defaultValue: 0,
@@ -93,7 +89,6 @@ const Trip = sequelize.define(
       { fields: ["is_public"] },
       { fields: ["is_featured"] },
       { fields: ["created_at"] },
-      { fields: ["likes_count"] },
     ],
   }
 );

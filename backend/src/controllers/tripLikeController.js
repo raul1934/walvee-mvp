@@ -1,4 +1,4 @@
-const { TripLike, Trip, User } = require("../models/sequelize");
+const { TripLike, Trip, User, sequelize } = require("../models/sequelize");
 const {
   paginate,
   buildPaginationMeta,
@@ -50,20 +50,45 @@ const likeTrip = async (req, res, next) => {
     });
 
     if (existingLike) {
-      return res
-        .status(400)
-        .json(buildErrorResponse("VALIDATION_ERROR", "Trip already liked"));
+      // Idempotent: if already liked, return existing like as success (200)
+      return res.json(buildSuccessResponse(existingLike, "Already liked"));
     }
 
-    const like = await TripLike.create({
-      trip_id: tripId,
-      liker_id: userId,
-    });
+    try {
+      // Create like and increment likes_count in a transaction to avoid
+      // partially applied changes in race conditions.
+      const like = await sequelize.transaction(async (t) => {
+        const created = await TripLike.create(
+          {
+            trip_id: tripId,
+            liker_id: userId,
+          },
+          { transaction: t }
+        );
 
-    // Update trip likes count
-    await trip.increment("likes_count");
+        // Note: likes_count column is being removed in favor of a derived count
+        // from the trip_likes table. We do NOT update trips.likes_count here.
 
-    res.status(201).json(buildSuccessResponse(like));
+        return created;
+      });
+
+      res.status(201).json(buildSuccessResponse(like));
+    } catch (error) {
+      // Handle unique constraint / duplicate entry errors caused by races.
+      if (
+        error.name === "SequelizeUniqueConstraintError" ||
+        (error.original && error.original.code === "ER_DUP_ENTRY")
+      ) {
+        const existing = await TripLike.findOne({
+          where: { trip_id: tripId, liker_id: userId },
+        });
+
+        // Return existing like as idempotent success
+        return res.json(buildSuccessResponse(existing, "Already liked"));
+      }
+
+      throw error;
+    }
   } catch (error) {
     next(error);
   }
@@ -77,9 +102,10 @@ const unlikeTrip = async (req, res, next) => {
     const like = await TripLike.findByPk(id);
 
     if (!like) {
-      return res
-        .status(404)
-        .json(buildErrorResponse("RESOURCE_NOT_FOUND", "Like not found"));
+      // Idempotent: if the like does not exist, treat as success (already unliked)
+      return res.json(
+        buildSuccessResponse({ message: "Trip already unliked" })
+      );
     }
 
     if (like.liker_id !== userId) {
@@ -96,11 +122,7 @@ const unlikeTrip = async (req, res, next) => {
     const trip = await Trip.findByPk(like.trip_id);
 
     await like.destroy();
-
-    // Update trip likes count
-    if (trip && trip.likes_count > 0) {
-      await trip.decrement("likes_count");
-    }
+    // Note: likes_count is now derived from trip_likes; no decrement necessary.
 
     res.json(buildSuccessResponse({ message: "Trip unliked successfully" }));
   } catch (error) {

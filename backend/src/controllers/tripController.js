@@ -12,7 +12,6 @@ const {
   PlacePhoto,
 } = require("../models/sequelize");
 const { Op } = require("sequelize");
-const { v4: uuidv4 } = require("uuid");
 const {
   paginate,
   buildPaginationMeta,
@@ -20,7 +19,6 @@ const {
   buildErrorResponse,
   getFullImageUrl,
 } = require("../utils/helpers");
-
 const getTrips = async (req, res, next) => {
   try {
     const {
@@ -52,7 +50,16 @@ const getTrips = async (req, res, next) => {
     }
 
     if (minLikes) {
-      where.likes_count = { [Op.gte]: parseInt(minLikes) };
+      // Use derived count from trip_likes via Sequelize.where + literal
+      const { sequelize: seq } = require("../database/sequelize");
+      const { Op: SeqOp } = require("sequelize");
+
+      where[SeqOp.and] = seq.where(
+        seq.literal(
+          `(SELECT COUNT(*) FROM trip_likes tl WHERE tl.trip_id = Trip.id)`
+        ),
+        { [SeqOp.gte]: parseInt(minLikes) }
+      );
     }
 
     if (search) {
@@ -63,114 +70,134 @@ const getTrips = async (req, res, next) => {
       ];
     }
 
-    const { count, rows: trips } = await Trip.findAndCountAll({
+    const tripInclude = [
+      {
+        model: User,
+        as: "author",
+        attributes: ["id", "full_name", "preferred_name", "photo_url", "email"],
+      },
+      { model: TripTag, as: "tags", attributes: ["tag"] },
+      {
+        model: TripPlace,
+        as: "places",
+        attributes: [
+          "name",
+          "address",
+          "rating",
+          "price_level",
+          "types",
+          "description",
+        ],
+        include: [
+          {
+            model: Place,
+            as: "placeDetails",
+            attributes: [
+              "id",
+              "latitude",
+              "longitude",
+              "rating",
+              "user_ratings_total",
+              "google_place_id",
+            ],
+          },
+        ],
+      },
+      {
+        model: TripItineraryDay,
+        as: "itineraryDays",
+        attributes: ["id", "day_number", "title"],
+        include: [
+          {
+            model: TripItineraryActivity,
+            as: "activities",
+            attributes: [
+              "time",
+              "name",
+              "location",
+              "description",
+              "activity_order",
+              "place_id",
+            ],
+            include: [
+              {
+                model: Place,
+                as: "placeDetails",
+                attributes: [
+                  "id",
+                  "latitude",
+                  "longitude",
+                  "rating",
+                  "user_ratings_total",
+                  "google_place_id",
+                  "name",
+                  "address",
+                  "price_level",
+                ],
+                include: [
+                  {
+                    model: PlacePhoto,
+                    as: "photos",
+                    attributes: [
+                      "url_small",
+                      "url_medium",
+                      "url_large",
+                      "photo_order",
+                    ],
+                    order: [["photo_order", "ASC"]],
+                  },
+                  {
+                    model: require("../models/sequelize").City,
+                    as: "cities",
+                    attributes: ["id", "name"],
+                    through: { attributes: ["city_order"] },
+                  },
+                ],
+              },
+            ],
+            order: [["activity_order", "ASC"]],
+          },
+        ],
+        order: [["day_number", "ASC"]],
+      },
+    ];
+
+    const seq = require("../database/sequelize").sequelize;
+    const orderClause =
+      sortBy === "likes_count"
+        ? [
+            [
+              seq.literal(
+                `(SELECT COUNT(*) FROM trip_likes tl WHERE tl.trip_id = Trip.id)`
+              ),
+              order.toUpperCase(),
+            ],
+          ]
+        : [[sortBy, order.toUpperCase()]];
+
+    // Count separately (safe) and then fetch rows with derived likes_count attribute
+    const count = await Trip.count({
       where,
-      include: [
-        {
-          model: User,
-          as: "author",
-          attributes: [
-            "id",
-            "full_name",
-            "preferred_name",
-            "photo_url",
-            "email",
-          ],
-        },
-        {
-          model: TripTag,
-          as: "tags",
-          attributes: ["tag"],
-        },
-        {
-          model: TripPlace,
-          as: "places",
-          attributes: [
-            "name",
-            "address",
-            "rating",
-            "price_level",
-            "types",
-            "description",
-          ],
-          include: [
-            {
-              model: Place,
-              as: "placeDetails",
-              attributes: [
-                "id",
-                "latitude",
-                "longitude",
-                "rating",
-                "user_ratings_total",
-                "google_place_id",
-              ],
-            },
-          ],
-        },
-        {
-          model: TripItineraryDay,
-          as: "itineraryDays",
-          attributes: ["id", "day_number", "title"],
-          include: [
-            {
-              model: TripItineraryActivity,
-              as: "activities",
-              attributes: [
-                "time",
-                "name",
-                "location",
-                "description",
-                "activity_order",
-                "place_id",
-              ],
-              include: [
-                {
-                  model: Place,
-                  as: "placeDetails",
-                  attributes: [
-                    "id",
-                    "latitude",
-                    "longitude",
-                    "rating",
-                    "user_ratings_total",
-                    "google_place_id",
-                    "name",
-                    "address",
-                    "price_level",
-                  ],
-                  include: [
-                    {
-                      model: PlacePhoto,
-                      as: "photos",
-                      attributes: [
-                        "url_small",
-                        "url_medium",
-                        "url_large",
-                        "photo_order",
-                      ],
-                      order: [["photo_order", "ASC"]],
-                    },
-                    // include cities (new many-to-many)
-                    {
-                      model: require("../models/sequelize").City,
-                      as: "cities",
-                      attributes: ["id", "name"],
-                      through: { attributes: ["city_order"] },
-                    },
-                  ],
-                },
-              ],
-              order: [["activity_order", "ASC"]],
-            },
-          ],
-          order: [["day_number", "ASC"]],
-        },
-      ],
+      include: tripInclude,
+      distinct: true,
+    });
+
+    const trips = await Trip.findAll({
+      where,
+      include: tripInclude,
       offset,
       limit: limitNum,
-      order: [[sortBy, order.toUpperCase()]],
-      distinct: true,
+      order: orderClause,
+      attributes: {
+        include: [
+          [
+            seq.literal(
+              `(SELECT COUNT(*) FROM trip_likes tl WHERE tl.trip_id = Trip.id)`
+            ),
+            "likes_count",
+          ],
+        ],
+      },
     });
 
     // Format the response
@@ -182,6 +209,7 @@ const getTrips = async (req, res, next) => {
 
     res.json(buildSuccessResponse(formattedTrips, pagination));
   } catch (error) {
+    console.error("[Get Trips] Error:", error.stack || error.message);
     next(error);
   }
 };
@@ -320,6 +348,16 @@ const getTripById = async (req, res, next) => {
           order: [["created_at", "DESC"]],
         },
       ],
+      attributes: {
+        include: [
+          [
+            require("../database/sequelize").sequelize.literal(
+              `(SELECT COUNT(*) FROM trip_likes tl WHERE tl.trip_id = Trip.id)`
+            ),
+            "likes_count",
+          ],
+        ],
+      },
     });
 
     if (!trip) {

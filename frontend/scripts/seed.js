@@ -197,7 +197,6 @@ const TRIPS = [
         description: "Fresh seafood and traditional Japanese breakfast spot",
       },
     ],
-    likes_count: 0,
     views_count: 0,
   },
   {
@@ -297,7 +296,6 @@ const TRIPS = [
         description: "World's largest art museum housing the Mona Lisa",
       },
     ],
-    likes_count: 0,
     views_count: 0,
   },
   {
@@ -397,7 +395,6 @@ const TRIPS = [
         description: "Sacred water temple with ritual purification pools",
       },
     ],
-    likes_count: 0,
     views_count: 0,
   },
   {
@@ -459,7 +456,6 @@ const TRIPS = [
         description: "Iconic 843-acre urban park in the heart of Manhattan",
       },
     ],
-    likes_count: 0,
     views_count: 0,
   },
   {
@@ -522,7 +518,6 @@ const TRIPS = [
         description: "Geothermal spa with mineral-rich waters",
       },
     ],
-    likes_count: 0,
     views_count: 0,
   },
   {
@@ -584,7 +579,6 @@ const TRIPS = [
         description: "Gaudí's iconic unfinished basilica",
       },
     ],
-    likes_count: 0,
     views_count: 0,
   },
   {
@@ -640,7 +634,6 @@ const TRIPS = [
         description: "Stunning glacial lake with Mt. Fitz Roy views",
       },
     ],
-    likes_count: 0,
     views_count: 0,
   },
   {
@@ -702,7 +695,6 @@ const TRIPS = [
         description: "Historic district famous for street food",
       },
     ],
-    likes_count: 0,
     views_count: 0,
   },
   {
@@ -764,7 +756,6 @@ const TRIPS = [
         description: "World's tallest building at 828 meters",
       },
     ],
-    likes_count: 0,
     views_count: 0,
   },
   {
@@ -826,7 +817,6 @@ const TRIPS = [
         description: "Famous for stunning sunsets and white-washed buildings",
       },
     ],
-    likes_count: 0,
     views_count: 0,
   },
 ];

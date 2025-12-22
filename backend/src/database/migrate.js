@@ -93,7 +93,6 @@ const migrations = [
         destination_lng DOUBLE,
         is_public BOOLEAN DEFAULT TRUE,
         is_featured BOOLEAN DEFAULT FALSE,
-        likes_count INT DEFAULT 0,
         views_count INT DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -105,7 +104,7 @@ const migrations = [
         INDEX idx_is_public (is_public),
         INDEX idx_is_featured (is_featured),
         INDEX idx_created_at (created_at),
-        INDEX idx_likes_count (likes_count),
+        
         FULLTEXT idx_search (title, destination, description)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     `,
@@ -209,6 +208,45 @@ const migrations = [
     `,
   },
   {
+    name: "add_unique_constraint_trip_likes",
+    up: async (connection) => {
+      console.log(
+        "  -> Deduplicating trip_likes and adding unique constraint (trip_id, liker_id)"
+      );
+
+      // Remove duplicates keeping the earliest id
+      await connection.query(`
+          DELETE t1 FROM trip_likes t1
+          INNER JOIN trip_likes t2
+            ON t1.trip_id = t2.trip_id
+            AND t1.liker_id = t2.liker_id
+            AND t1.id > t2.id
+        `);
+
+      try {
+        await connection.query(
+          "ALTER TABLE trip_likes ADD CONSTRAINT trip_likes_trip_id_liker_id_unique UNIQUE (trip_id, liker_id)"
+        );
+      } catch (err) {
+        if (err && err.code === "ER_DUP_KEYNAME") {
+          console.log(
+            "  -> Unique constraint trip_likes_trip_id_liker_id_unique already exists, skipping"
+          );
+        } else {
+          throw err;
+        }
+      }
+
+      // Recalculate likes_count on trips to ensure consistency
+      await connection.query(`
+          UPDATE trips
+          SET likes_count = (
+            SELECT COUNT(*) FROM trip_likes WHERE trip_likes.trip_id = trips.id
+          )
+        `);
+    },
+  },
+  {
     name: "create_reviews_table",
     up: `
       CREATE TABLE IF NOT EXISTS reviews (
@@ -305,6 +343,32 @@ const migrations = [
         if (err && err.code === "ER_DUP_KEYNAME") {
           console.log(
             "  -> Unique constraint trip_cities_trip_id_city_id_unique already exists, skipping"
+          );
+        } else {
+          throw err;
+        }
+      }
+    },
+  },
+  {
+    name: "drop_trips_likes_count_column",
+    up: async (connection) => {
+      console.log(
+        "  -> Dropping trips.likes_count column (use trip_likes counts instead)"
+      );
+
+      try {
+        await connection.query("ALTER TABLE trips DROP INDEX idx_likes_count");
+      } catch (err) {
+        // ignore if index doesn't exist
+      }
+
+      try {
+        await connection.query("ALTER TABLE trips DROP COLUMN likes_count");
+      } catch (err) {
+        if (err && err.code === "ER_CANT_DROP_FIELD_OR_KEY") {
+          console.log(
+            "  -> Could not drop column likes_count (maybe already removed), skipping"
           );
         } else {
           throw err;

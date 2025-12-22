@@ -425,7 +425,15 @@ const searchOverlay = async (req, res, next) => {
       ],
       distinct: true,
       limit: resultLimit,
-      order: [["likes_count", "DESC"]],
+      // Include a derived likes_count attribute and order by it
+      order: [
+        [
+          require("../database/sequelize").sequelize.literal(
+            `(SELECT COUNT(*) FROM trip_likes tl WHERE tl.trip_id = Trip.id)`
+          ),
+          "DESC",
+        ],
+      ],
       attributes: [
         "id",
         "title",
@@ -433,7 +441,12 @@ const searchOverlay = async (req, res, next) => {
         "description",
         "cover_image",
         "duration",
-        "likes_count",
+        [
+          require("../database/sequelize").sequelize.literal(
+            `(SELECT COUNT(*) FROM trip_likes tl WHERE tl.trip_id = Trip.id)`
+          ),
+          "likes_count",
+        ],
         "views_count",
       ],
     });

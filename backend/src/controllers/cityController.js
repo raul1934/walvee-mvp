@@ -585,7 +585,28 @@ const getCityTrips = async (req, res, next) => {
           order: [["day_number", "ASC"]],
         },
       ],
-      order: [[sortBy, order.toUpperCase()]],
+      // If sorting by likes_count, use a derived subquery
+      order:
+        sortBy === "likes_count"
+          ? [
+              [
+                require("../database/sequelize").sequelize.literal(
+                  `(SELECT COUNT(*) FROM trip_likes tl WHERE tl.trip_id = Trip.id)`
+                ),
+                order.toUpperCase(),
+              ],
+            ]
+          : [[sortBy, order.toUpperCase()]],
+      attributes: {
+        include: [
+          [
+            require("../database/sequelize").sequelize.literal(
+              `(SELECT COUNT(*) FROM trip_likes tl WHERE tl.trip_id = Trip.id)`
+            ),
+            "likes_count",
+          ],
+        ],
+      },
     });
 
     // Filter trips by city

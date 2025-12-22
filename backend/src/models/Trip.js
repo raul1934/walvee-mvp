@@ -123,6 +123,9 @@ class TripModel {
     const sql = `
       SELECT 
         t.*,
+        (
+          SELECT COUNT(*) FROM trip_likes tl WHERE tl.trip_id = t.id
+        ) AS likes_count,
         u.full_name as author_name,
         u.preferred_name as author_preferred_name,
         u.photo_url as author_photo,
@@ -270,6 +273,7 @@ class TripModel {
       "created_at",
       "updated_at",
       "likes_count",
+      // "likes_count" handled specially below as a derived column
       "views_count",
       "title",
       "destination",
@@ -286,6 +290,9 @@ class TripModel {
     let sql = `
       SELECT
         t.*,
+        (
+          SELECT COUNT(*) FROM trip_likes tl WHERE tl.trip_id = t.id
+        ) AS likes_count,
         u.full_name as author_name,
         u.preferred_name as author_preferred_name,
         u.photo_url as author_photo,
@@ -312,7 +319,8 @@ class TripModel {
     }
 
     if (minLikes !== null) {
-      sql += " AND t.likes_count >= ?";
+      sql +=
+        " AND (SELECT COUNT(*) FROM trip_likes tl WHERE tl.trip_id = t.id) >= ?";
       params.push(minLikes);
     }
 
@@ -322,7 +330,14 @@ class TripModel {
       params.push(search);
     }
 
-    sql += ` ORDER BY t.${safeSortBy} ${safeOrder} LIMIT ? OFFSET ?`;
+    // If sorting by likes_count we need to sort by the derived count subquery
+    if (safeSortBy === "likes_count") {
+      sql += ` ORDER BY (
+        SELECT COUNT(*) FROM trip_likes tl WHERE tl.trip_id = t.id
+      ) ${safeOrder} LIMIT ? OFFSET ?`;
+    } else {
+      sql += ` ORDER BY t.${safeSortBy} ${safeOrder} LIMIT ? OFFSET ?`;
+    }
     params.push(limit, offset);
 
     const trips = await query(sql, params);
@@ -357,7 +372,8 @@ class TripModel {
     }
 
     if (minLikes !== null) {
-      sql += " AND t.likes_count >= ?";
+      sql +=
+        " AND (SELECT COUNT(*) FROM trip_likes tl WHERE tl.trip_id = t.id) >= ?";
       params.push(minLikes);
     }
 
@@ -372,14 +388,13 @@ class TripModel {
   }
 
   async incrementLikes(id) {
-    const sql = "UPDATE trips SET likes_count = likes_count + 1 WHERE id = ?";
-    await query(sql, [id]);
+    // Deprecated: likes_count is now derived. Keep as a no-op for backward compatibility.
+    return;
   }
 
   async decrementLikes(id) {
-    const sql =
-      "UPDATE trips SET likes_count = GREATEST(0, likes_count - 1) WHERE id = ?";
-    await query(sql, [id]);
+    // Deprecated: likes_count is now derived. Keep as a no-op for backward compatibility.
+    return;
   }
 
   async incrementViews(id) {

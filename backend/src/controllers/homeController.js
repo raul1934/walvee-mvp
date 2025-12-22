@@ -11,6 +11,7 @@ const {
 } = require("../models/sequelize");
 const { Op } = require("sequelize");
 const { sequelize } = require("../database/sequelize");
+const { query } = require("../database/connection");
 const {
   buildSuccessResponse,
   buildErrorResponse,
@@ -26,90 +27,207 @@ const getHomeTrips = async (req, res) => {
     const { limit = 20 } = req.query;
 
     // Fetch trips with random order using database-level random
-    const trips = await Trip.findAll({
-      order: sequelize.random(),
-      limit: parseInt(limit),
-      attributes: [
-        "id",
-        "title",
-        "description",
-        "destination",
-        "destination_city_id",
-        "duration",
-        "budget",
-        "is_public",
-        "cover_image",
-        "likes_count",
-        "views_count",
-        "created_at",
-      ],
-      include: [
-        {
-          model: User,
-          as: "author",
-          attributes: ["id", "full_name", "preferred_name", "photo_url"],
-        },
-        {
-          model: City,
-          as: "destinationCity",
-          attributes: ["id", "name"],
-          include: [
-            {
-              model: Country,
-              as: "country",
-              attributes: ["id", "name"],
-            },
-            {
-              model: CityPhoto,
-              as: "photos",
-              attributes: ["url_small", "url_medium", "url_large"],
-              limit: 3,
-            },
+    let trips;
+    try {
+      trips = await Trip.findAll({
+        order: sequelize.random(),
+        limit: parseInt(limit),
+        attributes: [
+          "id",
+          "title",
+          "description",
+          "destination",
+          "destination_city_id",
+          "duration",
+          "budget",
+          "is_public",
+          "cover_image",
+          [
+            sequelize.literal(`(
+              SELECT COUNT(*) FROM trip_likes tl WHERE tl.trip_id = Trip.id
+            )`),
+            "likes_count",
           ],
-        },
-        {
-          model: TripItineraryDay,
-          as: "itineraryDays",
-          attributes: ["id", "day_number", "title"],
-          include: [
-            {
-              model: TripItineraryActivity,
-              as: "activities",
-              attributes: [
-                "place_id",
-                "time",
-                "name",
-                "location",
-                "description",
-                "activity_order",
-              ],
-              include: [
-                {
-                  model: Place,
-                  as: "placeDetails",
-                  attributes: [
-                    "id",
-                    "name",
-                    "address",
-                    "rating",
-                    "price_level",
-                  ],
-                  include: [
-                    {
-                      model: PlacePhoto,
-                      as: "photos",
-                      attributes: ["url_small", "url_medium", "url_large"],
-                      limit: 3,
-                    },
-                  ],
-                },
-              ],
-            },
-          ],
-          order: [["day_number", "ASC"]],
-        },
-      ],
-    });
+          "views_count",
+          "created_at",
+        ],
+        include: [
+          {
+            model: User,
+            as: "author",
+            attributes: ["id", "full_name", "preferred_name", "photo_url"],
+          },
+          {
+            model: City,
+            as: "destinationCity",
+            attributes: ["id", "name"],
+            include: [
+              {
+                model: Country,
+                as: "country",
+                attributes: ["id", "name"],
+              },
+              {
+                model: CityPhoto,
+                as: "photos",
+                attributes: ["url_small", "url_medium", "url_large"],
+                limit: 3,
+              },
+            ],
+          },
+          {
+            model: TripItineraryDay,
+            as: "itineraryDays",
+            attributes: ["id", "day_number", "title"],
+            include: [
+              {
+                model: TripItineraryActivity,
+                as: "activities",
+                attributes: [
+                  "place_id",
+                  "time",
+                  "name",
+                  "location",
+                  "description",
+                  "activity_order",
+                ],
+                include: [
+                  {
+                    model: Place,
+                    as: "placeDetails",
+                    attributes: [
+                      "id",
+                      "name",
+                      "address",
+                      "rating",
+                      "price_level",
+                    ],
+                    include: [
+                      {
+                        model: PlacePhoto,
+                        as: "photos",
+                        attributes: ["url_small", "url_medium", "url_large"],
+                        limit: 3,
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+            order: [["day_number", "ASC"]],
+          },
+        ],
+      });
+    } catch (err) {
+      // Fallback: if the derived likes_count subquery fails for some DB setups,
+      // fetch trips without the subquery and merge counts with a grouped query.
+      console.warn(
+        "[Home Controller] Derived likes_count query failed, falling back:",
+        err.message || err
+      );
+
+      trips = await Trip.findAll({
+        order: sequelize.random(),
+        limit: parseInt(limit),
+        attributes: [
+          "id",
+          "title",
+          "description",
+          "destination",
+          "destination_city_id",
+          "duration",
+          "budget",
+          "is_public",
+          "cover_image",
+          "views_count",
+          "created_at",
+        ],
+        include: [
+          {
+            model: User,
+            as: "author",
+            attributes: ["id", "full_name", "preferred_name", "photo_url"],
+          },
+          {
+            model: City,
+            as: "destinationCity",
+            attributes: ["id", "name"],
+            include: [
+              { model: Country, as: "country", attributes: ["id", "name"] },
+              {
+                model: CityPhoto,
+                as: "photos",
+                attributes: ["url_small", "url_medium", "url_large"],
+                limit: 3,
+              },
+            ],
+          },
+          {
+            model: TripItineraryDay,
+            as: "itineraryDays",
+            attributes: ["id", "day_number", "title"],
+            include: [
+              {
+                model: TripItineraryActivity,
+                as: "activities",
+                attributes: [
+                  "place_id",
+                  "time",
+                  "name",
+                  "location",
+                  "description",
+                  "activity_order",
+                ],
+                include: [
+                  {
+                    model: Place,
+                    as: "placeDetails",
+                    attributes: [
+                      "id",
+                      "name",
+                      "address",
+                      "rating",
+                      "price_level",
+                    ],
+                    include: [
+                      {
+                        model: PlacePhoto,
+                        as: "photos",
+                        attributes: ["url_small", "url_medium", "url_large"],
+                        limit: 3,
+                      },
+                    ],
+                  },
+                ],
+                order: [["activity_order", "ASC"]],
+              },
+            ],
+            order: [["day_number", "ASC"]],
+          },
+        ],
+      });
+
+      // Get counts grouped by trip_id
+      const tripIds = trips.map((t) => t.id);
+      const counts = tripIds.length
+        ? await query(
+            `SELECT trip_id, COUNT(*) as c FROM trip_likes WHERE trip_id IN (${tripIds
+              .map(() => "?")
+              .join(",")}) GROUP BY trip_id`,
+            tripIds
+          )
+        : [];
+
+      const countsMap = counts.reduce((acc, row) => {
+        acc[row.trip_id] = row.c;
+        return acc;
+      }, {});
+
+      // attach likes_count into each trip instance's dataValues for compatibility
+      trips.forEach((t) => {
+        t.dataValues.likes_count = countsMap[t.id] || 0;
+      });
+    }
 
     // Format response
     const formattedTrips = trips.map((trip) => {
@@ -242,7 +360,10 @@ const getHomeTrips = async (req, res) => {
       buildSuccessResponse(formattedTrips, "Trips fetched successfully")
     );
   } catch (error) {
-    console.error("[Home Controller] Error fetching trips:", error);
+    console.error(
+      "[Home Controller] Error fetching trips:",
+      error.stack || error.message || error
+    );
     return res
       .status(500)
       .json(buildErrorResponse("SERVER_ERROR", "Failed to fetch trips"));
