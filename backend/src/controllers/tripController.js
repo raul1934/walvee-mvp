@@ -102,13 +102,13 @@ const getTrips = async (req, res, next) => {
         ],
       },
       // include cities for filtering by destination and for responses
-        {
-          model: require("../models/sequelize").City,
-          as: "cities",
-          attributes: ["id", "name"],
-          through: { attributes: ["city_order"], timestamps: false },
-          required: false,
-        },
+      {
+        model: require("../models/sequelize").City,
+        as: "cities",
+        attributes: ["id", "name"],
+        through: { attributes: ["city_order"], timestamps: false },
+        required: false,
+      },
       {
         model: TripItineraryDay,
         as: "itineraryDays",

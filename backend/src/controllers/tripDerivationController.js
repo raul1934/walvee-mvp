@@ -93,7 +93,11 @@ const createDerivation = async (req, res, next) => {
       include: [
         { model: TripTag, as: "tags" },
         { model: TripPlace, as: "places" },
-        { model: require("../models/sequelize").City, as: "cities", through: { attributes: ["city_order"], timestamps: false } },
+        {
+          model: require("../models/sequelize").City,
+          as: "cities",
+          through: { attributes: ["city_order"], timestamps: false },
+        },
         {
           model: TripItineraryDay,
           as: "itineraryDays",
