@@ -9,7 +9,12 @@ import { useGlobalSearch } from "../search/useGlobalSearch";
 import SearchOverlay from "../search/SearchOverlay";
 import PlaceModal from "../city/PlaceModal";
 
-export default function Navbar({ user, onMenuClick, onCloseSidebar, openLoginModal }) {
+export default function Navbar({
+  user,
+  onMenuClick,
+  onCloseSidebar,
+  openLoginModal,
+}) {
   const [logoError, setLogoError] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [selectedPlace, setSelectedPlace] = useState(null);
