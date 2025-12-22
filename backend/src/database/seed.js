@@ -11,10 +11,6 @@ const WALVEE_USER = {
     "https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/68e82e0380ac6e4a26051c6f/dda6b4bec_LogoWalvee.png",
   bio: "Your AI-powered travel companion. Discover the world with personalized trip recommendations.",
   onboarding_completed: true,
-  metrics_followers: 0,
-  metrics_following: 0,
-  metrics_trips: 10,
-  metrics_likes_received: 0,
 };
 
 // Comprehensive trip data
@@ -804,8 +800,8 @@ const seedData = async () => {
     } else {
       userId = WALVEE_USER.id;
       await connection.query(
-        `INSERT INTO users (id, email, full_name, preferred_name, photo_url, bio, onboarding_completed, metrics_followers, metrics_following, metrics_trips, metrics_likes_received)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO users (id, email, full_name, preferred_name, photo_url, bio, onboarding_completed)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
         [
           userId,
           WALVEE_USER.email,
@@ -814,10 +810,6 @@ const seedData = async () => {
           WALVEE_USER.photo_url,
           WALVEE_USER.bio,
           WALVEE_USER.onboarding_completed,
-          WALVEE_USER.metrics_followers,
-          WALVEE_USER.metrics_following,
-          WALVEE_USER.metrics_trips,
-          WALVEE_USER.metrics_likes_received,
         ]
       );
       console.log(`✅ Created user with ID: ${userId}`);

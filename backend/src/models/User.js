@@ -104,17 +104,10 @@ class UserModel {
     } = options;
 
     // Validate sortBy to prevent SQL injection
-    const validSortColumns = [
-      "created_at",
-      "updated_at",
-      "full_name",
-      "email",
-      "metrics_trips",
-      "metrics_followers",
-      "metrics_following",
-      "metrics_likes_received",
-    ];
-    const safeSortBy = validSortColumns.includes(sortBy) ? sortBy : "created_at";
+    const validSortColumns = ["created_at", "updated_at", "full_name", "email"];
+    const safeSortBy = validSortColumns.includes(sortBy)
+      ? sortBy
+      : "created_at";
 
     // Validate order to prevent SQL injection
     const safeOrder = order.toLowerCase() === "asc" ? "ASC" : "DESC";
@@ -144,34 +137,6 @@ class UserModel {
 
     const result = await query(sql, params);
     return result[0].total;
-  }
-
-  async updateMetrics(id, metrics) {
-    const updates = [];
-    const values = [];
-
-    if (metrics.followers !== undefined) {
-      updates.push("metrics_followers = ?");
-      values.push(metrics.followers);
-    }
-    if (metrics.following !== undefined) {
-      updates.push("metrics_following = ?");
-      values.push(metrics.following);
-    }
-    if (metrics.trips !== undefined) {
-      updates.push("metrics_trips = ?");
-      values.push(metrics.trips);
-    }
-    if (metrics.likesReceived !== undefined) {
-      updates.push("metrics_likes_received = ?");
-      values.push(metrics.likesReceived);
-    }
-
-    if (updates.length === 0) return;
-
-    values.push(id);
-    const sql = `UPDATE users SET ${updates.join(", ")} WHERE id = ?`;
-    await query(sql, values);
   }
 }
 

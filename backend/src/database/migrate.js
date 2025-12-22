@@ -5,7 +5,7 @@ const migrations = [
     name: "create_countries_table",
     up: `
       CREATE TABLE IF NOT EXISTS countries (
-        id INT AUTO_INCREMENT PRIMARY KEY,
+        id CHAR(36) PRIMARY KEY,
         name VARCHAR(100) NOT NULL UNIQUE,
         code VARCHAR(2) NOT NULL UNIQUE COMMENT 'ISO 3166-1 alpha-2 country code',
         google_maps_id VARCHAR(255) UNIQUE COMMENT 'Google Maps Place ID for the country',
@@ -69,9 +69,9 @@ const migrations = [
     name: "create_cities_table",
     up: `
       CREATE TABLE IF NOT EXISTS cities (
-        id INT AUTO_INCREMENT PRIMARY KEY,
+        id CHAR(36) PRIMARY KEY,
         name VARCHAR(100) NOT NULL,
-        country_id INT NOT NULL,
+        country_id CHAR(36) NOT NULL,
         google_maps_id VARCHAR(255) UNIQUE COMMENT 'Google Maps Place ID for the city',
         state VARCHAR(100) COMMENT 'State/Province/Region',
         latitude DOUBLE,
@@ -99,14 +99,10 @@ const migrations = [
         preferred_name VARCHAR(100),
         photo_url TEXT,
         bio TEXT,
-        city_id INT,
+        city_id CHAR(36),
         city VARCHAR(100) COMMENT 'Deprecated - use city_id instead',
         country VARCHAR(100) COMMENT 'Deprecated - use city_id->country instead',
         instagram_username VARCHAR(50),
-        metrics_followers INT DEFAULT 0,
-        metrics_following INT DEFAULT 0,
-        metrics_trips INT DEFAULT 0,
-        metrics_likes_received INT DEFAULT 0,
         onboarding_completed BOOLEAN DEFAULT FALSE,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

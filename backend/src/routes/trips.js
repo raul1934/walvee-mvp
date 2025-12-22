@@ -28,10 +28,12 @@ router.post(
     body("cities.*")
       .optional()
       .custom((val) => {
-        if (typeof val === "number") return true;
-        if (typeof val === "object" && Number.isInteger(val.id)) return true;
+        const isUuid = (v) =>
+          typeof v === "string" && /^[0-9a-fA-F\-]{36}$/.test(v);
+        if (typeof val === "string" && isUuid(val)) return true;
+        if (typeof val === "object" && isUuid(val.id)) return true;
         throw new Error(
-          "each city must be an integer id or object with an `id` integer"
+          "each city must be a uuid string or object with an `id` uuid"
         );
       }),
     body("destinationLat").optional().isFloat(),

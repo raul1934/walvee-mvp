@@ -48,27 +48,17 @@ const User = sequelize.define(
       comment: "User's date of birth (YYYY-MM-DD)",
     },
     gender: {
-      type: DataTypes.ENUM("male", "female", "non-binary", "other", "prefer-not-to-say"),
+      type: DataTypes.ENUM(
+        "male",
+        "female",
+        "non-binary",
+        "other",
+        "prefer-not-to-say"
+      ),
       allowNull: true,
     },
     instagram_username: {
       type: DataTypes.STRING(50),
-    },
-    metrics_followers: {
-      type: DataTypes.INTEGER,
-      defaultValue: 0,
-    },
-    metrics_following: {
-      type: DataTypes.INTEGER,
-      defaultValue: 0,
-    },
-    metrics_trips: {
-      type: DataTypes.INTEGER,
-      defaultValue: 0,
-    },
-    metrics_likes_received: {
-      type: DataTypes.INTEGER,
-      defaultValue: 0,
     },
     onboarding_completed: {
       type: DataTypes.BOOLEAN,

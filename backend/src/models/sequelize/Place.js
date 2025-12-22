@@ -5,8 +5,8 @@ const Place = sequelize.define(
   "Place",
   {
     id: {
-      type: DataTypes.INTEGER,
-      autoIncrement: true,
+      type: DataTypes.UUID,
+      defaultValue: DataTypes.UUIDV4,
       primaryKey: true,
     },
     google_place_id: {
@@ -23,7 +23,7 @@ const Place = sequelize.define(
       type: DataTypes.TEXT,
     },
     city_id: {
-      type: DataTypes.INTEGER,
+      type: DataTypes.UUID,
       references: {
         model: "cities",
         key: "id",

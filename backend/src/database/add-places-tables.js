@@ -16,7 +16,7 @@ const addPlacesTables = async () => {
       console.log("Creating places table...");
       await connection.query(`
         CREATE TABLE places (
-          id INT AUTO_INCREMENT PRIMARY KEY,
+          id CHAR(36) PRIMARY KEY,
           google_place_id VARCHAR(255) UNIQUE NOT NULL,
           name VARCHAR(255) NOT NULL,
           address TEXT,
@@ -45,14 +45,16 @@ const addPlacesTables = async () => {
     }
 
     // Check and create place_photos table
-    const [photosRows] = await connection.query("SHOW TABLES LIKE 'place_photos'");
+    const [photosRows] = await connection.query(
+      "SHOW TABLES LIKE 'place_photos'"
+    );
 
     if (photosRows.length === 0) {
       console.log("Creating place_photos table...");
       await connection.query(`
         CREATE TABLE place_photos (
-          id INT AUTO_INCREMENT PRIMARY KEY,
-          place_id INT NOT NULL,
+          id CHAR(36) PRIMARY KEY,
+          place_id CHAR(36) NOT NULL,
           google_photo_reference VARCHAR(500) NOT NULL,
           url_small VARCHAR(1000),
           url_medium VARCHAR(1000),
@@ -85,7 +87,7 @@ const addPlacesTables = async () => {
       console.log("Adding place_id column to trip_places table...");
       await connection.query(`
         ALTER TABLE trip_places
-        ADD COLUMN place_id INT,
+        ADD COLUMN place_id CHAR(36),
         ADD FOREIGN KEY (place_id) REFERENCES places(id) ON DELETE SET NULL,
         ADD INDEX idx_place_id (place_id);
       `);

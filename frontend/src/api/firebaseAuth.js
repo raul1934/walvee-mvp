@@ -47,10 +47,6 @@ export const firebaseAuthService = {
       photo_url: user.photoURL || "",
       created_at: serverTimestamp(),
       onboarding_completed: false,
-      metrics_followers: 0,
-      metrics_following: 0,
-      metrics_trips: 0,
-      metrics_likes_received: 0,
     };
 
     await setDoc(userDocRef, userData);
@@ -98,10 +94,6 @@ export const firebaseAuthService = {
           photo_url: result.user.photoURL || "",
           created_at: serverTimestamp(),
           onboarding_completed: false,
-          metrics_followers: 0,
-          metrics_following: 0,
-          metrics_trips: 0,
-          metrics_likes_received: 0,
         });
       } else {
         // Update photo if it changed
@@ -150,24 +142,26 @@ export const firebaseAuthService = {
   },
 
   // List all users (for CityLocals and other features)
-  list: async (orderByField = 'created_at', limitCount = 100) => {
-    const { collection, getDocs, query, orderBy, limit } = await import('firebase/firestore');
+  list: async (orderByField = "created_at", limitCount = 100) => {
+    const { collection, getDocs, query, orderBy, limit } = await import(
+      "firebase/firestore"
+    );
 
     // Handle Base44-style descending order prefix
-    const isDescending = orderByField.startsWith('-');
+    const isDescending = orderByField.startsWith("-");
     const fieldName = isDescending ? orderByField.substring(1) : orderByField;
-    const direction = isDescending ? 'desc' : 'asc';
+    const direction = isDescending ? "desc" : "asc";
 
     const q = query(
-      collection(db, 'users'),
+      collection(db, "users"),
       orderBy(fieldName, direction),
       limit(limitCount)
     );
 
     const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => ({
+    return snapshot.docs.map((doc) => ({
       id: doc.id,
-      ...doc.data()
+      ...doc.data(),
     }));
   },
 };

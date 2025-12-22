@@ -16,10 +16,15 @@ const addIdToUserFollow = async () => {
 
     if (cols.length === 0) {
       console.log("Adding `id` column to user_follow...");
+      // Add CHAR(36) id column, backfill with UUIDs and set primary key
       await connection.query(
-        `ALTER TABLE user_follow ADD COLUMN id INT NOT NULL AUTO_INCREMENT PRIMARY KEY FIRST;`
+        `ALTER TABLE user_follow ADD COLUMN id CHAR(36) FIRST`
       );
-      console.log("✓ Added `id` column to user_follow");
+      await connection.query(
+        `UPDATE user_follow SET id = UUID() WHERE id IS NULL`
+      );
+      await connection.query(`ALTER TABLE user_follow ADD PRIMARY KEY (id)`);
+      console.log("✓ Added `id` column to user_follow (CHAR(36) UUID)");
     } else {
       console.log("✓ `id` column already exists on user_follow");
     }

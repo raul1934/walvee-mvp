@@ -13,7 +13,7 @@ router.get("/", authenticate, placeFavoriteController.getUserPlaceFavorites);
 router.post(
   "/",
   authenticate,
-  [body("place_id").isInt()],
+  [body("place_id").isUUID()],
   validate,
   placeFavoriteController.createPlaceFavorite
 );

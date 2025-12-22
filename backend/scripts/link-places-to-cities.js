@@ -412,14 +412,15 @@ async function fetchAndCreateCityFromGoogleMaps(
       [countryCode, countryName]
     );
 
+    const { generateUUID } = require("../src/utils/helpers");
     let countryId;
     if (countries.length === 0) {
       console.log(`  ➕ Creating country: ${countryName}`);
-      const [result] = await connection.query(
-        "INSERT INTO countries (name, code, created_at) VALUES (?, ?, NOW())",
-        [countryName, countryCode]
+      countryId = generateUUID();
+      await connection.query(
+        "INSERT INTO countries (id, name, code, created_at) VALUES (?, ?, ?, NOW())",
+        [countryId, countryName, countryCode]
       );
-      countryId = result.insertId;
     } else {
       countryId = countries[0].id;
     }
@@ -433,12 +434,11 @@ async function fetchAndCreateCityFromGoogleMaps(
     let cityId;
     if (existingCities.length === 0) {
       console.log(`  ➕ Creating city: ${cityName}`);
-
-      const [result] = await connection.query(
-        "INSERT INTO cities (name, state, country_id, latitude, longitude, google_maps_id, created_at) VALUES (?, ?, ?, ?, ?, ?, NOW())",
-        [cityName, stateName, countryId, cityLat, cityLng, googleMapsId]
+      cityId = generateUUID();
+      await connection.query(
+        "INSERT INTO cities (id, name, state, country_id, latitude, longitude, google_maps_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, NOW())",
+        [cityId, cityName, stateName, countryId, cityLat, cityLng, googleMapsId]
       );
-      cityId = result.insertId;
     } else {
       cityId = existingCities[0].id;
       console.log(`  ✓ City already exists: ${cityName}`);

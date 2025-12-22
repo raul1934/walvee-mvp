@@ -41,7 +41,7 @@ router.post(
   "/me/onboarding",
   authenticate,
   [
-    body("city_id").optional().isInt(),
+    body("city_id").optional().isUUID(),
     body("preferred_name").optional().isString().trim(),
     body("bio").optional().isString().trim(),
     body("instagram_username").optional().isString().trim(),

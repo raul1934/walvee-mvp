@@ -1,50 +1,51 @@
+"use strict";
+
 module.exports = {
-  id: "20251223000000-drop-trips-destination-columns",
-  async up(db) {
+  up: async (queryInterface, Sequelize) => {
     // If destination_city_id exists, drop FK/index then column
-    const [hasDestCity] = await db.query(
-      "SHOW COLUMNS FROM trips LIKE 'destination_city_id'"
-    );
-    if (hasDestCity.length > 0) {
+    const tableDescription = await queryInterface.describeTable("trips");
+    if (tableDescription.destination_city_id) {
       try {
-        await db.query(
-          "ALTER TABLE trips DROP FOREIGN KEY IF EXISTS fk_trips_destination_city_id"
+        await queryInterface.removeConstraint(
+          "trips",
+          "fk_trips_destination_city_id"
         );
       } catch (e) {
         // ignore if constraint not present
       }
       try {
-        await db.query(
-          "ALTER TABLE trips DROP INDEX IF EXISTS idx_destination_city_id"
-        );
+        await queryInterface.removeIndex("trips", "idx_destination_city_id");
       } catch (e) {
         // ignore
       }
-      await db.query("ALTER TABLE trips DROP COLUMN destination_city_id");
+      await queryInterface.removeColumn("trips", "destination_city_id");
       console.log("✓ Dropped destination_city_id from trips");
     }
 
     // Drop legacy destination column if exists
-    const [hasDest] = await db.query(
-      "SHOW COLUMNS FROM trips LIKE 'destination'"
-    );
-    if (hasDest.length > 0) {
-      await db.query("ALTER TABLE trips DROP COLUMN destination");
+    if (tableDescription.destination) {
+      await queryInterface.removeColumn("trips", "destination");
       console.log("✓ Dropped destination column from trips");
     }
   },
 
-  async down(db) {
+  down: async (queryInterface, Sequelize) => {
     // Recreate destination and destination_city_id columns for rollback convenience
-    await db.query(
-      "ALTER TABLE trips ADD COLUMN destination VARCHAR(255) NULL"
-    );
-    await db.query(
-      "ALTER TABLE trips ADD COLUMN destination_city_id INT NULL, ADD INDEX idx_destination_city_id (destination_city_id)"
-    );
-    await db.query(
-      "ALTER TABLE trips ADD CONSTRAINT fk_trips_destination_city_id FOREIGN KEY (destination_city_id) REFERENCES cities(id) ON DELETE SET NULL"
-    );
+    await queryInterface.addColumn("trips", "destination", {
+      type: Sequelize.STRING(255),
+      allowNull: true,
+    });
+    await queryInterface.addColumn("trips", "destination_city_id", {
+      type: Sequelize.INTEGER,
+      allowNull: true,
+      references: {
+        model: "cities",
+        key: "id",
+      },
+    });
+    await queryInterface.addIndex("trips", ["destination_city_id"], {
+      name: "idx_destination_city_id",
+    });
     console.log(
       "✓ Restored destination and destination_city_id columns on rollback"
     );

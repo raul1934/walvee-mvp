@@ -10,14 +10,16 @@ const addCityPhotosTable = async () => {
     console.log("Adding city_photos table if not exist...\n");
 
     // Check and create city_photos table
-    const [photosRows] = await connection.query("SHOW TABLES LIKE 'city_photos'");
+    const [photosRows] = await connection.query(
+      "SHOW TABLES LIKE 'city_photos'"
+    );
 
     if (photosRows.length === 0) {
       console.log("Creating city_photos table...");
       await connection.query(`
         CREATE TABLE city_photos (
-          id INT AUTO_INCREMENT PRIMARY KEY,
-          city_id INT NOT NULL,
+          id CHAR(36) PRIMARY KEY,
+          city_id CHAR(36) NOT NULL,
           google_photo_reference VARCHAR(500) NOT NULL,
           url_small VARCHAR(1000) COMMENT 'Photo URL with maxWidth: 400',
           url_medium VARCHAR(1000) COMMENT 'Photo URL with maxWidth: 800',

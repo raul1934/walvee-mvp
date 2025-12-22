@@ -659,7 +659,7 @@ async function migratePlacePhotos(connection) {
   console.log("\n📍 Migrating place photos...");
 
   const [photos] = await connection.query(
-    "SELECT id, place_id, url_small, url_medium, url_large, photo_order FROM place_photos"
+    "SELECT pp.id, pp.place_id, p.city_id, pp.url_small, pp.url_medium, pp.url_large, pp.photo_order FROM place_photos pp JOIN places p ON pp.place_id = p.id"
   );
   stats.placePhotos.total = photos.length * 3; // 3 sizes per photo
   console.log(
@@ -683,6 +683,7 @@ async function migratePlacePhotos(connection) {
       const placeDir = path.join(
         CONFIG.NEW_IMAGE_DIR,
         "places",
+        photo.city_id.toString(),
         photo.place_id.toString()
       );
 
@@ -720,14 +721,14 @@ async function migratePlacePhotos(connection) {
           { name: "large", maxWidth: 1600 },
         ];
 
-        const basePath = path.join(placeDir, `${photo.photo_order}`);
+        const basePath = path.join(placeDir, photo.id.toString());
         const resizeResult = await resizeImage(tempPath, basePath, sizes);
 
         if (resizeResult.success) {
           // Build relative URLs
-          const smallUrl = `/images/places/${photo.place_id}/${photo.photo_order}_small.jpg`;
-          const mediumUrl = `/images/places/${photo.place_id}/${photo.photo_order}_medium.jpg`;
-          const largeUrl = `/images/places/${photo.place_id}/${photo.photo_order}_large.jpg`;
+          const smallUrl = `/images/places/${photo.city_id}/${photo.place_id}/${photo.id}_small.jpg`;
+          const mediumUrl = `/images/places/${photo.city_id}/${photo.place_id}/${photo.id}_medium.jpg`;
+          const largeUrl = `/images/places/${photo.city_id}/${photo.place_id}/${photo.id}_large.jpg`;
 
           if (!CONFIG.DRY_RUN) {
             try {
@@ -793,7 +794,7 @@ async function migrateCityPhotos(connection) {
   console.log("\n🏙️  Migrating city photos...");
 
   const [photos] = await connection.query(
-    "SELECT id, city_id, url_small, url_medium, url_large, photo_order FROM city_photos"
+    "SELECT cp.id, cp.city_id, c.country_id, cp.url_small, cp.url_medium, cp.url_large, cp.photo_order FROM city_photos cp JOIN cities c ON cp.city_id = c.id"
   );
   stats.cityPhotos.total = photos.length * 3; // 3 sizes per photo
   console.log(
@@ -817,6 +818,7 @@ async function migrateCityPhotos(connection) {
       const cityDir = path.join(
         CONFIG.NEW_IMAGE_DIR,
         "cities",
+        photo.country_id.toString(),
         photo.city_id.toString()
       );
 
@@ -854,13 +856,13 @@ async function migrateCityPhotos(connection) {
           { name: "large", maxWidth: 1600 },
         ];
 
-        const basePath = path.join(cityDir, `${photo.photo_order}`);
+        const basePath = path.join(cityDir, photo.id.toString());
         const resizeResult = await resizeImage(tempPath, basePath, sizes);
 
         if (resizeResult.success) {
-          const smallUrl = `/images/cities/${photo.city_id}/${photo.photo_order}_small.jpg`;
-          const mediumUrl = `/images/cities/${photo.city_id}/${photo.photo_order}_medium.jpg`;
-          const largeUrl = `/images/cities/${photo.city_id}/${photo.photo_order}_large.jpg`;
+          const smallUrl = `/images/cities/${photo.country_id}/${photo.city_id}/${photo.id}_small.jpg`;
+          const mediumUrl = `/images/cities/${photo.country_id}/${photo.city_id}/${photo.id}_medium.jpg`;
+          const largeUrl = `/images/cities/${photo.country_id}/${photo.city_id}/${photo.id}_large.jpg`;
 
           if (!CONFIG.DRY_RUN) {
             try {
