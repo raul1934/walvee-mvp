@@ -1,6 +1,7 @@
 import React from "react";
 import { TripLike } from "@/api/entities";
 import { MapPin, Star, Heart, Trash2 } from "lucide-react";
+import ConfirmationModal from "@/components/common/ConfirmationModal";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { getPriceRangeInfo } from "../utils/priceFormatter";
 import ImagePlaceholder from "../common/ImagePlaceholder";
@@ -28,10 +29,14 @@ export default function FavoriteCard({
   const handleDelete = (e) => {
     e.preventDefault();
     e.stopPropagation();
+    setIsConfirmOpen(true);
+  };
 
-    if (window.confirm(`Remove ${favorite.place_name} from favorites?`)) {
-      deleteFavoriteMutation.mutate();
-    }
+  const [isConfirmOpen, setIsConfirmOpen] = React.useState(false);
+
+  const handleConfirmDelete = async () => {
+    setIsConfirmOpen(false);
+    deleteFavoriteMutation.mutate();
   };
 
   const handleClick = () => {
@@ -101,6 +106,16 @@ export default function FavoriteCard({
             )}
           </button>
         )}
+
+        <ConfirmationModal
+          isOpen={isConfirmOpen}
+          title={`Remove ${favorite.place_name} from favorites?`}
+          description={`This will remove ${favorite.place_name} from your favorites.`}
+          confirmLabel="Remove"
+          cancelLabel="Cancel"
+          onConfirm={handleConfirmDelete}
+          onCancel={() => setIsConfirmOpen(false)}
+        />
       </div>
 
       {/* Content */}
