@@ -108,6 +108,9 @@ export function useGlobalSearch(cityContext = null) {
               country: user.country,
               trips: user.trips,
               followers: user.followers,
+              instagram_username: user.instagram_username || null,
+              instagram_display: user.instagram_display || null,
+              instagram_url: user.instagram_url || null,
             })),
           };
 

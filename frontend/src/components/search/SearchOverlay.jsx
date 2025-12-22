@@ -74,6 +74,20 @@ export default function SearchOverlay({
 
   const hasResults = totalResults > 0;
 
+  // If a cityContext was provided, prefer showing a city banner using the
+  // first matching city result (or the first city result available).
+  const cityBanner = (() => {
+    if (!cityContext || !results?.cities || results.cities.length === 0)
+      return null;
+    // Try to find a city whose name matches the context (case-insensitive)
+    const normalized = cityContext.toString().toLowerCase();
+    const match = results.cities.find(
+      (c) =>
+        (c.name && c.name.toString().toLowerCase() === normalized) ||
+        c.id == cityContext
+    );
+    return match || results.cities[0];
+  })();
   // Filter results based on active filter
   const shouldShowCities = activeFilter === "all" || activeFilter === "cities";
   const shouldShowTrips = activeFilter === "all" || activeFilter === "trips";
@@ -218,7 +232,20 @@ export default function SearchOverlay({
                     <div>
                       {activeFilter === "all" && (
                         <div className="flex items-center gap-2 mb-3 px-2">
-                          <MapPin className="w-4 h-4 text-purple-400" />
+                          {cityBanner && cityBanner.images?.[0] ? (
+                            <div className="w-4 h-4 rounded overflow-hidden shrink-0">
+                              <img
+                                src={cityBanner.images[0]}
+                                alt={cityBanner.name}
+                                className="w-full h-full object-cover"
+                                onError={(e) =>
+                                  (e.currentTarget.style.display = "none")
+                                }
+                              />
+                            </div>
+                          ) : (
+                            <MapPin className="w-4 h-4 text-purple-400" />
+                          )}
                           <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wide">
                             Cities ({citiesCount})
                           </h3>
@@ -242,7 +269,20 @@ export default function SearchOverlay({
                     <div>
                       {activeFilter === "all" && (
                         <div className="flex items-center gap-2 mb-3 px-2">
-                          <Map className="w-4 h-4 text-blue-400" />
+                          {results?.trips?.[0]?.images?.[0] ? (
+                            <div className="w-4 h-4 rounded overflow-hidden shrink-0">
+                              <img
+                                src={results.trips[0].images[0]}
+                                alt={results.trips[0].title || "trip"}
+                                className="w-full h-full object-cover"
+                                onError={(e) =>
+                                  (e.currentTarget.style.display = "none")
+                                }
+                              />
+                            </div>
+                          ) : (
+                            <Map className="w-4 h-4 text-blue-400" />
+                          )}
                           <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wide">
                             Trips ({tripsCount})
                           </h3>

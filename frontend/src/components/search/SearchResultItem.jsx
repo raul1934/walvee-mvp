@@ -8,6 +8,7 @@ import {
   Infinity,
   Users,
   TrendingUp,
+  Instagram,
 } from "lucide-react";
 import UserAvatar from "../common/UserAvatar";
 import ImagePlaceholder from "../common/ImagePlaceholder";
@@ -75,11 +76,11 @@ export default function SearchResultItem({ result, onClose, onPlaceClick }) {
         className="flex items-center gap-4 p-4 hover:bg-[#1A1B23] rounded-xl transition-colors group"
       >
         <div className="w-16 h-16 rounded-xl overflow-hidden bg-[#0D0D0D] shrink-0">
-          {!result.cover_image || imageError ? (
+          {!result.images[0] || imageError ? (
             <ImagePlaceholder type="image" />
           ) : (
             <img
-              src={result.cover_image}
+              src={result.images[0]}
               alt={result.title}
               className="w-full h-full object-cover group-hover:scale-110 transition-transform"
               onError={() => setImageError(true)}
@@ -165,7 +166,7 @@ export default function SearchResultItem({ result, onClose, onPlaceClick }) {
   }
 
   // User/Person result
-  if (result.type === "user") {
+  if (result.type === "traveler") {
     return (
       <Link
         to={createProfileUrl(result.id)}
@@ -173,7 +174,7 @@ export default function SearchResultItem({ result, onClose, onPlaceClick }) {
         className="flex items-center gap-4 p-4 hover:bg-[#1A1B23] rounded-xl transition-colors group"
       >
         <UserAvatar
-          src={result.avatar || result.photo_url || result.picture}
+          src={result.photo}
           name={result.name || result.full_name || result.preferred_name}
           size="lg"
           ring
@@ -183,12 +184,26 @@ export default function SearchResultItem({ result, onClose, onPlaceClick }) {
           <h3 className="font-semibold text-white group-hover:text-pink-400 transition-colors truncate">
             {result.name || result.full_name || result.preferred_name}
           </h3>
-          <p className="text-sm text-gray-400 truncate mb-1">
-            {result.username ||
-              `@${(result.preferred_name || result.full_name || "")
-                .toLowerCase()
-                .replace(/\s+/g, "")}`}
-          </p>
+          <div>
+            {result.instagram_username ? (
+              <a
+                href={
+                  result.instagram_url ||
+                  `https://instagram.com/${result.instagram_username}`
+                }
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 text-pink-400 text-xs hover:underline"
+              >
+                <Instagram className="w-3 h-3" />
+                <span>{`@${result.instagram_username}`}</span>
+              </a>
+            ) : (
+              <span className="text-xs text-gray-500">
+                No instagram account
+              </span>
+            )}
+          </div>
 
           <div className="flex items-center gap-3 text-xs text-gray-500">
             <span className="flex items-center gap-1">

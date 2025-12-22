@@ -4,13 +4,15 @@ const {
   Place,
   PlacePhoto,
   CityPhoto,
-  Trip,
   User,
+  Trip,
+  Follow,
 } = require("../models/sequelize");
 const { Op } = require("sequelize");
 const {
   buildSuccessResponse,
   buildErrorResponse,
+  getFullImageUrl,
 } = require("../utils/helpers");
 const {
   searchCitiesFromGoogle,
@@ -212,7 +214,8 @@ const searchOverlay = async (req, res, next) => {
         countryId: city.country?.id,
         countryCode: city.country?.code,
         state: city.state,
-        image: city.photos?.[0]?.url_medium || null,
+        // Ensure image URL is absolute by prefixing backend URL when needed
+        image: getFullImageUrl(city.photos?.[0]?.url_medium),
         google_maps_id: city.google_maps_id,
       }));
       response.counts.cities = totalCitiesCount;
@@ -435,94 +438,92 @@ const searchOverlay = async (req, res, next) => {
     }));
     response.counts.places = totalPlacesCount;
 
-    // ===== SEARCH TRAVELERS (only if authenticated) =====
-    if (isAuthenticated) {
-      const userWhere = {
-        [Op.or]: [
-          { full_name: { [Op.like]: `%${searchTerm}%` } },
-          { preferred_name: { [Op.like]: `%${searchTerm}%` } },
-          { email: { [Op.like]: `%${searchTerm}%` } },
-        ],
-      };
+    const userWhere = {
+      [Op.or]: [
+        { full_name: { [Op.like]: `%${searchTerm}%` } },
+        { preferred_name: { [Op.like]: `%${searchTerm}%` } },
+        { email: { [Op.like]: `%${searchTerm}%` } },
+      ],
+    };
 
-      // City context filter will be applied via include if needed
-      let cityInclude = null;
-      if (cityContext) {
-        // Find the city to filter by
-        const contextCity = await City.findOne({
-          where: { name: { [Op.like]: `%${cityNameOnly}%` } },
+    if (cityContext) {
+      const contextCity = await City.findOne({
+        where: { name: { [Op.like]: `%${cityNameOnly}%` } },
+      });
+      if (contextCity) userWhere.city_id = contextCity.id;
+    }
+
+    const travelers = await User.findAll({
+      where: userWhere,
+      attributes: [
+        "id",
+        "email",
+        "full_name",
+        "preferred_name",
+        "photo_url",
+        "city_id",
+        "instagram_username",
+      ],
+      include: [
+        {
+          model: City,
+          as: "cityData",
+          attributes: ["name", "country_id"],
+          required: false,
+          include: [
+            {
+              model: Country,
+              as: "country",
+              attributes: ["name"],
+              required: false,
+            },
+          ],
+        },
+      ],
+      limit: resultLimit,
+    });
+
+    const totalTravelersCount = await User.count({ where: userWhere });
+
+    // Calculate dynamic counts for each user
+    const travelersWithCounts = await Promise.all(
+      travelers.map(async (user) => {
+        const trips_count = await Trip.count({ where: { author_id: user.id } });
+
+        const followers_count = await Follow.count({
+          where: { followee_id: user.id },
         });
 
-        if (contextCity) {
-          userWhere.city_id = contextCity.id;
-        }
-      }
+        const instagram = user.instagram_username || null;
 
-      const travelers = await User.findAll({
-        where: userWhere,
-        attributes: [
-          "id",
-          "email",
-          "full_name",
-          "preferred_name",
-          "photo_url",
-          "city_id",
-        ],
-        include: [
-          {
-            model: City,
-            as: "cityData",
-            attributes: ["name", "country_id"],
-            required: false,
-            include: [
-              {
-                model: Country,
-                as: "country",
-                attributes: ["name"],
-                required: false,
-              },
-            ],
-          },
-        ],
-        limit: resultLimit,
-      });
+        return {
+          id: user.id,
+          // Public fields only - do not expose private data
+          name: user.preferred_name || user.full_name || user.email,
+          photo: getFullImageUrl(user.photo_url),
+          city: user.cityData?.name || null,
+          country: user.cityData?.country?.name || null,
+          instagram_username: instagram,
+          instagram_display: instagram
+            ? `@${instagram}`
+            : "No instagram account",
+          instagram_url: instagram
+            ? `https://instagram.com/${instagram}`
+            : null,
+          trips: trips_count,
+          followers: followers_count,
+        };
+      })
+    );
 
-      const totalTravelersCount = await User.count({ where: userWhere });
+    // Sort by trips then followers
+    travelersWithCounts.sort((a, b) => {
+      if (b.trips !== a.trips) return b.trips - a.trips;
+      return b.followers - a.followers;
+    });
 
-      // Calculate dynamic counts for each user
-      const { Follow, Trip } = require("../models/sequelize");
-      const travelersWithCounts = await Promise.all(
-        travelers.map(async (user) => {
-          const trips_count = await Trip.count({
-            where: { author_id: user.id },
-          });
-
-          const followers_count = await Follow.count({
-            where: { followee_id: user.id },
-          });
-
-          return {
-            id: user.id,
-            email: user.email,
-            name: user.preferred_name || user.full_name || user.email,
-            photo: user.photo_url,
-            city: user.cityData?.name || null,
-            country: user.cityData?.country?.name || null,
-            trips: trips_count,
-            followers: followers_count,
-          };
-        })
-      );
-
-      // Sort by trips then followers
-      travelersWithCounts.sort((a, b) => {
-        if (b.trips !== a.trips) return b.trips - a.trips;
-        return b.followers - a.followers;
-      });
-
-      response.results.travelers = travelersWithCounts;
-      response.counts.travelers = totalTravelersCount;
-    }
+    response.results.travelers = travelersWithCounts;
+    response.counts.travelers = totalTravelersCount;
 
     // Calculate total count
     response.counts.total =

@@ -122,6 +122,12 @@ const startServer = async () => {
       process.exit(1);
     }
 
+    // Initialize model associations (ensure models are associated before sync)
+    const models = require("./models/sequelize");
+    if (typeof models.initModels === "function") {
+      models.initModels();
+    }
+
     // Sync Sequelize models (without force to keep existing data)
     await sequelize.sync({ alter: false });
 
