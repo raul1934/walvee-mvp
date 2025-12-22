@@ -37,9 +37,7 @@ const getTrips = async (req, res, next) => {
 
     const where = {};
 
-    if (destination) {
-      where.destination = { [Op.like]: `%${destination}%` };
-    }
+    // Note: destination filter will be applied on the cities relation below when tripInclude is constructed
 
     if (createdBy) {
       where.author_id = createdBy;
@@ -65,12 +63,11 @@ const getTrips = async (req, res, next) => {
     if (search) {
       where[Op.or] = [
         { title: { [Op.like]: `%${search}%` } },
-        { destination: { [Op.like]: `%${search}%` } },
         { description: { [Op.like]: `%${search}%` } },
       ];
     }
 
-    const tripInclude = [
+    let tripInclude = [
       {
         model: User,
         as: "author",
@@ -83,6 +80,7 @@ const getTrips = async (req, res, next) => {
         attributes: [
           "name",
           "address",
+
           "rating",
           "price_level",
           "types",
@@ -102,6 +100,14 @@ const getTrips = async (req, res, next) => {
             ],
           },
         ],
+      },
+      // include cities for filtering by destination and for responses
+      {
+        model: require("../models/sequelize").City,
+        as: "cities",
+        attributes: ["id", "name"],
+        through: { attributes: ["city_order"] },
+        required: false,
       },
       {
         model: TripItineraryDay,
@@ -176,6 +182,20 @@ const getTrips = async (req, res, next) => {
         : [[sortBy, order.toUpperCase()]];
 
     // Count separately (safe) and then fetch rows with derived likes_count attribute
+    // If destination filter provided, require a matching city
+    if (destination) {
+      tripInclude = tripInclude.map((inc) => {
+        if (inc.as === "cities") {
+          return {
+            ...inc,
+            where: { name: { [Op.like]: `%${destination}%` } },
+            attributes: [],
+            required: true,
+          };
+        }
+        return inc;
+      });
+    }
     const count = await Trip.count({
       where,
       include: tripInclude,
@@ -243,13 +263,6 @@ const getTripById = async (req, res, next) => {
               as: "country",
               attributes: ["name"],
             },
-          ],
-        },
-        {
-          model: require("../models/sequelize").City,
-          as: "destinationCity",
-          attributes: ["id", "name"],
-          include: [
             {
               model: require("../models/sequelize").CityPhoto,
               as: "photos",
@@ -409,8 +422,8 @@ const createTrip = async (req, res, next) => {
           { replacements: [uuidv4(), trip.id, cityId, i] }
         );
       }
-      // set destination_city_id for backwards compatibility to first city
-      await trip.update({ destination_city_id: cityIds[0] });
+      // backward compatibility: previously stored first city in destination_city_id
+      // we now rely on the trip_cities relation, so no update is necessary.
     }
 
     // Create tags
@@ -578,13 +591,7 @@ const updateTrip = async (req, res, next) => {
           { replacements: [uuidv4(), id, cityId, i] }
         );
       }
-      // set destination_city_id for backward compat to first city if present
-      if (cityIds.length > 0) {
-        await Trip.update(
-          { destination_city_id: cityIds[0] },
-          { where: { id } }
-        );
-      }
+      // no destination_city_id updates required; trip_cities holds the canonical cities
     }
 
     // Update itinerary
@@ -731,11 +738,13 @@ async function formatTripResponse(trip) {
     images.push(getFullImageUrl(tripData.cover_image));
   }
 
-  // Add city photos
-  if (tripData.destinationCity?.photos) {
-    tripData.destinationCity.photos.forEach((photo) => {
-      if (photo.url_medium) {
-        images.push(getFullImageUrl(photo.url_medium));
+  // Add photos from cities (if present)
+  if (tripData.cities && tripData.cities.length > 0) {
+    tripData.cities.forEach((city) => {
+      if (city.photos) {
+        city.photos.forEach((photo) => {
+          if (photo.url_medium) images.push(getFullImageUrl(photo.url_medium));
+        });
       }
     });
   }
@@ -841,34 +850,21 @@ async function formatTripResponse(trip) {
       });
     }
     citiesWithIds = Array.from(fallbackCityMap.values());
-    if (tripData.destinationCity && tripData.destinationCity.name) {
-      const matchedById = citiesWithIds.find(
-        (c) => c.id && c.id === tripData.destinationCity.id
-      );
-      if (matchedById) {
-        destinationObj = { id: matchedById.id || null, name: matchedById.name };
-      } else {
-        destinationObj = {
-          id: tripData.destinationCity.id,
-          name: tripData.destinationCity.name,
-        };
-      }
+    // Prefer first city in citiesWithIds as the destination
+    if (citiesWithIds.length > 0) {
+      destinationObj = {
+        id: citiesWithIds[0].id || null,
+        name: citiesWithIds[0].name,
+      };
     } else if (destination) {
-      const matched = citiesWithIds.find((c) =>
-        c.name.toLowerCase().startsWith(destCityName.toLowerCase())
-      );
-      if (matched) {
-        destinationObj = { id: matched.id || null, name: matched.name };
-      } else {
-        destinationObj = { name: destination };
-      }
+      // Legacy fallback to the destination string when cities are not available
+      destinationObj = { name: destination };
     }
   }
 
   return {
     id: tripData.id,
     title: tripData.title,
-    destination: destinationObj,
     description: tripData.description,
     duration: tripData.duration,
     duration_days: durationDays,
@@ -895,9 +891,7 @@ async function formatTripResponse(trip) {
     author_email: tripData.author?.email || null,
     author_bio: tripData.author?.bio || null,
     tags: tripData.tags ? tripData.tags.map((t) => t.tag) : [],
-    locations: citiesWithIds.map(
-      (c) => `${c.name}${c.country ? `, ${c.country}` : ""}`
-    ),
+    // Return raw cities array; frontend should format names/locations for display
     cities: citiesWithIds,
     itinerary: tripData.itineraryDays
       ? tripData.itineraryDays.map((day) => ({

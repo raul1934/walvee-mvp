@@ -36,8 +36,6 @@ const getHomeTrips = async (req, res) => {
           "id",
           "title",
           "description",
-          "destination",
-          "destination_city_id",
           "duration",
           "budget",
           "is_public",
@@ -58,15 +56,11 @@ const getHomeTrips = async (req, res) => {
             attributes: ["id", "full_name", "preferred_name", "photo_url"],
           },
           {
-            model: City,
-            as: "destinationCity",
+            model: require("../models/sequelize").City,
+            as: "cities",
             attributes: ["id", "name"],
             include: [
-              {
-                model: Country,
-                as: "country",
-                attributes: ["id", "name"],
-              },
+              { model: Country, as: "country", attributes: ["id", "name"] },
               {
                 model: CityPhoto,
                 as: "photos",
@@ -74,6 +68,8 @@ const getHomeTrips = async (req, res) => {
                 limit: 3,
               },
             ],
+            through: { attributes: ["city_order"] },
+            required: false,
           },
           {
             model: TripItineraryDay,
@@ -133,8 +129,6 @@ const getHomeTrips = async (req, res) => {
           "id",
           "title",
           "description",
-          "destination",
-          "destination_city_id",
           "duration",
           "budget",
           "is_public",
@@ -149,8 +143,8 @@ const getHomeTrips = async (req, res) => {
             attributes: ["id", "full_name", "preferred_name", "photo_url"],
           },
           {
-            model: City,
-            as: "destinationCity",
+            model: require("../models/sequelize").City,
+            as: "cities",
             attributes: ["id", "name"],
             include: [
               { model: Country, as: "country", attributes: ["id", "name"] },
@@ -161,6 +155,8 @@ const getHomeTrips = async (req, res) => {
                 limit: 3,
               },
             ],
+            through: { attributes: ["city_order"] },
+            required: false,
           },
           {
             model: TripItineraryDay,
@@ -239,11 +235,14 @@ const getHomeTrips = async (req, res) => {
         images.push(getFullImageUrl(trip.cover_image));
       }
 
-      // Add city photos
-      if (trip.destinationCity?.photos) {
-        trip.destinationCity.photos.forEach((photo) => {
-          if (photo.url_medium) {
-            images.push(getFullImageUrl(photo.url_medium));
+      // Add photos from cities (if present)
+      if (trip.cities && trip.cities.length > 0) {
+        trip.cities.forEach((city) => {
+          if (city.photos) {
+            city.photos.forEach((photo) => {
+              if (photo.url_medium)
+                images.push(getFullImageUrl(photo.url_medium));
+            });
           }
         });
       }
@@ -273,32 +272,30 @@ const getHomeTrips = async (req, res) => {
       // Calculate duration_days from itinerary
       const durationDays = trip.itineraryDays ? trip.itineraryDays.length : 0;
 
-      // Build nested destination object (prefer destinationCity when available)
-      const destinationObj = trip.destinationCity
-        ? {
-            id: trip.destinationCity.id,
-            name: `${trip.destinationCity.name}${
-              trip.destinationCity.country?.name
-                ? `, ${trip.destinationCity.country.name}`
-                : ""
-            }`,
-            photo: getFullImageUrl(
-              trip.destinationCity.photos?.[0]?.url_medium
-            ),
-          }
-        : trip.destination
-        ? { name: trip.destination }
-        : null;
+      // Build nested destination object (prefer first city in cities relation)
+      let destinationObj = null;
+      if (trip.cities && trip.cities.length > 0) {
+        const c = trip.cities[0];
+        destinationObj = {
+          id: c.id,
+          name: `${c.name}${c.country?.name ? `, ${c.country.name}` : ""}`,
+          photo: getFullImageUrl(c.photos?.[0]?.url_medium),
+        };
+      } else if (trip.destination) {
+        destinationObj = { name: trip.destination };
+      }
 
       return {
         id: trip.id,
         title: trip.title,
+        // Legacy destination string removed here — frontend should use `cities` if available
         description: trip.description,
-        destination: destinationObj,
         duration: trip.duration,
         duration_days: durationDays,
         budget: trip.budget,
         is_public: trip.is_public,
+        // Preserve the raw `cities` association (frontend will map/display)
+        cities: trip.cities || [],
         images: images,
         likes: trip.likes_count || 0,
         views: trip.views_count || 0,

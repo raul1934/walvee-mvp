@@ -49,9 +49,11 @@ export default function CityModalContent({ cityName, user, onAddToTrip }) {
 
       let filtered = allTrips.filter((trip) => {
         const destinationRaw =
-          trip.destination && typeof trip.destination === "object"
+          (trip.cities && trip.cities.length > 0 && trip.cities[0].name) ||
+          (trip.destination && typeof trip.destination === "object"
             ? trip.destination.name
-            : trip.destination || "";
+            : trip.destination) ||
+          "";
         const destination = destinationRaw.toLowerCase().trim();
         const destinationCity = destination.split(",")[0].trim();
 

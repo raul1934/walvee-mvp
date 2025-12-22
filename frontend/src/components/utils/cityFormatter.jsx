@@ -17,6 +17,11 @@ export function getCityNameOnly(location) {
  */
 export function getTripDestinationName(trip) {
   if (!trip) return "";
+  // Prefer the new cities array
+  if (Array.isArray(trip.cities) && trip.cities.length > 0) {
+    return getCityNameOnly(trip.cities[0].name);
+  }
+  // Legacy fallback
   if (trip.destination && typeof trip.destination === "object") {
     return getCityNameOnly(trip.destination.name);
   }
@@ -34,26 +39,20 @@ export function getTripCities(trip) {
   if (!trip) return [];
 
   const result = [];
-
-  // Primary destination (new nested object) - keep full "City, Country" name
-  if (trip.destination && typeof trip.destination === "object") {
-    result.push({ id: trip.destination.id, name: trip.destination.name });
-  } else if (typeof trip.destination === "string") {
-    result.push({ name: trip.destination });
-  }
-
-  // Append any additional cities discovered by backend (trip.cities)
+  // Primary: prefer trip.cities list
   if (Array.isArray(trip.cities) && trip.cities.length > 0) {
     trip.cities.forEach((c) => {
-      if (c && c.name) {
-        // avoid duplicating the primary city entry
-        const primaryName = result[0]?.name?.toLowerCase();
-        if (c.name.toLowerCase() !== primaryName) {
-          // keep full name (including country) so UI can display "City, Country"
-          result.push({ id: c.id, name: c.name });
-        }
-      }
+      if (c && c.name) result.push({ id: c.id, name: c.name });
     });
+  }
+
+  // Legacy fallback: use `destination` string/object
+  if (result.length === 0) {
+    if (trip.destination && typeof trip.destination === "object") {
+      result.push({ id: trip.destination.id, name: trip.destination.name });
+    } else if (typeof trip.destination === "string") {
+      result.push({ name: trip.destination });
+    }
   }
 
   // Fallback: if no cities found, fallback to locations array (legacy)

@@ -380,7 +380,11 @@ export default function City({ cityNameOverride, isModal = false }) {
 
     const cityCount = {};
     trips.forEach((trip) => {
-      const allCities = [trip.destination, ...(trip.locations || [])];
+      const primary =
+        trip.cities && trip.cities.length > 0
+          ? trip.cities[0].name
+          : trip.destination;
+      const allCities = [primary, ...(trip.locations || [])];
       allCities.forEach((city) => {
         if (!city || city.toLowerCase().includes(cityName?.toLowerCase()))
           return;

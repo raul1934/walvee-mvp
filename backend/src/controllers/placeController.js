@@ -304,7 +304,7 @@ const getTripPlacesEnriched = async (req, res, next) => {
         try {
           const googleResult = await searchPlace(
             tripPlace.name,
-            trip.destination
+            (trip.cities && trip.cities[0]?.name) || trip.destination
           );
 
           if (googleResult) {

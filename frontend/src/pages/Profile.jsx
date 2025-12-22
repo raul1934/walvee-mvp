@@ -477,8 +477,8 @@ export default function Profile() {
     userTrips
       .map((trip) => {
         const destination =
-          trip.destination && typeof trip.destination === "object"
-            ? trip.destination.name
+          trip.cities && trip.cities.length > 0
+            ? trip.cities[0].name
             : trip.destination;
         return destination?.split(",").pop()?.trim();
       })

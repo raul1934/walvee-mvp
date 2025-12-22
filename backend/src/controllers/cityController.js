@@ -584,6 +584,20 @@ const getCityTrips = async (req, res, next) => {
           ],
           order: [["day_number", "ASC"]],
         },
+        {
+          model: require("../models/sequelize").City,
+          as: "cities",
+          attributes: ["id", "name"],
+          include: [
+            {
+              model: require("../models/sequelize").Country,
+              as: "country",
+              attributes: ["name"],
+            },
+          ],
+          through: { attributes: ["city_order"] },
+          required: false,
+        },
       ],
       // If sorting by likes_count, use a derived subquery
       order:
@@ -609,18 +623,17 @@ const getCityTrips = async (req, res, next) => {
       },
     });
 
-    // Filter trips by city
+    // Filter trips by associated cities (preferred) and by place addresses as fallback
     const filteredTrips = allTrips.filter((trip) => {
-      const destination = trip.destination?.toLowerCase().trim() || "";
-      const destinationCity = destination.split(",")[0].trim();
-
-      // Check if main destination matches
-      if (
-        destinationCity === cityNameOnly ||
-        destination === fullCityName ||
-        destination.includes(cityNameOnly)
-      ) {
-        return true;
+      if (trip.cities && trip.cities.length > 0) {
+        const cityNames = trip.cities.map((c) =>
+          (c.name || "").toLowerCase().split(",")[0].trim()
+        );
+        if (
+          cityNames.includes(cityNameOnly) ||
+          cityNames.some((n) => n === fullCityName)
+        )
+          return true;
       }
 
       // Check if any places in the trip are in this city
@@ -639,36 +652,33 @@ const getCityTrips = async (req, res, next) => {
 
     // Helper function to extract cities with IDs from trip data
     const extractCitiesWithIds = async (trip) => {
-      const cityMap = new Map();
-
-      // Add main destination city
-      const destination = trip.destination || "";
-      const destCityName = destination.split(",")[0].trim();
-      if (destCityName) {
-        cityMap.set(destCityName.toLowerCase(), {
-          name: destination,
-          id: null,
-        });
+      // If trip includes explicit cities relation, use it
+      if (trip.cities && trip.cities.length > 0) {
+        return trip.cities.map((c) => ({
+          id: c.id,
+          name: `${c.name}${
+            c.country?.name ? `, ${c.country.name}` : ""
+          }`.trim(),
+        }));
       }
 
-      // Add cities from places
+      // Fallback: derive from places and itinerary addresses
+      const cityMap = new Map();
+
       if (trip.places && trip.places.length > 0) {
         for (const place of trip.places) {
-          const address = place.address || "";
-          const parts = address.split(",");
-          if (parts.length > 0) {
-            const placeCityName = parts[0].trim();
-            if (placeCityName) {
-              cityMap.set(placeCityName.toLowerCase(), {
-                name: address,
-                id: null,
-              });
-            }
+          const parts = (place.address || "").split(",");
+          const placeCityName = parts[0]?.trim();
+          if (placeCityName) {
+            cityMap.set(placeCityName.toLowerCase(), {
+              name: place.address,
+              id: null,
+            });
           }
         }
       }
 
-      // Look up city IDs from database
+      // Try to match city names to city records
       const cityNames = Array.from(cityMap.keys());
       if (cityNames.length > 0) {
         const cities = await City.findAll({
@@ -710,7 +720,6 @@ const getCityTrips = async (req, res, next) => {
         return {
           id: trip.id,
           title: trip.title,
-          destination: trip.destination,
           description: trip.description,
           duration: trip.duration,
           budget: trip.budget,
@@ -740,7 +749,7 @@ const getCityTrips = async (req, res, next) => {
               }
             : null,
           tags: trip.tags?.map((t) => t.tag) || [],
-          locations: cities.map((c) => c.name),
+          // Return raw cities array; the frontend will derive readable names
           cities: cities,
           places: trip.places || [],
           itinerary: trip.itineraryDays

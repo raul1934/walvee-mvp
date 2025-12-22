@@ -379,7 +379,6 @@ const searchOverlay = async (req, res, next) => {
       [Op.or]: [
         { title: { [Op.like]: `%${searchTerm}%` } },
         { description: { [Op.like]: `%${searchTerm}%` } },
-        { destination: { [Op.like]: `%${searchTerm}%` } },
       ],
       is_public: true,
     };
@@ -402,8 +401,14 @@ const searchOverlay = async (req, res, next) => {
           attributes: [],
         });
       } else {
-        // Fallback to legacy destination string filter
-        tripWhere.destination = { [Op.like]: `%${cityNameOnly}%` };
+        // Fallback: filter trips by associated city name when no exact city ID match is found
+        tripInclude.push({
+          model: require("../models/sequelize").City,
+          as: "cities",
+          where: { name: { [Op.like]: `%${cityNameOnly}%` } },
+          attributes: [],
+          required: true,
+        });
       }
     }
 
@@ -411,6 +416,13 @@ const searchOverlay = async (req, res, next) => {
       where: tripWhere,
       include: [
         ...tripInclude,
+        {
+          model: City,
+          as: "cities",
+          attributes: ["id", "name"],
+          include: [{ model: Country, as: "country", attributes: ["name"] }],
+          required: false,
+        },
         {
           model: User,
           as: "author",
@@ -437,7 +449,6 @@ const searchOverlay = async (req, res, next) => {
       attributes: [
         "id",
         "title",
-        "destination",
         "description",
         "cover_image",
         "duration",
@@ -460,7 +471,8 @@ const searchOverlay = async (req, res, next) => {
     response.results.trips = trips.map((trip) => ({
       id: trip.id,
       title: trip.title,
-      destination: trip.destination,
+      // Provide cities array (ordered) instead of legacy destination
+      cities: (trip.cities || []).map((c) => ({ id: c.id, name: c.name })),
       description: trip.description,
       image: trip.cover_image,
       duration: trip.duration,

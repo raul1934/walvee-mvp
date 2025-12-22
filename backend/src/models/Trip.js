@@ -6,7 +6,6 @@ class TripModel {
     const id = generateUUID();
     const {
       title,
-      destination,
       description = null,
       duration = null,
       budget = null,
@@ -35,10 +34,19 @@ class TripModel {
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
 
-    await query(sql, [
+    // Destination column removed — we don't store a denormalized destination string.
+    const insertSql = `
+      INSERT INTO trips (
+        id, title, description, duration, budget,
+        transportation, accommodation, best_time_to_visit, difficulty_level,
+        trip_type, cover_image, author_id, destination_lat, destination_lng,
+        is_public, is_featured
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `;
+
+    await query(insertSql, [
       id,
       title,
-      destination,
       description,
       duration,
       budget,
@@ -144,7 +152,6 @@ class TripModel {
   async update(id, tripData) {
     const allowedFields = [
       "title",
-      "destination",
       "description",
       "duration",
       "budget",
@@ -304,7 +311,11 @@ class TripModel {
     const params = [];
 
     if (destination) {
-      sql += " AND t.destination LIKE ?";
+      // Filter by associated cities (trip_cities) rather than the deprecated destination column
+      sql += ` AND EXISTS (
+        SELECT 1 FROM trip_cities tc JOIN cities c ON c.id = tc.city_id
+        WHERE tc.trip_id = t.id AND c.name LIKE ?
+      )`;
       params.push(`%${destination}%`);
     }
 
@@ -326,7 +337,7 @@ class TripModel {
 
     if (search) {
       sql +=
-        " AND MATCH(t.title, t.destination, t.description) AGAINST (? IN NATURAL LANGUAGE MODE)";
+        " AND MATCH(t.title, t.description) AGAINST (? IN NATURAL LANGUAGE MODE)";
       params.push(search);
     }
 
@@ -357,7 +368,10 @@ class TripModel {
     const params = [];
 
     if (destination) {
-      sql += " AND t.destination LIKE ?";
+      sql += ` AND EXISTS (
+        SELECT 1 FROM trip_cities tc JOIN cities c ON c.id = tc.city_id
+        WHERE tc.trip_id = t.id AND c.name LIKE ?
+      )`;
       params.push(`%${destination}%`);
     }
 
@@ -379,7 +393,7 @@ class TripModel {
 
     if (search) {
       sql +=
-        " AND MATCH(t.title, t.destination, t.description) AGAINST (? IN NATURAL LANGUAGE MODE)";
+        " AND MATCH(t.title, t.description) AGAINST (? IN NATURAL LANGUAGE MODE)";
       params.push(search);
     }
 
@@ -441,10 +455,25 @@ class TripModel {
       types: place.types ? JSON.parse(place.types) : [],
     }));
 
+    // Get associated cities for this trip (ordered by city_order)
+    const cities = await query(
+      `SELECT c.id, c.name, co.name as country
+         FROM trip_cities tc
+         JOIN cities c ON c.id = tc.city_id
+         LEFT JOIN countries co ON co.id = c.country_id
+         WHERE tc.trip_id = ? ORDER BY tc.city_order ASC`,
+      [trip.id]
+    );
+
+    const citiesFormatted = (cities || []).map((c) => ({
+      id: c.id,
+      name: c.name,
+      country: c.country || null,
+    }));
+
     return {
       id: trip.id,
       title: trip.title,
-      destination: trip.destination,
       description: trip.description,
       duration: trip.duration,
       budget: trip.budget,
@@ -473,6 +502,8 @@ class TripModel {
       tags: tags.map((t) => t.tag),
       places: formattedPlaces,
       itinerary: itinerary,
+      // Cities relation (ordered) — return raw objects, frontend should format display
+      cities: citiesFormatted,
     };
   }
 }

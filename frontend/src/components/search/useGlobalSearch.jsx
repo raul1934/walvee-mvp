@@ -73,7 +73,8 @@ export function useGlobalSearch(cityContext = null) {
             trips: (searchResults.trips || []).map((trip) => ({
               id: trip.id,
               title: trip.title,
-              destination: trip.destination,
+              destination:
+                (trip.cities && trip.cities[0]?.name) || trip.destination,
               description: trip.description,
               image_url: trip.image,
               images: trip.image ? [trip.image] : [],

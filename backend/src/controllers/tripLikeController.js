@@ -17,7 +17,7 @@ const getUserFavorites = async (req, res, next) => {
       include: [
         {
           model: Trip,
-          attributes: ["id", "title", "cover_image", "destination"],
+          attributes: ["id", "title", "cover_image"],
         },
       ],
       offset,

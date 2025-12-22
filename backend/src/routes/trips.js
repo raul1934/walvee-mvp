@@ -17,7 +17,7 @@ router.post(
   authenticate,
   [
     body("title").isString().trim().notEmpty().isLength({ max: 200 }),
-    body("destination").isString().trim().notEmpty().isLength({ max: 255 }),
+    // `destination` removed in favor of `cities` relation
     body("description").optional().isString().trim().isLength({ max: 5000 }),
     body("durationDays").isInt({ min: 1 }),
     body("visibility").optional().isIn(["public", "private"]),
@@ -56,12 +56,7 @@ router.put(
       .trim()
       .notEmpty()
       .isLength({ max: 200 }),
-    body("destination")
-      .optional()
-      .isString()
-      .trim()
-      .notEmpty()
-      .isLength({ max: 255 }),
+    // `destination` removed in favor of `cities` relation
     body("description").optional().isString().trim().isLength({ max: 5000 }),
     body("durationDays").optional().isInt({ min: 1 }),
     body("visibility").optional().isIn(["public", "private"]),

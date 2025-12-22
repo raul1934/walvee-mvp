@@ -30,12 +30,12 @@ const getDerivations = async (req, res, next) => {
           {
             model: Trip,
             as: "originalTrip",
-            attributes: ["id", "title", "destination", "cover_image"],
+            attributes: ["id", "title", "cover_image"],
           },
           {
             model: Trip,
             as: "newTrip",
-            attributes: ["id", "title", "destination", "cover_image"],
+            attributes: ["id", "title", "cover_image"],
           },
           {
             model: User,
@@ -113,7 +113,6 @@ const createDerivation = async (req, res, next) => {
     // Clone the trip for the new user
     const clonedTrip = await Trip.create({
       title: `${originalTripFull.title} (Copy)`,
-      destination: originalTripFull.destination,
       description: originalTripFull.description,
       duration: originalTripFull.duration,
       budget: originalTripFull.budget,
@@ -140,10 +139,7 @@ const createDerivation = async (req, res, next) => {
           { replacements: [require("uuid").v4(), clonedTripId, c.id, i] }
         );
       }
-      // set destination_city_id for backward compat
-      await clonedTrip.update({
-        destination_city_id: originalTripFull.cities[0].id,
-      });
+      // No `destination_city_id` update needed; use `trip_cities` as source of truth
     }
 
     // Clone tags

@@ -32,11 +32,7 @@ function initModels() {
   User.belongsTo(City, { foreignKey: "city_id", as: "cityData" });
   City.hasMany(User, { foreignKey: "city_id", as: "users" });
 
-  Trip.belongsTo(City, {
-    foreignKey: "destination_city_id",
-    as: "destinationCity",
-  });
-  City.hasMany(Trip, { foreignKey: "destination_city_id", as: "trips" });
+  // `destination_city_id` column deprecated - use many-to-many `trip_cities` instead
   // New many-to-many: trips can have multiple cities
   Trip.belongsToMany(City, {
     through: "trip_cities",

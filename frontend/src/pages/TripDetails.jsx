@@ -848,7 +848,10 @@ export default function TripDetails() {
         id: "destination",
         lat: tripData.destination_lat,
         lng: tripData.destination_lng,
-        title: tripData.destination || "Destination",
+        title:
+          (tripData.cities && tripData.cities[0]?.name) ||
+          tripData.destination ||
+          "Destination",
         subtitle: "Trip destination",
       });
     }

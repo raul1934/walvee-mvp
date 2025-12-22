@@ -13,19 +13,7 @@ const Trip = sequelize.define(
       type: DataTypes.STRING(200),
       allowNull: false,
     },
-    destination: {
-      type: DataTypes.STRING(255),
-      allowNull: false,
-      comment: "Deprecated - use destination_city_id instead",
-    },
-    destination_city_id: {
-      type: DataTypes.INTEGER,
-      allowNull: true,
-      references: {
-        model: "cities",
-        key: "id",
-      },
-    },
+    // destination and destination_city_id removed - use many-to-many trip_cities instead
     description: {
       type: DataTypes.TEXT,
     },
@@ -84,8 +72,7 @@ const Trip = sequelize.define(
     tableName: "trips",
     indexes: [
       { fields: ["author_id"] },
-      { fields: ["destination"] },
-      { fields: ["destination_city_id"] },
+      // destination indexes removed
       { fields: ["is_public"] },
       { fields: ["is_featured"] },
       { fields: ["created_at"] },

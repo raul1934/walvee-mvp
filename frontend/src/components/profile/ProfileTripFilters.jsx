@@ -19,7 +19,9 @@ export default function ProfileTripFilters({
 
     trips.forEach((trip) => {
       const destinationRaw =
-        trip.destination && typeof trip.destination === "object"
+        trip.cities && trip.cities.length > 0
+          ? trip.cities[0].name
+          : trip.destination && typeof trip.destination === "object"
           ? trip.destination.name
           : trip.destination;
       if (destinationRaw) {

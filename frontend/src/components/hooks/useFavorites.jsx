@@ -172,7 +172,7 @@ export function useFavorites(user) {
 
   // Toggle trip favorite (legacy - kept for backward compatibility)
   const toggleTripFavorite = useCallback(
-    async (placeData, destination) => {
+    async (placeData, destinationOrCities) => {
       if (!user) {
         throw new Error("User not authenticated");
       }
@@ -187,7 +187,14 @@ export function useFavorites(user) {
         let city = placeData.city;
         let country = placeData.country;
 
-        // destination may be a nested object { id, name } or a legacy string
+        // destinationOrCities may be an array of cities, a nested object { id, name }, or a legacy string
+        let destination = destinationOrCities;
+        if (
+          Array.isArray(destinationOrCities) &&
+          destinationOrCities.length > 0
+        ) {
+          destination = destinationOrCities[0];
+        }
         if (destination && !city) {
           let destinationName = "";
           if (typeof destination === "object" && destination.name) {

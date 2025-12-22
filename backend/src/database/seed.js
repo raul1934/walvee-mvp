@@ -839,12 +839,11 @@ const seedData = async () => {
       try {
         // Insert trip
         await connection.query(
-          `INSERT INTO trips (id, title, destination, description, duration, budget, transportation, accommodation, best_time_to_visit, difficulty_level, trip_type, cover_image, author_id, is_public, is_featured, likes_count, views_count)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO trips (id, title, description, duration, budget, transportation, accommodation, best_time_to_visit, difficulty_level, trip_type, cover_image, author_id, is_public, is_featured, views_count)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             tripId,
             tripData.title,
-            tripData.destination,
             tripData.description,
             tripData.duration,
             tripData.budget,
@@ -857,13 +856,11 @@ const seedData = async () => {
             userId,
             tripData.is_public,
             tripData.is_featured,
-            tripData.likes_count,
             tripData.views_count,
           ]
         );
 
         console.log(`   ✅ Created trip: ${tripId}`);
-        console.log(`   📌 Destination: ${tripData.destination}`);
         console.log(`   ⏱️  Duration: ${tripData.duration}`);
         console.log(`   💰 Budget: ${tripData.budget}`);
 
