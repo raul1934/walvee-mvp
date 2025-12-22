@@ -496,11 +496,30 @@ class TripModel {
       });
     }
 
-    // Format places with parsed types
-    const formattedPlaces = places.map((place) => ({
-      ...place,
-      types: place.types ? JSON.parse(place.types) : [],
-    }));
+    // Format places with parsed types (be tolerant of malformed JSON)
+    const formattedPlaces = places.map((place) => {
+      let parsedTypes = [];
+      if (place.types) {
+        if (Array.isArray(place.types)) {
+          parsedTypes = place.types;
+        } else {
+          try {
+            parsedTypes = JSON.parse(place.types);
+          } catch (err) {
+            // Fallback: comma-separated string
+            parsedTypes = String(place.types)
+              .split(",")
+              .map((s) => s.trim())
+              .filter(Boolean);
+          }
+        }
+      }
+
+      return {
+        ...place,
+        types: parsedTypes,
+      };
+    });
 
     // Get associated cities for this trip (ordered by city_order)
     const cities = await query(

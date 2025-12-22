@@ -154,9 +154,9 @@ const getTrips = async (req, res, next) => {
                   },
                   {
                     model: require("../models/sequelize").City,
-                    as: "cities",
+                    as: "city",
                     attributes: ["id", "name"],
-                    through: { attributes: ["city_order"] },
+                    required: false,
                   },
                 ],
               },
