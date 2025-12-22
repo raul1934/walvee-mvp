@@ -10,6 +10,7 @@ import {
   MapPin,
   Calendar,
   Share2,
+  Copy,
   Instagram,
   Linkedin,
   Image,
@@ -1168,7 +1169,47 @@ export default function TripDetails() {
   };
 
   const [isComingSoonOpen, setIsComingSoonOpen] = React.useState(false);
+
   const { showNotification } = useNotification();
+
+  // Use native Web Share API if available, otherwise copy link to clipboard
+  const handleShare = async () => {
+    const url = window.location.href;
+    const title = tripData?.title || "Walvee trip";
+    const text =
+      tripData?.description || `Check out this trip on Walvee: ${title}`;
+
+    if (navigator.share) {
+      try {
+        await navigator.share({ title, text, url });
+        showNotification({
+          type: "success",
+          title: "Shared",
+          message: "Thanks for sharing",
+        });
+        return;
+      } catch (err) {
+        // User likely cancelled or an error occurred; fall back to clipboard
+        console.warn("Web Share failed, falling back to clipboard:", err);
+      }
+    }
+
+    try {
+      await navigator.clipboard.writeText(url);
+      showNotification({
+        type: "success",
+        title: "Link copied",
+        message: "Trip URL copied to clipboard",
+      });
+    } catch (e) {
+      console.error("Copy failed", e);
+      showNotification({
+        type: "error",
+        title: "Copy failed",
+        message: "Unable to copy link",
+      });
+    }
+  };
 
   // Memoize expensive calculations - MUST be before any conditional returns
   const cities = React.useMemo(() => {
@@ -1191,6 +1232,8 @@ export default function TripDetails() {
   const authorFirstName = React.useMemo(() => {
     return tripData?.author_name?.split(" ")[0] || "Traveler";
   }, [tripData?.author_name]);
+
+  // No debug logs in production: keep UI clean
 
   const likesCount = tripData?.likes || 0;
 
@@ -1556,17 +1599,43 @@ export default function TripDetails() {
                 {tripData.title}
               </h1>
 
-              {/* Primary Destination City Link */}
+              {/* Cities list (primary is not shown separately) */}
               {cities && cities.length > 0 && (
-                <div className="flex items-center gap-1.5 text-sm">
-                  <MapPin className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-                  <Link
-                    to={`/city/${cities[0].id}`}
-                    className="text-blue-400 hover:text-blue-300 hover:underline transition-colors truncate"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    {cities[0].name}
-                  </Link>
+                <div className="flex flex-col gap-1">
+                  {/* Render all cities (loop and print) */}
+                  <div className="mt-1 ml-0 text-xs text-gray-300 flex flex-wrap gap-2">
+                    {cities.map((c, idx) => {
+                      const cityOnly = c.name || "";
+                      const country = c.country || "";
+
+                      return c.id ? (
+                        <Link
+                          key={c.id}
+                          to={`/city/${c.id}`}
+                          className="text-xs text-blue-400 hover:text-blue-300 hover:underline truncate inline-flex items-center gap-1"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <MapPin className="w-3 h-3 text-blue-400 shrink-0" />
+                          <span className="truncate">
+                            {cityOnly}
+                            {country ? `, ${country}` : ""}
+                          </span>
+                        </Link>
+                      ) : (
+                        <span
+                          key={`name-${idx}`}
+                          className="text-xs text-gray-400 truncate inline-flex items-center gap-1"
+                          aria-hidden="true"
+                        >
+                          <MapPin className="w-3 h-3 text-gray-400 shrink-0" />
+                          <span className="truncate">
+                            {cityOnly}
+                            {country ? `, ${country}` : ""}
+                          </span>
+                        </span>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
 
@@ -1576,7 +1645,7 @@ export default function TripDetails() {
                   <MapPin className="w-3 h-3 shrink-0 text-gray-500" />
                   <div className="min-w-0 flex-1">
                     <CitiesScroller
-                      cities={cities}
+                      cities={cities.slice(1)}
                       className="text-xs text-gray-400"
                     />
                   </div>
@@ -1584,25 +1653,96 @@ export default function TripDetails() {
               )}
 
               <div>
-                <button
-                  onClick={handleLikeClick}
-                  disabled={
-                    likeMutation.isPending ||
-                    unlikeMutation.isPending ||
-                    isAuthor
-                  }
-                  className={`like-pill ${hasLiked ? "liked" : ""}`}
-                  aria-pressed={hasLiked}
-                  aria-label={hasLiked ? "Unlike this trip" : "Like this trip"}
-                  title={hasLiked ? "Unlike this trip" : "Like this trip"}
-                >
-                  <ThumbsUp
-                    className={`w-4 h-4 transition-all ${
-                      hasLiked ? "fill-current" : ""
-                    }`}
-                  />
-                  <span>{formatNumber(likesCount)}</span>
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleLikeClick}
+                    disabled={
+                      likeMutation.isPending ||
+                      unlikeMutation.isPending ||
+                      isAuthor
+                    }
+                    className={`like-pill ${hasLiked ? "liked" : ""}`}
+                    aria-pressed={hasLiked}
+                    aria-label={
+                      hasLiked ? "Unlike this trip" : "Like this trip"
+                    }
+                    title={hasLiked ? "Unlike this trip" : "Like this trip"}
+                  >
+                    <ThumbsUp
+                      className={`w-4 h-4 transition-all ${
+                        hasLiked ? "fill-current" : ""
+                      }`}
+                    />
+                    <span>{formatNumber(likesCount)}</span>
+                  </button>
+
+                  {/* Social/share buttons next to Like */}
+                  <div className="flex items-center gap-2">
+                    <button
+                      className="w-10 h-10 rounded-full bg-gray-800 hover:bg-gray-700 flex items-center justify-center"
+                      title="Copy link"
+                      onClick={async () => {
+                        try {
+                          await navigator.clipboard.writeText(
+                            window.location.href
+                          );
+                          showNotification({
+                            type: "success",
+                            title: "Link copied",
+                            message: "Trip URL copied to clipboard",
+                          });
+                        } catch (e) {
+                          console.error("Copy failed", e);
+                          showNotification({
+                            type: "error",
+                            title: "Copy failed",
+                            message: "Unable to copy link",
+                          });
+                        }
+                      }}
+                    >
+                      <Copy className="w-5 h-5" />
+                    </button>
+
+                    <button
+                      className="w-10 h-10 rounded-full bg-gray-800 hover:bg-gray-700 flex items-center justify-center"
+                      title="Share"
+                      onClick={handleShare}
+                    >
+                      <Share2 className="w-5 h-5" />
+                    </button>
+
+                    <button
+                      className="w-10 h-10 rounded-full bg-gray-800 hover:bg-gray-700 flex items-center justify-center"
+                      title="Share on Instagram"
+                      onClick={() =>
+                        window.open(
+                          `https://www.instagram.com/?url=${encodeURIComponent(
+                            window.location.href
+                          )}`,
+                          "_blank"
+                        )
+                      }
+                    >
+                      <Instagram className="w-5 h-5" />
+                    </button>
+
+                    <button
+                      className="w-10 h-10 rounded-full bg-gray-800 hover:bg-gray-700 flex items-center justify-center"
+                      title="Share on LinkedIn"
+                      onClick={() =>
+                        window.open(
+                          `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(
+                            window.location.href
+                          )}`,
+                          "_blank"
+                        )
+                      }
+                    >
+                      <Linkedin className="w-5 h-5" />
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -1652,6 +1792,7 @@ export default function TripDetails() {
             ref={scrollRef}
             className="flex-1 overflow-y-auto scrollbar-hide"
           >
+            {/* Trip cities are derived automatically from places; no manual manager UI */}
             {activeTab === "photos" && (
               <div ref={dragScrollRef} className="h-full p-4">
                 {isLoadingPhotos ? (
@@ -1956,8 +2097,7 @@ export default function TripDetails() {
 
                 <div className="flex flex-wrap gap-2">
                   {cities.map((city, idx) => {
-                    const hashtag = city.name
-                      .split(",")[0]
+                    const hashtag = (city.name || "")
                       .toLowerCase()
                       .replace(/\s+/g, "");
 
@@ -2031,25 +2171,13 @@ export default function TripDetails() {
                       variant="ghost"
                       size="sm"
                       className="text-xs text-gray-400 hover:text-blue-400 hover:bg-blue-600/10 px-3 py-1 h-auto"
-                      onClick={() => {
-                        navigator.clipboard.writeText(window.location.href);
-                      }}
+                      onClick={handleShare}
                     >
-                      Copy Link
+                      Copy / Share
                     </Button>
                   </div>
 
-                  <div className="flex gap-3">
-                    <button className="w-10 h-10 rounded-full bg-gray-800 hover:bg-gray-700 flex items-center justify-center">
-                      <Share2 className="w-5 h-5" />
-                    </button>
-                    <button className="w-10 h-10 rounded-full bg-gray-800 hover:bg-gray-700 flex items-center justify-center">
-                      <Instagram className="w-5 h-5" />
-                    </button>
-                    <button className="w-10 h-10 rounded-full bg-gray-800 hover:bg-gray-700 flex items-center justify-center">
-                      <Linkedin className="w-5 h-5" />
-                    </button>
-                  </div>
+                  {/* Social icons moved to header next to Like button */}
                 </div>
               </div>
             )}

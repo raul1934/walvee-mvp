@@ -356,7 +356,22 @@ const getCityById = async (req, res, next) => {
         .json(buildErrorResponse("RESOURCE_NOT_FOUND", "City not found"));
     }
 
-    res.json(buildSuccessResponse(city));
+    // Add trip_count from trip_cities
+    const [[{ trip_count }]] = await City.sequelize.query(
+      "SELECT COUNT(*) AS trip_count FROM trip_cities WHERE city_id = ?",
+      { replacements: [id] }
+    );
+
+    const formatted = {
+      id: city.id,
+      name: city.name,
+      state: city.state,
+      country: city.country,
+      google_maps_id: city.google_maps_id,
+      trip_count: parseInt(trip_count || 0),
+    };
+
+    res.json(buildSuccessResponse(formatted));
   } catch (error) {
     next(error);
   }
@@ -398,10 +413,29 @@ const getCitiesByCountry = async (req, res, next) => {
     const cities = await City.findAll({
       where: { country_id: country.id },
       include: [{ model: Country, as: "country" }],
+      attributes: {
+        include: [
+          [
+            require("../database/sequelize").sequelize.literal(`(
+                SELECT COUNT(*) FROM trip_cities tc WHERE tc.city_id = City.id
+              )`),
+            "trip_count",
+          ],
+        ],
+      },
       order: [["name", "ASC"]],
     });
 
-    res.json(buildSuccessResponse(cities));
+    // Map trip_count into tripsCount to keep frontend compatibility
+    const formatted = cities.map((city) => ({
+      id: city.id,
+      name: city.name,
+      state: city.state,
+      country: city.country,
+      trip_count: parseInt(city.dataValues.trip_count || 0),
+    }));
+
+    res.json(buildSuccessResponse(formatted));
   } catch (error) {
     next(error);
   }
@@ -836,8 +870,8 @@ const getSuggestedCitiesByCountry = async (req, res, next) => {
           [
             sequelize.literal(`(
               SELECT COUNT(*)
-              FROM trips
-              WHERE trips.destination_city_id = City.id
+              FROM trip_cities tc
+              WHERE tc.city_id = City.id
             )`),
             "trip_count",
           ],

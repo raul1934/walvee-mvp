@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
+import { apiClient, endpoints } from "@/api/apiClient";
 import { invokeLLM } from "@/api/llmService";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -277,6 +279,7 @@ export default function InspirePrompt({ user }) {
 
   // City tabs management
   const [cityTabs, setCityTabs] = useState([]);
+  const [initialCityPrefillDone, setInitialCityPrefillDone] = useState(false);
   const [activeCity, setActiveCity] = useState(null);
 
   // Filters & Cities modal
@@ -306,6 +309,46 @@ export default function InspirePrompt({ user }) {
   const inputRef = useRef(null);
   const messagesEndRef = useRef(null);
   const exampleIntervalRef = useRef(null);
+
+  // Read URL prefill for city or cityId and add to cityTabs once
+  const [searchParams] = useSearchParams();
+  useEffect(() => {
+    if (initialCityPrefillDone) return;
+    const cityParam = searchParams.get("city");
+    const cityIdParam = searchParams.get("cityId");
+    if (cityIdParam) {
+      (async () => {
+        try {
+          const resp = await apiClient.get(
+            endpoints.cities.getById(cityIdParam)
+          );
+          if (resp.success && resp.data) {
+            setCityTabs((s) => {
+              if (s.find((c) => c.id === resp.data.id)) return s;
+              return [
+                {
+                  id: resp.data.id,
+                  name: `${resp.data.name}, ${resp.data.country?.name || ""}`,
+                },
+                ...s,
+              ];
+            });
+          }
+        } catch (e) {
+          console.warn("Prefill city by id failed", e.message);
+        }
+      })();
+    } else if (cityParam) {
+      const normalized = normalizeCityName(cityParam);
+      if (normalized) {
+        setCityTabs((s) => {
+          if (s.find((c) => c.name === normalized)) return s;
+          return [{ name: normalized, id: null }, ...s];
+        });
+      }
+    }
+    setInitialCityPrefillDone(true);
+  }, [searchParams, initialCityPrefillDone]);
 
   // Welcome content - Apple Intelligence style
   const welcomeContent = {

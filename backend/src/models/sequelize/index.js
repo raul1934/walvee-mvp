@@ -37,6 +37,19 @@ function initModels() {
     as: "destinationCity",
   });
   City.hasMany(Trip, { foreignKey: "destination_city_id", as: "trips" });
+  // New many-to-many: trips can have multiple cities
+  Trip.belongsToMany(City, {
+    through: "trip_cities",
+    foreignKey: "trip_id",
+    otherKey: "city_id",
+    as: "cities",
+  });
+  City.belongsToMany(Trip, {
+    through: "trip_cities",
+    foreignKey: "city_id",
+    otherKey: "trip_id",
+    as: "tripsMany",
+  });
   User.hasMany(Trip, { foreignKey: "author_id", as: "trips" });
   Trip.belongsTo(User, { foreignKey: "author_id", as: "author" });
 

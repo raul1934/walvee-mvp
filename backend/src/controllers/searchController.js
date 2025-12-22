@@ -191,6 +191,22 @@ const searchOverlay = async (req, res, next) => {
       };
 
       let cities = await City.findAll(citiesQuery);
+      // Include trip count from trip_cities
+      const { sequelize } = require("../database/sequelize");
+      cities = await City.findAll({
+        ...citiesQuery,
+        attributes: {
+          include: [
+            [
+              sequelize.literal(`(
+                SELECT COUNT(*) FROM trip_cities tc WHERE tc.city_id = City.id
+              )`),
+              "trip_count",
+            ],
+          ],
+        },
+      });
+
       let totalCitiesCount = await City.count({
         where: { name: { [Op.like]: `%${searchTerm}%` } },
       });
@@ -352,6 +368,7 @@ const searchOverlay = async (req, res, next) => {
         // Ensure image URL is absolute by prefixing backend URL when needed
         image: getFullImageUrl(city.photos?.[0]?.url_medium),
         google_maps_id: city.google_maps_id,
+        tripsCount: parseInt(city.dataValues.trip_count || 0),
       }));
       response.counts.cities = totalCitiesCount;
     }
@@ -367,14 +384,33 @@ const searchOverlay = async (req, res, next) => {
       is_public: true,
     };
 
-    // Apply city context filter
+    // Apply city context filter using trip_cities -> city association when possible
+    let tripInclude = [];
     if (cityNameOnly) {
-      tripWhere.destination = { [Op.like]: `%${cityNameOnly}%` };
+      // Find matching cities by name
+      const matchingCities = await City.findAll({
+        where: { name: { [Op.like]: `%${cityNameOnly}%` } },
+        attributes: ["id"],
+      });
+      const cityIds = matchingCities.map((c) => c.id);
+
+      if (cityIds.length > 0) {
+        tripInclude.push({
+          model: City,
+          as: "cities",
+          where: { id: cityIds },
+          attributes: [],
+        });
+      } else {
+        // Fallback to legacy destination string filter
+        tripWhere.destination = { [Op.like]: `%${cityNameOnly}%` };
+      }
     }
 
     const trips = await Trip.findAll({
       where: tripWhere,
       include: [
+        ...tripInclude,
         {
           model: User,
           as: "author",
@@ -387,6 +423,7 @@ const searchOverlay = async (req, res, next) => {
           ],
         },
       ],
+      distinct: true,
       limit: resultLimit,
       order: [["likes_count", "DESC"]],
       attributes: [
@@ -401,7 +438,11 @@ const searchOverlay = async (req, res, next) => {
       ],
     });
 
-    const totalTripsCount = await Trip.count({ where: tripWhere });
+    const totalTripsCount = await Trip.count({
+      where: tripWhere,
+      include: tripInclude,
+      distinct: true,
+    });
 
     response.results.trips = trips.map((trip) => ({
       id: trip.id,

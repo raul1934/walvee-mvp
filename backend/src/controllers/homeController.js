@@ -267,8 +267,8 @@ const getHomeCities = async (req, res) => {
         [
           sequelize.literal(`(
             SELECT COUNT(*)
-            FROM trips
-            WHERE trips.destination_city_id = City.id
+            FROM trip_cities tc
+            WHERE tc.city_id = City.id
           )`),
           "trip_count",
         ],

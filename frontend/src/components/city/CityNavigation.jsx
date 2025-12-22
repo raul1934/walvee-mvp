@@ -25,8 +25,11 @@ export default function CityNavigation({
   const navigate = useNavigate();
 
   const handleCreateTrip = () => {
-    // Always navigate - if not authenticated, the API call will trigger 401 and show login modal
-    navigate(createPageUrl("InspirePrompt"));
+    // Always navigate - pass city name as prefill param
+    const url = `${createPageUrl("InspirePrompt")}?city=${encodeURIComponent(
+      city
+    )}`;
+    navigate(url);
   };
   const [isSticky, setIsSticky] = useState(false);
 

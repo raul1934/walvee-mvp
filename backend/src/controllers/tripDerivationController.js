@@ -93,6 +93,7 @@ const createDerivation = async (req, res, next) => {
       include: [
         { model: TripTag, as: "tags" },
         { model: TripPlace, as: "places" },
+        { model: require("../models/sequelize").City, as: "cities" },
         {
           model: TripItineraryDay,
           as: "itineraryDays",
@@ -129,6 +130,21 @@ const createDerivation = async (req, res, next) => {
     });
 
     const clonedTripId = clonedTrip.id;
+
+    // Clone explicit cities if present
+    if (originalTripFull.cities && originalTripFull.cities.length > 0) {
+      for (let i = 0; i < originalTripFull.cities.length; i++) {
+        const c = originalTripFull.cities[i];
+        await Trip.sequelize.query(
+          "INSERT INTO trip_cities (id, trip_id, city_id, city_order, created_at) VALUES (?, ?, ?, ?, NOW())",
+          { replacements: [require("uuid").v4(), clonedTripId, c.id, i] }
+        );
+      }
+      // set destination_city_id for backward compat
+      await clonedTrip.update({
+        destination_city_id: originalTripFull.cities[0].id,
+      });
+    }
 
     // Clone tags
     if (originalTripFull.tags && originalTripFull.tags.length > 0) {

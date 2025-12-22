@@ -267,6 +267,52 @@ const migrations = [
     `,
   },
   {
+    name: "create_trip_cities_table",
+    up: `
+        CREATE TABLE IF NOT EXISTS trip_cities (
+          id CHAR(36) PRIMARY KEY,
+          trip_id CHAR(36) NOT NULL,
+          city_id INT NOT NULL,
+          city_order INT DEFAULT 0,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (trip_id) REFERENCES trips(id) ON DELETE CASCADE,
+          FOREIGN KEY (city_id) REFERENCES cities(id) ON DELETE CASCADE,
+          INDEX idx_trip_id (trip_id),
+          INDEX idx_city_id (city_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+        -- Backfill existing destination_city_id values into trip_cities (city_order = 0)
+        -- Only insert when the trip_id/city_id pair does not already exist
+        INSERT INTO trip_cities (id, trip_id, city_id, city_order)
+        SELECT UUID(), t.id AS trip_id, t.destination_city_id AS city_id, 0
+        FROM trips t
+        WHERE t.destination_city_id IS NOT NULL
+          AND NOT EXISTS (
+            SELECT 1 FROM trip_cities tc WHERE tc.trip_id = t.id AND tc.city_id = t.destination_city_id
+          );
+
+        -- Note: unique constraint will be added idempotently via JS migration step
+      `,
+  },
+  {
+    name: "add_trip_cities_unique_constraint",
+    up: async (connection) => {
+      try {
+        await connection.query(
+          "ALTER TABLE trip_cities ADD CONSTRAINT trip_cities_trip_id_city_id_unique UNIQUE (trip_id, city_id)"
+        );
+      } catch (err) {
+        if (err && err.code === "ER_DUP_KEYNAME") {
+          console.log(
+            "  -> Unique constraint trip_cities_trip_id_city_id_unique already exists, skipping"
+          );
+        } else {
+          throw err;
+        }
+      }
+    },
+  },
+  {
     name: "add_unique_photo_order",
     up: async (connection) => {
       // Fix duplicate photo_order values per city by reassigning sequential orders
@@ -291,10 +337,20 @@ const migrations = [
         }
       }
 
-      // Add unique constraint after normalization
-      await connection.query(
-        "ALTER TABLE city_photos ADD CONSTRAINT city_photos_city_id_photo_order_unique UNIQUE (city_id, photo_order)"
-      );
+      // Add unique constraint after normalization (ignore if already exists)
+      try {
+        await connection.query(
+          "ALTER TABLE city_photos ADD CONSTRAINT city_photos_city_id_photo_order_unique UNIQUE (city_id, photo_order)"
+        );
+      } catch (err) {
+        if (err && err.code === "ER_DUP_KEYNAME") {
+          console.log(
+            "  -> Unique constraint city_photos_city_id_photo_order_unique already exists, skipping"
+          );
+        } else {
+          throw err;
+        }
+      }
 
       // Fix duplicate photo_order values per place by reassigning sequential orders
       console.log(
@@ -318,10 +374,20 @@ const migrations = [
         }
       }
 
-      // Add unique constraint after normalization
-      await connection.query(
-        "ALTER TABLE place_photos ADD CONSTRAINT place_photos_place_id_photo_order_unique UNIQUE (place_id, photo_order)"
-      );
+      // Add unique constraint after normalization (ignore if already exists)
+      try {
+        await connection.query(
+          "ALTER TABLE place_photos ADD CONSTRAINT place_photos_place_id_photo_order_unique UNIQUE (place_id, photo_order)"
+        );
+      } catch (err) {
+        if (err && err.code === "ER_DUP_KEYNAME") {
+          console.log(
+            "  -> Unique constraint place_photos_place_id_photo_order_unique already exists, skipping"
+          );
+        } else {
+          throw err;
+        }
+      }
     },
   },
 ];

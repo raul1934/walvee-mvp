@@ -24,6 +24,16 @@ router.post(
     body("imageUrl").optional().isURL(),
     body("images").optional().isArray(),
     body("locations").optional().isArray(),
+    body("cities").optional().isArray(),
+    body("cities.*")
+      .optional()
+      .custom((val) => {
+        if (typeof val === "number") return true;
+        if (typeof val === "object" && Number.isInteger(val.id)) return true;
+        throw new Error(
+          "each city must be an integer id or object with an `id` integer"
+        );
+      }),
     body("destinationLat").optional().isFloat(),
     body("destinationLng").optional().isFloat(),
     body("itinerary").isArray().notEmpty(),
@@ -59,6 +69,16 @@ router.put(
     body("images").optional().isArray(),
     body("locations").optional().isArray(),
     body("itinerary").optional().isArray(),
+    body("cities").optional().isArray(),
+    body("cities.*")
+      .optional()
+      .custom((val) => {
+        if (typeof val === "number") return true;
+        if (typeof val === "object" && Number.isInteger(val.id)) return true;
+        throw new Error(
+          "each city must be an integer id or object with an `id` integer"
+        );
+      }),
   ],
   validate,
   tripController.updateTrip

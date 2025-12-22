@@ -69,6 +69,7 @@ export default React.memo(
     const sharesCount = trip.shares || 0;
 
     const cities = React.useMemo(() => getTripCities(trip), [trip]);
+    const citiesCount = cities ? cities.length : 0;
     // Primary city (first item) is displayed next to the pin; avoid duplicating it in the scroller
     const primaryCity = cities && cities.length > 0 ? cities[0] : null;
     const scrollerCities = cities && cities.length > 1 ? cities.slice(1) : [];
@@ -244,6 +245,16 @@ export default React.memo(
                   </p>
                 </div>
               </div>
+
+              {/* Cities badge */}
+              {citiesCount > 0 && (
+                <div className="ml-auto flex items-center gap-2">
+                  <div className="text-xs bg-white/5 text-gray-300 px-2 py-1 rounded-full">
+                    {cities[0].name.split(",")[0]}
+                    {citiesCount > 1 ? ` (+${citiesCount - 1})` : ""}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Content Area with View Toggle */}

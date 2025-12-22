@@ -12,6 +12,7 @@ const {
   PlacePhoto,
 } = require("../models/sequelize");
 const { Op } = require("sequelize");
+const { v4: uuidv4 } = require("uuid");
 const {
   paginate,
   buildPaginationMeta,
@@ -150,6 +151,13 @@ const getTrips = async (req, res, next) => {
                       ],
                       order: [["photo_order", "ASC"]],
                     },
+                    // include cities (new many-to-many)
+                    {
+                      model: require("../models/sequelize").City,
+                      as: "cities",
+                      attributes: ["id", "name"],
+                      through: { attributes: ["city_order"] },
+                    },
                   ],
                 },
               ],
@@ -194,6 +202,19 @@ const getTripById = async (req, res, next) => {
             "photo_url",
             "email",
             "bio",
+          ],
+        },
+        {
+          model: require("../models/sequelize").City,
+          as: "cities",
+          attributes: ["id", "name"],
+          through: { attributes: ["city_order"] },
+          include: [
+            {
+              model: require("../models/sequelize").Country,
+              as: "country",
+              attributes: ["name"],
+            },
           ],
         },
         {
@@ -321,7 +342,7 @@ const getTripById = async (req, res, next) => {
 const createTrip = async (req, res, next) => {
   try {
     const userId = req.user.id;
-    const { tags, places, itinerary, ...tripData } = req.body;
+    const { tags, places, itinerary, cities, ...tripData } = req.body;
 
     const user = await User.findByPk(userId);
 
@@ -336,6 +357,23 @@ const createTrip = async (req, res, next) => {
       ...tripData,
       author_id: userId,
     });
+
+    // Create trip_cities entries if cities array provided
+    if (cities && Array.isArray(cities) && cities.length > 0) {
+      // normalize to integer ids
+      const cityIds = cities
+        .map((c) => (typeof c === "object" ? c.id : c))
+        .filter(Boolean);
+      for (let i = 0; i < cityIds.length; i++) {
+        const cityId = cityIds[i];
+        await Trip.sequelize.query(
+          "INSERT INTO trip_cities (id, trip_id, city_id, city_order, created_at) VALUES (?, ?, ?, ?, NOW())",
+          { replacements: [uuidv4(), trip.id, cityId, i] }
+        );
+      }
+      // set destination_city_id for backwards compatibility to first city
+      await trip.update({ destination_city_id: cityIds[0] });
+    }
 
     // Create tags
     if (tags && tags.length > 0) {
@@ -448,7 +486,7 @@ const updateTrip = async (req, res, next) => {
   try {
     const { id } = req.params;
     const userId = req.user.id;
-    const { tags, places, itinerary, ...tripData } = req.body;
+    const { tags, places, itinerary, cities, ...tripData } = req.body;
 
     const trip = await Trip.findByPk(id);
 
@@ -484,6 +522,31 @@ const updateTrip = async (req, res, next) => {
       await TripPlace.bulkCreate(
         places.map((place) => ({ trip_id: id, ...place }))
       );
+    }
+
+    // Update cities (trip_cities)
+    if (cities) {
+      // delete existing
+      await Trip.sequelize.query("DELETE FROM trip_cities WHERE trip_id = ?", {
+        replacements: [id],
+      });
+      const cityIds = cities
+        .map((c) => (typeof c === "object" ? c.id : c))
+        .filter(Boolean);
+      for (let i = 0; i < cityIds.length; i++) {
+        const cityId = cityIds[i];
+        await Trip.sequelize.query(
+          "INSERT INTO trip_cities (id, trip_id, city_id, city_order, created_at) VALUES (?, ?, ?, ?, NOW())",
+          { replacements: [uuidv4(), id, cityId, i] }
+        );
+      }
+      // set destination_city_id for backward compat to first city if present
+      if (cityIds.length > 0) {
+        await Trip.update(
+          { destination_city_id: cityIds[0] },
+          { where: { id } }
+        );
+      }
     }
 
     // Update itinerary
@@ -669,92 +732,98 @@ async function formatTripResponse(trip) {
   const { City, Country } = require("../models/sequelize");
   const { Op } = require("sequelize");
   const cityMap = new Map();
-
-  // Add main destination city
-  const destination = tripData.destination || "";
-  const destCityName = destination.split(",")[0].trim();
-  if (destCityName) {
-    cityMap.set(destCityName.toLowerCase(), { name: destination, id: null });
-  }
-
-  // Add cities from itinerary activities
-  if (tripData.itineraryDays) {
-    tripData.itineraryDays.forEach((day) => {
-      if (day.activities) {
-        day.activities.forEach((activity) => {
-          const location =
-            activity.location || activity.placeDetails?.address || "";
-          const parts = location.split(",");
-          if (parts.length > 0) {
-            const cityName = parts[0].trim();
-            if (cityName) {
-              cityMap.set(cityName.toLowerCase(), {
-                name: location,
-                id: null,
-              });
-            }
-          }
-        });
-      }
-    });
-  }
-
-  // Look up city IDs from database
-  const cityNames = Array.from(cityMap.keys());
-  if (cityNames.length > 0) {
-    const cities = await City.findAll({
-      where: {
-        name: {
-          [Op.in]: cityNames.map(
-            (name) => name.charAt(0).toUpperCase() + name.slice(1)
-          ),
-        },
-      },
-      attributes: ["id", "name"],
-      include: [
-        {
-          model: Country,
-          as: "country",
-          attributes: ["name"],
-        },
-      ],
-    });
-
-    cities.forEach((cityObj) => {
-      const key = cityObj.name.toLowerCase();
-      if (cityMap.has(key)) {
-        const existing = cityMap.get(key);
-        const fullName = `${cityObj.name}, ${cityObj.country?.name || ""}`;
-        cityMap.set(key, { name: fullName, id: cityObj.id });
-      }
-    });
-  }
-
-  const citiesWithIds = Array.from(cityMap.values());
-  // Build nested destination object (prefer destinationCity relation if present)
+  // If trip has explicit cities relation (new many-to-many) use it
+  let citiesWithIds = [];
   let destinationObj = null;
-  if (tripData.destinationCity && tripData.destinationCity.name) {
-    // Try to find matching city in citiesWithIds to include country name if available
-    const matchedById = citiesWithIds.find(
-      (c) => c.id && c.id === tripData.destinationCity.id
-    );
-    if (matchedById) {
-      destinationObj = { id: matchedById.id || null, name: matchedById.name };
-    } else {
-      destinationObj = {
-        id: tripData.destinationCity.id,
-        name: tripData.destinationCity.name,
-      };
+  if (tripData.cities && tripData.cities.length > 0) {
+    // tripData.cities is an array of City models with through.city_order
+    citiesWithIds = tripData.cities
+      .map((c) => ({
+        id: c.id,
+        name: c.name,
+        country: c.country?.name || null,
+        order:
+          c.trip_cities?.city_order ||
+          c.Cities?.city_order ||
+          (c.CityTrip?.city_order ?? 0),
+      }))
+      .sort((a, b) => (a.order || 0) - (b.order || 0));
+    // destination is first city by order
+    destinationObj = { id: citiesWithIds[0].id, name: citiesWithIds[0].name };
+  } else {
+    // fallback to previous behavior (destination string & itinerary parsing)
+    const fallbackCityMap = new Map();
+    const destination = tripData.destination || "";
+    const destCityName = destination.split(",")[0].trim();
+    if (destCityName) {
+      fallbackCityMap.set(destCityName.toLowerCase(), {
+        name: destination,
+        id: null,
+      });
     }
-  } else if (destination) {
-    // try to match the destination name against discovered citiesWithIds
-    const matched = citiesWithIds.find((c) =>
-      c.name.toLowerCase().startsWith(destCityName.toLowerCase())
-    );
-    if (matched) {
-      destinationObj = { id: matched.id || null, name: matched.name };
-    } else {
-      destinationObj = { name: destination };
+    if (tripData.itineraryDays) {
+      tripData.itineraryDays.forEach((day) => {
+        if (day.activities) {
+          day.activities.forEach((activity) => {
+            const location =
+              activity.location || activity.placeDetails?.address || "";
+            const parts = location.split(",");
+            if (parts.length > 0) {
+              const cityName = parts[0].trim();
+              if (cityName) {
+                fallbackCityMap.set(cityName.toLowerCase(), {
+                  name: location,
+                  id: null,
+                });
+              }
+            }
+          });
+        }
+      });
+    }
+    const cityNames = Array.from(fallbackCityMap.keys());
+    if (cityNames.length > 0) {
+      const cities = await City.findAll({
+        where: {
+          name: {
+            [Op.in]: cityNames.map(
+              (name) => name.charAt(0).toUpperCase() + name.slice(1)
+            ),
+          },
+        },
+        attributes: ["id", "name"],
+        include: [{ model: Country, as: "country", attributes: ["name"] }],
+      });
+      cities.forEach((cityObj) => {
+        const key = cityObj.name.toLowerCase();
+        if (fallbackCityMap.has(key)) {
+          const fullName = `${cityObj.name}, ${cityObj.country?.name || ""}`;
+          fallbackCityMap.set(key, { name: fullName, id: cityObj.id });
+        }
+      });
+    }
+    citiesWithIds = Array.from(fallbackCityMap.values());
+    if (tripData.destinationCity && tripData.destinationCity.name) {
+      const matchedById = citiesWithIds.find(
+        (c) => c.id && c.id === tripData.destinationCity.id
+      );
+      if (matchedById) {
+        destinationObj = { id: matchedById.id || null, name: matchedById.name };
+      } else {
+        destinationObj = {
+          id: tripData.destinationCity.id,
+          name: tripData.destinationCity.name,
+        };
+      }
+    } else if (destination) {
+      const matched = citiesWithIds.find((c) =>
+        c.name.toLowerCase().startsWith(destCityName.toLowerCase())
+      );
+      if (matched) {
+        destinationObj = { id: matched.id || null, name: matched.name };
+      } else {
+        destinationObj = { name: destination };
+      }
     }
   }
 
@@ -788,7 +857,9 @@ async function formatTripResponse(trip) {
     author_email: tripData.author?.email || null,
     author_bio: tripData.author?.bio || null,
     tags: tripData.tags ? tripData.tags.map((t) => t.tag) : [],
-    locations: citiesWithIds.map((c) => c.name),
+    locations: citiesWithIds.map(
+      (c) => `${c.name}${c.country ? `, ${c.country}` : ""}`
+    ),
     cities: citiesWithIds,
     itinerary: tripData.itineraryDays
       ? tripData.itineraryDays.map((day) => ({
