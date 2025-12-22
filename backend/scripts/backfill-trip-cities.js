@@ -72,14 +72,17 @@ async function backfillTripCities() {
            WHERE tp.trip_id = ? AND p.city_id = ?`,
           { replacements: [t.id, destCityId] }
         );
-        const orderVal = orderRow && orderRow.min_order != null ? orderRow.min_order : 0;
+        const orderVal =
+          orderRow && orderRow.min_order != null ? orderRow.min_order : 0;
         await Trip.sequelize.query(
           "INSERT INTO trip_cities (id, trip_id, city_id, city_order, created_at) VALUES (?, ?, ?, ?, NOW())",
           { replacements: [uuidv4(), t.id, destCityId, orderVal] }
         );
         inserted++;
       } else if (!exists) {
-        console.log(`  -> Skipping insert for trip ${t.id} because destination_city_id is unavailable`);
+        console.log(
+          `  -> Skipping insert for trip ${t.id} because destination_city_id is unavailable`
+        );
       }
     }
     console.log(`Inserted ${inserted} rows from destination_city_id`);
@@ -196,7 +199,8 @@ async function backfillTripCities() {
              WHERE tp.trip_id = ? AND p.city_id = ?`,
             { replacements: [trip.id, matchedCity.id] }
           );
-          const orderVal = orderRow && orderRow.min_order != null ? orderRow.min_order : 0;
+          const orderVal =
+            orderRow && orderRow.min_order != null ? orderRow.min_order : 0;
           await Trip.sequelize.query(
             "INSERT INTO trip_cities (id, trip_id, city_id, city_order, created_at) VALUES (?, ?, ?, ?, NOW())",
             { replacements: [uuidv4(), trip.id, matchedCity.id, orderVal] }

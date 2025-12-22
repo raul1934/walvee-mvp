@@ -374,12 +374,20 @@ const getTripPlacesEnriched = async (req, res, next) => {
                      VALUES (?, ?, ?, ?, NOW())
                      ON DUPLICATE KEY UPDATE city_order = LEAST(city_order, VALUES(city_order))`,
                     {
-                      replacements: [generateUUID(), tripPlace.trip_id, placeCityId, tripPlace.display_order || 0],
+                      replacements: [
+                        generateUUID(),
+                        tripPlace.trip_id,
+                        placeCityId,
+                        tripPlace.display_order || 0,
+                      ],
                     }
                   );
                 }
               } catch (err) {
-                console.error("[Trip Cities Upsert] Error ensuring trip_cities row:", err.message);
+                console.error(
+                  "[Trip Cities Upsert] Error ensuring trip_cities row:",
+                  err.message
+                );
               }
             }
 

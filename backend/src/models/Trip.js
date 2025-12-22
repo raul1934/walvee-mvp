@@ -97,9 +97,10 @@ class TripModel {
         // If the incoming payload included a place_id we can link the trip to the city immediately
         if (place.place_id) {
           try {
-            const rows = await query("SELECT city_id FROM places WHERE id = ?", [
-              place.place_id,
-            ]);
+            const rows = await query(
+              "SELECT city_id FROM places WHERE id = ?",
+              [place.place_id]
+            );
             const cityId = rows[0] && rows[0].city_id;
             if (cityId) {
               await query(
@@ -247,9 +248,10 @@ class TripModel {
 
         if (place.place_id) {
           try {
-            const rows = await query("SELECT city_id FROM places WHERE id = ?", [
-              place.place_id,
-            ]);
+            const rows = await query(
+              "SELECT city_id FROM places WHERE id = ?",
+              [place.place_id]
+            );
             const cityId = rows[0] && rows[0].city_id;
             if (cityId) {
               await query(
@@ -512,7 +514,7 @@ class TripModel {
 
     // If no explicit trip_cities rows exist yet, derive cities from trip_places where possible
     let citiesToUse = cities;
-    if ((!cities || cities.length === 0)) {
+    if (!cities || cities.length === 0) {
       const derived = await query(
         `SELECT c.id, c.name, co.name as country, MIN(tp.display_order) as city_order
            FROM trip_places tp

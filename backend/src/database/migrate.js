@@ -34,7 +34,9 @@ const migrations = [
         console.log("    ✓ display_order column added to trip_places");
       } catch (err) {
         if (err && err.code === "ER_DUP_FIELDNAME") {
-          console.log("    -> display_order already exists on trip_places, skipping");
+          console.log(
+            "    -> display_order already exists on trip_places, skipping"
+          );
         } else {
           throw err;
         }
@@ -42,7 +44,9 @@ const migrations = [
 
       // Backfill display_order values per trip using created_at order
       try {
-        console.log("    -> Backfilling display_order for existing trip_places");
+        console.log(
+          "    -> Backfilling display_order for existing trip_places"
+        );
         await connection.query(`
           SET @curr_trip = NULL;
           SET @rn = -1;
@@ -55,7 +59,9 @@ const migrations = [
         `);
         console.log("    ✓ Backfilled display_order for trip_places");
       } catch (err) {
-        console.log("    -> Could not backfill trip_places.display_order (this may be OK)");
+        console.log(
+          "    -> Could not backfill trip_places.display_order (this may be OK)"
+        );
       }
     },
   },
@@ -405,7 +411,9 @@ const migrations = [
   {
     name: "backfill_trip_cities_city_order_from_places",
     up: async (connection) => {
-      console.log("  -> Backfilling trip_cities.city_order from trip_places display_order where possible");
+      console.log(
+        "  -> Backfilling trip_cities.city_order from trip_places display_order where possible"
+      );
       try {
         await connection.query(`
           UPDATE trip_cities tc
@@ -419,7 +427,9 @@ const migrations = [
         `);
         console.log("    ✓ Backfilled trip_cities.city_order");
       } catch (err) {
-        console.log("    -> Could not backfill trip_cities.city_order (this may be OK)");
+        console.log(
+          "    -> Could not backfill trip_cities.city_order (this may be OK)"
+        );
       }
     },
   },
@@ -433,7 +443,9 @@ const migrations = [
         console.log("    ✓ Added index idx_trip_cities_city_order");
       } catch (err) {
         if (err && err.code === "ER_DUP_KEYNAME") {
-          console.log("    -> Index idx_trip_cities_city_order already exists, skipping");
+          console.log(
+            "    -> Index idx_trip_cities_city_order already exists, skipping"
+          );
         } else {
           throw err;
         }
