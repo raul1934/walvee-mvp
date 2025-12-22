@@ -266,6 +266,64 @@ const migrations = [
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     `,
   },
+  {
+    name: "add_unique_photo_order",
+    up: async (connection) => {
+      // Fix duplicate photo_order values per city by reassigning sequential orders
+      console.log(
+        "  -> Normalizing city_photos.photo_order per city to remove duplicates"
+      );
+      const [cities] = await connection.query(
+        "SELECT DISTINCT city_id FROM city_photos WHERE city_id IS NOT NULL"
+      );
+
+      for (const c of cities) {
+        const cityId = c.city_id;
+        const [photos] = await connection.query(
+          "SELECT id FROM city_photos WHERE city_id = ? ORDER BY photo_order ASC, id ASC",
+          [cityId]
+        );
+        for (let i = 0; i < photos.length; i++) {
+          await connection.query(
+            "UPDATE city_photos SET photo_order = ? WHERE id = ?",
+            [i, photos[i].id]
+          );
+        }
+      }
+
+      // Add unique constraint after normalization
+      await connection.query(
+        "ALTER TABLE city_photos ADD CONSTRAINT city_photos_city_id_photo_order_unique UNIQUE (city_id, photo_order)"
+      );
+
+      // Fix duplicate photo_order values per place by reassigning sequential orders
+      console.log(
+        "  -> Normalizing place_photos.photo_order per place to remove duplicates"
+      );
+      const [places] = await connection.query(
+        "SELECT DISTINCT place_id FROM place_photos WHERE place_id IS NOT NULL"
+      );
+
+      for (const p of places) {
+        const placeId = p.place_id;
+        const [photos] = await connection.query(
+          "SELECT id FROM place_photos WHERE place_id = ? ORDER BY photo_order ASC, id ASC",
+          [placeId]
+        );
+        for (let i = 0; i < photos.length; i++) {
+          await connection.query(
+            "UPDATE place_photos SET photo_order = ? WHERE id = ?",
+            [i, photos[i].id]
+          );
+        }
+      }
+
+      // Add unique constraint after normalization
+      await connection.query(
+        "ALTER TABLE place_photos ADD CONSTRAINT place_photos_place_id_photo_order_unique UNIQUE (place_id, photo_order)"
+      );
+    },
+  },
 ];
 
 const runMigrations = async () => {
@@ -276,7 +334,20 @@ const runMigrations = async () => {
 
     for (const migration of migrations) {
       console.log(`Running: ${migration.name}`);
-      await connection.query(migration.up);
+      // migration.up can be a function (async) or a SQL string (possibly multiple statements).
+      if (typeof migration.up === "function") {
+        await migration.up(connection);
+      } else {
+        // Execute each non-empty SQL statement individually to avoid errors when multipleStatements is disabled.
+        const statements = migration.up
+          .split(";")
+          .map((s) => s.trim())
+          .filter((s) => s.length > 0);
+
+        for (const stmt of statements) {
+          await connection.query(stmt);
+        }
+      }
       console.log(`✓ ${migration.name} completed\n`);
     }
 

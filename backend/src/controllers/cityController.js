@@ -75,7 +75,7 @@ const searchCities = async (req, res, next) => {
 
     try {
       // Fetch city predictions from Google Maps
-      const googleCities = await searchCitiesFromGoogle(query, 5);
+      const googleCities = await searchCitiesFromGoogle(query);
 
       // STEP 4: Save new cities to database (only those not already in our DB)
       const savedCities = [];

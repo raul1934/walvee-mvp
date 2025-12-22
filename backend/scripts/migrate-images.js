@@ -1,8 +1,8 @@
 const axios = require("axios");
 const fs = require("fs").promises;
 const path = require("path");
-const { getConnection } = require("../src/database/connection");
-
+const sharp = require("sharp");
+const { getConnection, query } = require("../src/database/connection");
 // Configuration
 const CONFIG = {
   NEW_IMAGE_DIR:
@@ -46,6 +46,20 @@ async function downloadImage(url, outputPath, retries = CONFIG.RETRY_ATTEMPTS) {
       // Skip if already migrated (starts with /images/)
       if (url.startsWith("/images/")) {
         return { success: false, reason: "Already migrated" };
+      }
+
+      // Skip if URL doesn't start with http/https (already a local path)
+      if (!url.startsWith("http://") && !url.startsWith("https://")) {
+        return { success: false, reason: "Already local path" };
+      }
+
+      // Check if file already exists in storage
+      try {
+        await fs.access(outputPath);
+        console.log(`  ⏭️  File already exists: ${outputPath}`);
+        return { success: false, reason: "File already exists" };
+      } catch (err) {
+        // File doesn't exist, continue with download
       }
 
       // Handle relative URLs (local uploads)
@@ -102,6 +116,89 @@ async function downloadImage(url, outputPath, retries = CONFIG.RETRY_ATTEMPTS) {
 }
 
 /**
+ * Resize image to multiple sizes
+ */
+async function resizeImage(inputPath, baseOutputPath, sizes) {
+  const results = {};
+
+  try {
+    const image = sharp(inputPath);
+    const metadata = await image.metadata();
+
+    for (const size of sizes) {
+      const outputPath = `${baseOutputPath}_${size.name}.jpg`;
+
+      await sharp(inputPath)
+        .resize(size.maxWidth, null, {
+          fit: "inside",
+          withoutEnlargement: true,
+        })
+        .jpeg({ quality: 85 })
+        .toFile(outputPath);
+
+      await fs.chmod(outputPath, 0o644);
+      results[size.name] = outputPath;
+      console.log(
+        `    ✓ Created ${size.name} (${size.maxWidth}px): ${outputPath}`
+      );
+    }
+
+    return { success: true, paths: results };
+  } catch (error) {
+    console.error(`    ✗ Resize failed: ${error.message}`);
+    return { success: false, reason: error.message };
+  }
+}
+
+/**
+ * Resize a single output (no suffix) to a max width
+ */
+async function resizeSingle(inputPath, outputPath, maxWidth) {
+  try {
+    await sharp(inputPath)
+      .resize(maxWidth, null, { fit: "inside", withoutEnlargement: true })
+      .jpeg({ quality: 85 })
+      .toFile(outputPath);
+
+    await fs.chmod(outputPath, 0o644);
+    console.log(`    ✓ Created single file: ${outputPath}`);
+    return { success: true, path: outputPath };
+  } catch (error) {
+    console.error(`    ✗ Resize single failed: ${error.message}`);
+    return { success: false, reason: error.message };
+  }
+}
+
+/**
+ * Simple concurrency mapper (like p-map) to run async mapper over items with limited concurrency
+ */
+async function pMap(
+  items,
+  mapper,
+  concurrency = CONFIG.MAX_CONCURRENT_DOWNLOADS
+) {
+  const results = new Array(items.length);
+  let idx = 0;
+
+  const workers = Array.from({
+    length: Math.min(concurrency, items.length),
+  }).map(async () => {
+    while (true) {
+      const current = idx++;
+      if (current >= items.length) return;
+      try {
+        results[current] = await mapper(items[current], current);
+      } catch (err) {
+        results[current] = err;
+      }
+    }
+  });
+
+  await Promise.all(workers);
+  return results;
+}
+
+/**
  * Get file extension from URL or content type
  */
 function getFileExtension(url, contentType = "") {
@@ -124,6 +221,43 @@ function getFileExtension(url, contentType = "") {
   }
 
   return ".jpg"; // Default
+}
+
+/**
+ * Strip BASE_URL (or localhost URL) from a url and return a relative path starting with '/'
+ */
+function toRelativePath(url) {
+  if (!url) return url;
+  try {
+    // If already relative and starts with /images/, return as-is
+    if (url.startsWith("/images/")) return url;
+
+    // Remove BASE_URL if present
+    if (CONFIG.BASE_URL && url.startsWith(CONFIG.BASE_URL)) {
+      return url.replace(CONFIG.BASE_URL, "");
+    }
+
+    // Remove localhost:3000 patterns
+    const localhostPrefix = "http://localhost:3000";
+    if (url.startsWith(localhostPrefix))
+      return url.replace(localhostPrefix, "");
+
+    const localhostPrefixHttps = "https://localhost:3000";
+    if (url.startsWith(localhostPrefixHttps))
+      return url.replace(localhostPrefixHttps, "");
+
+    // If it is an absolute URL to our host, attempt to parse and return pathname
+    try {
+      const parsed = new URL(url);
+      if (parsed.pathname) return parsed.pathname + (parsed.search || "");
+    } catch (e) {
+      // not a full url
+    }
+
+    return url;
+  } catch (e) {
+    return url;
+  }
 }
 
 /**
@@ -203,31 +337,94 @@ async function migrateUsers(connection) {
   stats.users.total = users.length;
   console.log(`  Found ${users.length} users with photos`);
 
-  for (const user of users) {
-    const ext = getFileExtension(user.photo_url);
-    const newPath = path.join(
-      CONFIG.NEW_IMAGE_DIR,
-      "users",
-      `${user.id}${ext}`
-    );
-    const newUrl = `/images/users/${user.id}${ext}`;
+  // Run users migration with concurrency
+  await pMap(
+    users,
+    async (user) => {
+      // We'll standardize user photos to JPEG and create a single large file
+      const userDir = path.join(CONFIG.NEW_IMAGE_DIR, "users");
+      const finalPath = path.join(userDir, `${user.id}.jpg`);
+      const finalUrl = `/images/users/${user.id}.jpg`;
 
-    const result = await downloadImage(user.photo_url, newPath);
+      try {
+        // If final file already exists, ensure DB has relative path
+        try {
+          await fs.access(finalPath);
+          // File exists
+          const currentRel = toRelativePath(user.photo_url);
+          if (currentRel !== finalUrl && !CONFIG.DRY_RUN) {
+            await query("UPDATE users SET photo_url = ? WHERE id = ?", [
+              finalUrl,
+              user.id,
+            ]);
+            console.log(`  ✓ Updated DB for user ${user.id} -> ${finalUrl}`);
+          }
+          stats.users.skipped++;
+          return;
+        } catch (err) {
+          // final file does not exist, continue
+        }
 
-    if (result.success) {
-      urlMapping[user.photo_url] = newUrl;
-      stats.users.success++;
-    } else {
-      stats.users.failed++;
-      failedDownloads.push({
-        table: "users",
-        id: user.id,
-        field: "photo_url",
-        url: user.photo_url,
-        reason: result.reason,
-      });
-    }
-  }
+        // Check for temp
+        const tempPath = path.join(userDir, `${user.id}_temp.jpg`);
+        let downloadResult;
+        try {
+          await fs.access(tempPath);
+          console.log(`  ⏭️  Temp file already exists, using: ${tempPath}`);
+          downloadResult = { success: true };
+        } catch (err) {
+          downloadResult = await downloadImage(user.photo_url, tempPath);
+        }
+
+        if (!downloadResult.success) {
+          stats.users.failed++;
+          failedDownloads.push({
+            table: "users",
+            id: user.id,
+            field: "photo_url",
+            url: user.photo_url,
+            reason: downloadResult.reason,
+          });
+          return;
+        }
+
+        // Resize temp to final
+        const resizeRes = await resizeSingle(tempPath, finalPath, 1600);
+        if (!resizeRes.success) {
+          stats.users.failed++;
+          failedDownloads.push({
+            table: "users",
+            id: user.id,
+            field: "photo_url",
+            url: user.photo_url,
+            reason: resizeRes.reason,
+          });
+          return;
+        }
+
+        // Update DB for this user to relative path
+        if (!CONFIG.DRY_RUN) {
+          await query("UPDATE users SET photo_url = ? WHERE id = ?", [
+            finalUrl,
+            user.id,
+          ]);
+          console.log(`  ✓ Updated DB for user ${user.id} -> ${finalUrl}`);
+        }
+
+        stats.users.success++;
+      } catch (error) {
+        stats.users.failed++;
+        failedDownloads.push({
+          table: "users",
+          id: user.id,
+          field: "photo_url",
+          url: user.photo_url,
+          reason: error.message,
+        });
+      }
+    },
+    CONFIG.MAX_CONCURRENT_DOWNLOADS
+  );
 
   console.log(
     `  ✓ Success: ${stats.users.success}, Failed: ${stats.users.failed}`
@@ -246,34 +443,97 @@ async function migrateTrips(connection) {
   stats.trips.total = trips.length;
   console.log(`  Found ${trips.length} trips with cover images`);
 
-  for (const trip of trips) {
-    // Skip unsplash URLs (these are dynamic/generic)
-    if (trip.cover_image.includes("unsplash.com")) {
-      stats.trips.skipped++;
-      continue;
-    }
+  await pMap(
+    trips,
+    async (trip) => {
+      // Skip unsplash URLs (these are dynamic/generic)
+      if (trip.cover_image.includes("unsplash.com")) {
+        stats.trips.skipped++;
+        return;
+      }
 
-    const ext = getFileExtension(trip.cover_image);
-    const tripDir = path.join(CONFIG.NEW_IMAGE_DIR, "trips", trip.id);
-    const newPath = path.join(tripDir, `cover${ext}`);
-    const newUrl = `/images/trips/${trip.id}/cover${ext}`;
+      const tripDir = path.join(CONFIG.NEW_IMAGE_DIR, "trips", trip.id);
+      const finalPath = path.join(tripDir, `cover.jpg`);
+      const finalUrl = `/images/trips/${trip.id}/cover.jpg`;
 
-    const result = await downloadImage(trip.cover_image, newPath);
+      try {
+        // Ensure dir
+        await fs.mkdir(tripDir, { recursive: true });
 
-    if (result.success) {
-      urlMapping[trip.cover_image] = newUrl;
-      stats.trips.success++;
-    } else {
-      stats.trips.failed++;
-      failedDownloads.push({
-        table: "trips",
-        id: trip.id,
-        field: "cover_image",
-        url: trip.cover_image,
-        reason: result.reason,
-      });
-    }
-  }
+        // If final exists, ensure DB path
+        try {
+          await fs.access(finalPath);
+          const currentRel = toRelativePath(trip.cover_image);
+          if (currentRel !== finalUrl && !CONFIG.DRY_RUN) {
+            await query("UPDATE trips SET cover_image = ? WHERE id = ?", [
+              finalUrl,
+              trip.id,
+            ]);
+            console.log(`  ✓ Updated DB for trip ${trip.id} -> ${finalUrl}`);
+          }
+          stats.trips.skipped++;
+          return;
+        } catch (err) {
+          // final missing
+        }
+
+        const tempPath = path.join(tripDir, `cover_temp.jpg`);
+        let downloadResult;
+        try {
+          await fs.access(tempPath);
+          console.log(`  ⏭️  Temp file already exists, using: ${tempPath}`);
+          downloadResult = { success: true };
+        } catch (err) {
+          downloadResult = await downloadImage(trip.cover_image, tempPath);
+        }
+
+        if (!downloadResult.success) {
+          stats.trips.failed++;
+          failedDownloads.push({
+            table: "trips",
+            id: trip.id,
+            field: "cover_image",
+            url: trip.cover_image,
+            reason: downloadResult.reason,
+          });
+          return;
+        }
+
+        const resizeRes = await resizeSingle(tempPath, finalPath, 1600);
+        if (!resizeRes.success) {
+          stats.trips.failed++;
+          failedDownloads.push({
+            table: "trips",
+            id: trip.id,
+            field: "cover_image",
+            url: trip.cover_image,
+            reason: resizeRes.reason,
+          });
+          return;
+        }
+
+        if (!CONFIG.DRY_RUN) {
+          await query("UPDATE trips SET cover_image = ? WHERE id = ?", [
+            finalUrl,
+            trip.id,
+          ]);
+          console.log(`  ✓ Updated DB for trip ${trip.id} -> ${finalUrl}`);
+        }
+
+        stats.trips.success++;
+      } catch (error) {
+        stats.trips.failed++;
+        failedDownloads.push({
+          table: "trips",
+          id: trip.id,
+          field: "cover_image",
+          url: trip.cover_image,
+          reason: error.message,
+        });
+      }
+    },
+    CONFIG.MAX_CONCURRENT_DOWNLOADS
+  );
 
   console.log(
     `  ✓ Success: ${stats.trips.success}, Failed: ${stats.trips.failed}, Skipped: ${stats.trips.skipped}`
@@ -293,28 +553,96 @@ async function migrateTripImages(connection) {
     stats.tripImages.total = tripImages.length;
     console.log(`  Found ${tripImages.length} trip images`);
 
-    for (const image of tripImages) {
-      const ext = getFileExtension(image.image_url);
-      const tripDir = path.join(CONFIG.NEW_IMAGE_DIR, "trips", image.trip_id);
-      const newPath = path.join(tripDir, `${image.display_order}${ext}`);
-      const newUrl = `/images/trips/${image.trip_id}/${image.display_order}${ext}`;
+    await pMap(
+      tripImages,
+      async (image) => {
+        const tripDir = path.join(CONFIG.NEW_IMAGE_DIR, "trips", image.trip_id);
+        const finalPath = path.join(tripDir, `${image.display_order}.jpg`);
+        const finalUrl = `/images/trips/${image.trip_id}/${image.display_order}.jpg`;
 
-      const result = await downloadImage(image.image_url, newPath);
+        try {
+          await fs.mkdir(tripDir, { recursive: true });
 
-      if (result.success) {
-        urlMapping[image.image_url] = newUrl;
-        stats.tripImages.success++;
-      } else {
-        stats.tripImages.failed++;
-        failedDownloads.push({
-          table: "trip_images",
-          id: image.id,
-          field: "image_url",
-          url: image.image_url,
-          reason: result.reason,
-        });
-      }
-    }
+          try {
+            await fs.access(finalPath);
+            const currentRel = toRelativePath(image.image_url);
+            if (currentRel !== finalUrl && !CONFIG.DRY_RUN) {
+              await query("UPDATE trip_images SET image_url = ? WHERE id = ?", [
+                finalUrl,
+                image.id,
+              ]);
+              console.log(
+                `  ✓ Updated DB for trip_image ${image.id} -> ${finalUrl}`
+              );
+            }
+            stats.tripImages.skipped++;
+            return;
+          } catch (err) {
+            // final missing
+          }
+
+          const tempPath = path.join(
+            tripDir,
+            `${image.display_order}_temp.jpg`
+          );
+          let downloadResult;
+          try {
+            await fs.access(tempPath);
+            console.log(`  ⏭️  Temp file already exists, using: ${tempPath}`);
+            downloadResult = { success: true };
+          } catch (err) {
+            downloadResult = await downloadImage(image.image_url, tempPath);
+          }
+
+          if (!downloadResult.success) {
+            stats.tripImages.failed++;
+            failedDownloads.push({
+              table: "trip_images",
+              id: image.id,
+              field: "image_url",
+              url: image.image_url,
+              reason: downloadResult.reason,
+            });
+            return;
+          }
+
+          const resizeRes = await resizeSingle(tempPath, finalPath, 1600);
+          if (!resizeRes.success) {
+            stats.tripImages.failed++;
+            failedDownloads.push({
+              table: "trip_images",
+              id: image.id,
+              field: "image_url",
+              url: image.image_url,
+              reason: resizeRes.reason,
+            });
+            return;
+          }
+
+          if (!CONFIG.DRY_RUN) {
+            await query("UPDATE trip_images SET image_url = ? WHERE id = ?", [
+              finalUrl,
+              image.id,
+            ]);
+            console.log(
+              `  ✓ Updated DB for trip_image ${image.id} -> ${finalUrl}`
+            );
+          }
+
+          stats.tripImages.success++;
+        } catch (error) {
+          stats.tripImages.failed++;
+          failedDownloads.push({
+            table: "trip_images",
+            id: image.id,
+            field: "image_url",
+            url: image.image_url,
+            reason: error.message,
+          });
+        }
+      },
+      CONFIG.MAX_CONCURRENT_DOWNLOADS
+    );
 
     console.log(
       `  ✓ Success: ${stats.tripImages.success}, Failed: ${stats.tripImages.failed}`
@@ -338,82 +666,123 @@ async function migratePlacePhotos(connection) {
     `  Found ${photos.length} place photos (${stats.placePhotos.total} total files)`
   );
 
-  for (const photo of photos) {
-    const placeDir = path.join(
-      CONFIG.NEW_IMAGE_DIR,
-      "places",
-      photo.place_id.toString()
-    );
+  await pMap(
+    photos,
+    async (photo) => {
+      const placeDir = path.join(
+        CONFIG.NEW_IMAGE_DIR,
+        "places",
+        photo.place_id.toString()
+      );
+    },
+    CONFIG.MAX_CONCURRENT_DOWNLOADS
+  );
+  await pMap(
+    photos,
+    async (photo) => {
+      const placeDir = path.join(
+        CONFIG.NEW_IMAGE_DIR,
+        "places",
+        photo.place_id.toString()
+      );
 
-    // Download small
-    if (photo.url_small) {
-      const ext = getFileExtension(photo.url_small);
-      const newPath = path.join(placeDir, `${photo.photo_order}_small${ext}`);
-      const newUrl = `/images/places/${photo.place_id}/${photo.photo_order}_small${ext}`;
+      // Only process if we have a large URL
+      if (!photo.url_large) return;
 
-      const result = await downloadImage(photo.url_small, newPath);
-      if (result.success) {
-        urlMapping[photo.url_small] = newUrl;
-        stats.placePhotos.success++;
-      } else {
-        stats.placePhotos.failed++;
-        failedDownloads.push({
-          table: "place_photos",
-          id: photo.id,
-          field: "url_small",
-          url: photo.url_small,
-          reason: result.reason,
-        });
+      // Skip if not http/https URL (already local)
+      if (
+        !photo.url_large.startsWith("http://") &&
+        !photo.url_large.startsWith("https://")
+      ) {
+        stats.placePhotos.skipped += 3; // Count all 3 sizes as skipped
+        return;
       }
-    }
 
-    // Download medium
-    if (photo.url_medium) {
-      const ext = getFileExtension(photo.url_medium);
-      const newPath = path.join(placeDir, `${photo.photo_order}_medium${ext}`);
-      const newUrl = `/images/places/${photo.place_id}/${photo.photo_order}_medium${ext}`;
+      // Download large image once
+      const tempPath = path.join(placeDir, `${photo.photo_order}_temp.jpg`);
 
-      const result = await downloadImage(photo.url_medium, newPath);
-      if (result.success) {
-        urlMapping[photo.url_medium] = newUrl;
-        stats.placePhotos.success++;
-      } else {
-        stats.placePhotos.failed++;
-        failedDownloads.push({
-          table: "place_photos",
-          id: photo.id,
-          field: "url_medium",
-          url: photo.url_medium,
-          reason: result.reason,
-        });
+      // Check if temp file already exists
+      let largeResult;
+      try {
+        await fs.access(tempPath);
+        console.log(`  ⏭️  Temp file already exists, using: ${tempPath}`);
+        largeResult = { success: true };
+      } catch (err) {
+        // Temp file doesn't exist, download it
+        largeResult = await downloadImage(photo.url_large, tempPath);
       }
-    }
 
-    // Download large
-    if (photo.url_large) {
-      const ext = getFileExtension(photo.url_large);
-      const newPath = path.join(placeDir, `${photo.photo_order}_large${ext}`);
-      const newUrl = `/images/places/${photo.place_id}/${photo.photo_order}_large${ext}`;
+      if (largeResult.success) {
+        // Resize to create all sizes
+        const sizes = [
+          { name: "small", maxWidth: 400 },
+          { name: "medium", maxWidth: 800 },
+          { name: "large", maxWidth: 1600 },
+        ];
 
-      const result = await downloadImage(photo.url_large, newPath);
-      if (result.success) {
-        urlMapping[photo.url_large] = newUrl;
-        stats.placePhotos.success++;
+        const basePath = path.join(placeDir, `${photo.photo_order}`);
+        const resizeResult = await resizeImage(tempPath, basePath, sizes);
+
+        if (resizeResult.success) {
+          // Build relative URLs
+          const smallUrl = `/images/places/${photo.place_id}/${photo.photo_order}_small.jpg`;
+          const mediumUrl = `/images/places/${photo.place_id}/${photo.photo_order}_medium.jpg`;
+          const largeUrl = `/images/places/${photo.place_id}/${photo.photo_order}_large.jpg`;
+
+          if (!CONFIG.DRY_RUN) {
+            try {
+              await query(
+                "UPDATE place_photos SET url_small = ?, url_medium = ?, url_large = ? WHERE id = ?",
+                [smallUrl, mediumUrl, largeUrl, photo.id]
+              );
+              console.log(`    ✓ Updated DB place_photos.id=${photo.id}`);
+            } catch (err) {
+              console.error(
+                `    ✗ DB update failed for place_photos.id=${photo.id}: ${err.message}`
+              );
+              stats.placePhotos.failed += 3;
+              failedDownloads.push({
+                table: "place_photos",
+                id: photo.id,
+                field: "all_sizes",
+                url: photo.url_large,
+                reason: err.message,
+              });
+              return;
+            }
+          } else {
+            console.log(
+              `    ⚠ DRY RUN - would update place_photos.id=${photo.id}`
+            );
+          }
+
+          stats.placePhotos.success += 3; // Count all 3 sizes
+        } else {
+          stats.placePhotos.failed += 3;
+          failedDownloads.push({
+            table: "place_photos",
+            id: photo.id,
+            field: "all_sizes",
+            url: photo.url_large,
+            reason: resizeResult.reason,
+          });
+        }
       } else {
-        stats.placePhotos.failed++;
+        stats.placePhotos.failed += 3;
         failedDownloads.push({
           table: "place_photos",
           id: photo.id,
           field: "url_large",
           url: photo.url_large,
-          reason: result.reason,
+          reason: largeResult.reason,
         });
       }
-    }
-  }
+    },
+    CONFIG.MAX_CONCURRENT_DOWNLOADS
+  );
 
   console.log(
-    `  ✓ Success: ${stats.placePhotos.success}, Failed: ${stats.placePhotos.failed}`
+    `  ✓ Success: ${stats.placePhotos.success}, Failed: ${stats.placePhotos.failed}, Skipped: ${stats.placePhotos.skipped}`
   );
 }
 
@@ -431,82 +800,122 @@ async function migrateCityPhotos(connection) {
     `  Found ${photos.length} city photos (${stats.cityPhotos.total} total files)`
   );
 
-  for (const photo of photos) {
-    const cityDir = path.join(
-      CONFIG.NEW_IMAGE_DIR,
-      "cities",
-      photo.city_id.toString()
-    );
+  await pMap(
+    photos,
+    async (photo) => {
+      const cityDir = path.join(
+        CONFIG.NEW_IMAGE_DIR,
+        "cities",
+        photo.city_id.toString()
+      );
+    },
+    CONFIG.MAX_CONCURRENT_DOWNLOADS
+  );
+  await pMap(
+    photos,
+    async (photo) => {
+      const cityDir = path.join(
+        CONFIG.NEW_IMAGE_DIR,
+        "cities",
+        photo.city_id.toString()
+      );
 
-    // Download small
-    if (photo.url_small) {
-      const ext = getFileExtension(photo.url_small);
-      const newPath = path.join(cityDir, `${photo.photo_order}_small${ext}`);
-      const newUrl = `/images/cities/${photo.city_id}/${photo.photo_order}_small${ext}`;
+      // Only process if we have a large URL
+      if (!photo.url_large) return;
 
-      const result = await downloadImage(photo.url_small, newPath);
-      if (result.success) {
-        urlMapping[photo.url_small] = newUrl;
-        stats.cityPhotos.success++;
-      } else {
-        stats.cityPhotos.failed++;
-        failedDownloads.push({
-          table: "city_photos",
-          id: photo.id,
-          field: "url_small",
-          url: photo.url_small,
-          reason: result.reason,
-        });
+      // Skip if not http/https URL (already local)
+      if (
+        !photo.url_large.startsWith("http://") &&
+        !photo.url_large.startsWith("https://")
+      ) {
+        stats.cityPhotos.skipped += 3; // Count all 3 sizes as skipped
+        return;
       }
-    }
 
-    // Download medium
-    if (photo.url_medium) {
-      const ext = getFileExtension(photo.url_medium);
-      const newPath = path.join(cityDir, `${photo.photo_order}_medium${ext}`);
-      const newUrl = `/images/cities/${photo.city_id}/${photo.photo_order}_medium${ext}`;
+      // Download large image once
+      const tempPath = path.join(cityDir, `${photo.photo_order}_temp.jpg`);
 
-      const result = await downloadImage(photo.url_medium, newPath);
-      if (result.success) {
-        urlMapping[photo.url_medium] = newUrl;
-        stats.cityPhotos.success++;
-      } else {
-        stats.cityPhotos.failed++;
-        failedDownloads.push({
-          table: "city_photos",
-          id: photo.id,
-          field: "url_medium",
-          url: photo.url_medium,
-          reason: result.reason,
-        });
+      // Check if temp file already exists
+      let largeResult;
+      try {
+        await fs.access(tempPath);
+        console.log(`  ⏭️  Temp file already exists, using: ${tempPath}`);
+        largeResult = { success: true };
+      } catch (err) {
+        // Temp file doesn't exist, download it
+        largeResult = await downloadImage(photo.url_large, tempPath);
       }
-    }
 
-    // Download large
-    if (photo.url_large) {
-      const ext = getFileExtension(photo.url_large);
-      const newPath = path.join(cityDir, `${photo.photo_order}_large${ext}`);
-      const newUrl = `/images/cities/${photo.city_id}/${photo.photo_order}_large${ext}`;
+      if (largeResult.success) {
+        // Resize to create all sizes
+        const sizes = [
+          { name: "small", maxWidth: 400 },
+          { name: "medium", maxWidth: 800 },
+          { name: "large", maxWidth: 1600 },
+        ];
 
-      const result = await downloadImage(photo.url_large, newPath);
-      if (result.success) {
-        urlMapping[photo.url_large] = newUrl;
-        stats.cityPhotos.success++;
+        const basePath = path.join(cityDir, `${photo.photo_order}`);
+        const resizeResult = await resizeImage(tempPath, basePath, sizes);
+
+        if (resizeResult.success) {
+          const smallUrl = `/images/cities/${photo.city_id}/${photo.photo_order}_small.jpg`;
+          const mediumUrl = `/images/cities/${photo.city_id}/${photo.photo_order}_medium.jpg`;
+          const largeUrl = `/images/cities/${photo.city_id}/${photo.photo_order}_large.jpg`;
+
+          if (!CONFIG.DRY_RUN) {
+            try {
+              await query(
+                "UPDATE city_photos SET url_small = ?, url_medium = ?, url_large = ? WHERE id = ?",
+                [smallUrl, mediumUrl, largeUrl, photo.id]
+              );
+              console.log(`    ✓ Updated DB city_photos.id=${photo.id}`);
+            } catch (err) {
+              console.error(
+                `    ✗ DB update failed for city_photos.id=${photo.id}: ${err.message}`
+              );
+              stats.cityPhotos.failed += 3;
+              failedDownloads.push({
+                table: "city_photos",
+                id: photo.id,
+                field: "all_sizes",
+                url: photo.url_large,
+                reason: err.message,
+              });
+              return;
+            }
+          } else {
+            console.log(
+              `    ⚠ DRY RUN - would update city_photos.id=${photo.id}`
+            );
+          }
+
+          stats.cityPhotos.success += 3; // Count all 3 sizes
+        } else {
+          stats.cityPhotos.failed += 3;
+          failedDownloads.push({
+            table: "city_photos",
+            id: photo.id,
+            field: "all_sizes",
+            url: photo.url_large,
+            reason: resizeResult.reason,
+          });
+        }
       } else {
-        stats.cityPhotos.failed++;
+        stats.cityPhotos.failed += 3;
         failedDownloads.push({
           table: "city_photos",
           id: photo.id,
           field: "url_large",
           url: photo.url_large,
-          reason: result.reason,
+          reason: largeResult.reason,
         });
       }
-    }
-  }
+    },
+    CONFIG.MAX_CONCURRENT_DOWNLOADS
+  );
 
   console.log(
-    `  ✓ Success: ${stats.cityPhotos.success}, Failed: ${stats.cityPhotos.failed}`
+    `  ✓ Success: ${stats.cityPhotos.success}, Failed: ${stats.cityPhotos.failed}, Skipped: ${stats.cityPhotos.skipped}`
   );
 }
 
@@ -721,13 +1130,6 @@ async function fetchMissingCityPhotos(connection) {
         if (details?.photos && details.photos.length > 0) {
           const photoRef = details.photos[0].photo_reference;
 
-          // Download all 3 sizes
-          const sizes = [
-            { name: "small", maxWidth: 400 },
-            { name: "medium", maxWidth: 800 },
-            { name: "large", maxWidth: 1600 },
-          ];
-
           const cityDir = path.join(
             CONFIG.NEW_IMAGE_DIR,
             "cities",
@@ -735,22 +1137,40 @@ async function fetchMissingCityPhotos(connection) {
           );
           await fs.mkdir(cityDir, { recursive: true });
 
-          let allSuccess = true;
+          // Download large image once
+          const photoUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=1600&photo_reference=${photoRef}&key=${process.env.GOOGLE_MAPS_API_KEY}`;
+          const tempPath = path.join(cityDir, `0_temp.jpg`);
+
+          // Check if temp file already exists
+          let downloadResult;
+          try {
+            await fs.access(tempPath);
+            console.log(`    ⏭️  Temp file already exists, using: ${tempPath}`);
+            downloadResult = { success: true };
+          } catch (err) {
+            // Temp file doesn't exist, download it
+            downloadResult = await downloadImage(photoUrl, tempPath);
+          }
+
+          let allSuccess = false;
           const photoUrls = {};
 
-          for (const size of sizes) {
-            const photoUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=${size.maxWidth}&photo_reference=${photoRef}&key=${process.env.GOOGLE_MAPS_API_KEY}`;
-            const localPath = path.join(cityDir, `0_${size.name}.jpg`);
+          if (downloadResult.success) {
+            // Resize to create all sizes
+            const sizes = [
+              { name: "small", maxWidth: 400 },
+              { name: "medium", maxWidth: 800 },
+              { name: "large", maxWidth: 1600 },
+            ];
 
-            const result = await downloadImage(photoUrl, localPath);
+            const basePath = path.join(cityDir, `0`);
+            const resizeResult = await resizeImage(tempPath, basePath, sizes);
 
-            if (result.success) {
-              photoUrls[
-                `url_${size.name}`
-              ] = `/images/cities/${city.id}/0_${size.name}.jpg`;
-            } else {
-              allSuccess = false;
-              break;
+            if (resizeResult.success) {
+              photoUrls.url_small = `/images/cities/${city.id}/0_small.jpg`;
+              photoUrls.url_medium = `/images/cities/${city.id}/0_medium.jpg`;
+              photoUrls.url_large = `/images/cities/${city.id}/0_large.jpg`;
+              allSuccess = true;
             }
           }
 
@@ -797,10 +1217,10 @@ async function fetchMissingPlacePhotos(connection) {
   try {
     // Get places that don't have photos
     const [placesWithoutPhotos] = await connection.query(`
-      SELECT p.id, p.name, p.google_maps_id, p.city_id
+      SELECT p.id, p.name, p.google_place_id, p.city_id
       FROM places p
       LEFT JOIN place_photos pp ON p.id = pp.place_id
-      WHERE p.google_maps_id IS NOT NULL 
+      WHERE p.google_place_id IS NOT NULL 
         AND pp.id IS NULL
       LIMIT 50
     `);
@@ -820,17 +1240,10 @@ async function fetchMissingPlacePhotos(connection) {
       console.log(`  Fetching photos for: ${place.name}`);
 
       try {
-        const details = await getPlaceDetailsWithPhotos(place.google_maps_id);
+        const details = await getPlaceDetailsWithPhotos(place.google_place_id);
 
         if (details?.photos && details.photos.length > 0) {
           const photoRef = details.photos[0].photo_reference;
-
-          // Download all 3 sizes
-          const sizes = [
-            { name: "small", maxWidth: 400 },
-            { name: "medium", maxWidth: 800 },
-            { name: "large", maxWidth: 1600 },
-          ];
 
           const placeDir = path.join(
             CONFIG.NEW_IMAGE_DIR,
@@ -839,22 +1252,40 @@ async function fetchMissingPlacePhotos(connection) {
           );
           await fs.mkdir(placeDir, { recursive: true });
 
-          let allSuccess = true;
+          // Download large image once
+          const photoUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=1600&photo_reference=${photoRef}&key=${process.env.GOOGLE_MAPS_API_KEY}`;
+          const tempPath = path.join(placeDir, `0_temp.jpg`);
+
+          // Check if temp file already exists
+          let downloadResult;
+          try {
+            await fs.access(tempPath);
+            console.log(`    ⏭️  Temp file already exists, using: ${tempPath}`);
+            downloadResult = { success: true };
+          } catch (err) {
+            // Temp file doesn't exist, download it
+            downloadResult = await downloadImage(photoUrl, tempPath);
+          }
+
+          let allSuccess = false;
           const photoUrls = {};
 
-          for (const size of sizes) {
-            const photoUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=${size.maxWidth}&photo_reference=${photoRef}&key=${process.env.GOOGLE_MAPS_API_KEY}`;
-            const localPath = path.join(placeDir, `0_${size.name}.jpg`);
+          if (downloadResult.success) {
+            // Resize to create all sizes
+            const sizes = [
+              { name: "small", maxWidth: 400 },
+              { name: "medium", maxWidth: 800 },
+              { name: "large", maxWidth: 1600 },
+            ];
 
-            const result = await downloadImage(photoUrl, localPath);
+            const basePath = path.join(placeDir, `0`);
+            const resizeResult = await resizeImage(tempPath, basePath, sizes);
 
-            if (result.success) {
-              photoUrls[
-                `url_${size.name}`
-              ] = `/images/places/${place.id}/0_${size.name}.jpg`;
-            } else {
-              allSuccess = false;
-              break;
+            if (resizeResult.success) {
+              photoUrls.url_small = `/images/places/${place.id}/0_small.jpg`;
+              photoUrls.url_medium = `/images/places/${place.id}/0_medium.jpg`;
+              photoUrls.url_large = `/images/places/${place.id}/0_large.jpg`;
+              allSuccess = true;
             }
           }
 
@@ -889,6 +1320,64 @@ async function fetchMissingPlacePhotos(connection) {
     }
   } catch (error) {
     console.error("  ✗ Error checking place photos:", error.message);
+  }
+}
+
+/**
+ * Clean up all temporary files
+ */
+async function cleanupTempFiles() {
+  console.log("\n\ud83e\uddf9 Cleaning up temporary files...");
+
+  try {
+    const placesDir = path.join(CONFIG.NEW_IMAGE_DIR, "places");
+    const citiesDir = path.join(CONFIG.NEW_IMAGE_DIR, "cities");
+
+    let deletedCount = 0;
+
+    // Clean places temp files
+    try {
+      const placeFolders = await fs.readdir(placesDir);
+      for (const folder of placeFolders) {
+        const folderPath = path.join(placesDir, folder);
+        const stats = await fs.stat(folderPath);
+        if (stats.isDirectory()) {
+          const files = await fs.readdir(folderPath);
+          for (const file of files) {
+            if (file.includes("_temp.jpg")) {
+              await fs.unlink(path.join(folderPath, file));
+              deletedCount++;
+            }
+          }
+        }
+      }
+    } catch (err) {
+      // Directory might not exist
+    }
+
+    // Clean cities temp files
+    try {
+      const cityFolders = await fs.readdir(citiesDir);
+      for (const folder of cityFolders) {
+        const folderPath = path.join(citiesDir, folder);
+        const stats = await fs.stat(folderPath);
+        if (stats.isDirectory()) {
+          const files = await fs.readdir(folderPath);
+          for (const file of files) {
+            if (file.includes("_temp.jpg")) {
+              await fs.unlink(path.join(folderPath, file));
+              deletedCount++;
+            }
+          }
+        }
+      }
+    } catch (err) {
+      // Directory might not exist
+    }
+
+    console.log(`  \u2713 Deleted ${deletedCount} temporary files`);
+  } catch (error) {
+    console.error("  \u2717 Error cleaning temp files:", error.message);
   }
 }
 
@@ -941,6 +1430,9 @@ async function main() {
 
     // Save logs
     await saveLogs();
+
+    // Clean up all temp files
+    await cleanupTempFiles();
 
     console.log("\n✅ MIGRATION COMPLETED SUCCESSFULLY!\n");
 

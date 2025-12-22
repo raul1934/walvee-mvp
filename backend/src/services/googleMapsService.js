@@ -10,7 +10,7 @@ const PLACES_API_BASE_URL = "https://maps.googleapis.com/maps/api/place";
  * @param {number} limit - Maximum number of results (default: 5)
  * @returns {Promise<Array>} Array of city predictions
  */
-const searchCitiesFromGoogle = async (query, limit = 5) => {
+const searchCitiesFromGoogle = async (query) => {
   if (!GOOGLE_MAPS_API_KEY) {
     throw new Error("Google Maps API key is not configured");
   }
@@ -27,32 +27,46 @@ const searchCitiesFromGoogle = async (query, limit = 5) => {
       }
     );
 
-    if (response.data.status !== "OK" && response.data.status !== "ZERO_RESULTS") {
+    if (
+      response.data.status !== "OK" &&
+      response.data.status !== "ZERO_RESULTS"
+    ) {
       const errorMessage = response.data.error_message || response.data.status;
       console.error(`[Google Maps Service] API Error: ${response.data.status}`);
       console.error(`[Google Maps Service] Error details: ${errorMessage}`);
 
       if (response.data.status === "REQUEST_DENIED") {
-        console.error('[Google Maps Service] SOLUTION: Enable the following APIs in Google Cloud Console:');
-        console.error('[Google Maps Service] 1. Places API (New)');
-        console.error('[Google Maps Service] 2. Geocoding API');
-        console.error('[Google Maps Service] 3. Time Zone API');
-        console.error('[Google Maps Service] Visit: https://console.cloud.google.com/google/maps-apis');
+        console.error(
+          "[Google Maps Service] SOLUTION: Enable the following APIs in Google Cloud Console:"
+        );
+        console.error("[Google Maps Service] 1. Places API (New)");
+        console.error("[Google Maps Service] 2. Geocoding API");
+        console.error("[Google Maps Service] 3. Time Zone API");
+        console.error(
+          "[Google Maps Service] Visit: https://console.cloud.google.com/google/maps-apis"
+        );
       }
 
-      throw new Error(`Google Places API error: ${response.data.status} - ${errorMessage}`);
+      throw new Error(
+        `Google Places API error: ${response.data.status} - ${errorMessage}`
+      );
     }
 
     const predictions = response.data.predictions || [];
 
+    console.log(JSON.stringify(predictions, null, 2));
+
     // Return limited results
-    return predictions.slice(0, limit).map((prediction) => ({
+    return predictions.map((prediction) => ({
       google_maps_id: prediction.place_id,
       description: prediction.description,
       structured_formatting: prediction.structured_formatting,
     }));
   } catch (error) {
-    console.error("[Google Maps Service] Error searching cities:", error.message);
+    console.error(
+      "[Google Maps Service] Error searching cities:",
+      error.message
+    );
     throw error;
   }
 };
@@ -141,7 +155,10 @@ const getPlaceDetails = async (placeId) => {
       types: place.types || [],
     };
   } catch (error) {
-    console.error("[Google Maps Service] Error getting place details:", error.message);
+    console.error(
+      "[Google Maps Service] Error getting place details:",
+      error.message
+    );
     throw error;
   }
 };
@@ -173,7 +190,10 @@ const geocodeAddress = async (address) => {
 
     return response.data.results[0];
   } catch (error) {
-    console.error("[Google Maps Service] Error geocoding address:", error.message);
+    console.error(
+      "[Google Maps Service] Error geocoding address:",
+      error.message
+    );
     throw error;
   }
 };
@@ -212,7 +232,10 @@ const getTimezone = async (latitude, longitude) => {
       offset: response.data.rawOffset + response.data.dstOffset,
     };
   } catch (error) {
-    console.error("[Google Maps Service] Error getting timezone:", error.message);
+    console.error(
+      "[Google Maps Service] Error getting timezone:",
+      error.message
+    );
     throw error;
   }
 };
@@ -234,20 +257,27 @@ const searchPlace = async (query, destination = null) => {
       key: GOOGLE_MAPS_API_KEY,
     };
 
-    const response = await axios.get(
-      `${PLACES_API_BASE_URL}/textsearch/json`,
-      { params }
-    );
+    const response = await axios.get(`${PLACES_API_BASE_URL}/textsearch/json`, {
+      params,
+    });
 
-    if (response.data.status !== "OK" && response.data.status !== "ZERO_RESULTS") {
-      console.error(`[Google Maps Service] Place search error: ${response.data.status}`);
+    if (
+      response.data.status !== "OK" &&
+      response.data.status !== "ZERO_RESULTS"
+    ) {
+      console.error(
+        `[Google Maps Service] Place search error: ${response.data.status}`
+      );
       throw new Error(`Google Places API error: ${response.data.status}`);
     }
 
     const results = response.data.results || [];
     return results.length > 0 ? results[0] : null;
   } catch (error) {
-    console.error("[Google Maps Service] Error searching place:", error.message);
+    console.error(
+      "[Google Maps Service] Error searching place:",
+      error.message
+    );
     throw error;
   }
 };
@@ -302,16 +332,12 @@ const getPlaceDetailsWithPhotos = async (placeId) => {
       }
     }
 
-    // Build photo objects with URLs for different sizes
+    // Build photo objects with just the reference and metadata
     const photos = (place.photos || []).map((photo) => ({
       photo_reference: photo.photo_reference,
       width: photo.width,
       height: photo.height,
       html_attributions: photo.html_attributions,
-      // Generate URLs for different sizes
-      url_small: `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photo_reference=${photo.photo_reference}&key=${GOOGLE_MAPS_API_KEY}`,
-      url_medium: `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photo_reference=${photo.photo_reference}&key=${GOOGLE_MAPS_API_KEY}`,
-      url_large: `https://maps.googleapis.com/maps/api/place/photo?maxwidth=1600&photo_reference=${photo.photo_reference}&key=${GOOGLE_MAPS_API_KEY}`,
     }));
 
     return {
@@ -331,7 +357,10 @@ const getPlaceDetailsWithPhotos = async (placeId) => {
       photos,
     };
   } catch (error) {
-    console.error("[Google Maps Service] Error getting place details with photos:", error.message);
+    console.error(
+      "[Google Maps Service] Error getting place details with photos:",
+      error.message
+    );
     throw error;
   }
 };
@@ -407,16 +436,12 @@ const getCityDetailsWithPhotos = async (placeId) => {
       }
     }
 
-    // Build photo objects with URLs for different sizes
+    // Build photo objects with just the reference and metadata
     const photos = (place.photos || []).map((photo) => ({
       photo_reference: photo.photo_reference,
       width: photo.width,
       height: photo.height,
       html_attributions: photo.html_attributions,
-      // Generate URLs for different sizes
-      url_small: `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photo_reference=${photo.photo_reference}&key=${GOOGLE_MAPS_API_KEY}`,
-      url_medium: `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photo_reference=${photo.photo_reference}&key=${GOOGLE_MAPS_API_KEY}`,
-      url_large: `https://maps.googleapis.com/maps/api/place/photo?maxwidth=1600&photo_reference=${photo.photo_reference}&key=${GOOGLE_MAPS_API_KEY}`,
     }));
 
     return {
@@ -433,7 +458,10 @@ const getCityDetailsWithPhotos = async (placeId) => {
       photos,
     };
   } catch (error) {
-    console.error("[Google Maps Service] Error getting city details with photos:", error.message);
+    console.error(
+      "[Google Maps Service] Error getting city details with photos:",
+      error.message
+    );
     throw error;
   }
 };

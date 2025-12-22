@@ -21,6 +21,89 @@ const {
   searchPlace,
   getTimezone,
 } = require("../services/googleMapsService");
+const axios = require("axios");
+const fs = require("fs").promises;
+const path = require("path");
+const sharp = require("sharp");
+
+const IMAGE_DIR =
+  process.env.IMAGE_DIR || path.join(__dirname, "..", "..", "images");
+
+/**
+ * Download image from URL and save locally
+ */
+async function downloadImage(url, outputPath, retries = 3) {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      if (!url || url.trim() === "" || url === "null") {
+        return { success: false, reason: "Invalid URL" };
+      }
+
+      const response = await axios({
+        method: "GET",
+        url: url,
+        responseType: "arraybuffer",
+        timeout: 30000,
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        },
+      });
+
+      await fs.mkdir(path.dirname(outputPath), { recursive: true });
+      await fs.writeFile(outputPath, response.data);
+      await fs.chmod(outputPath, 0o644);
+
+      return { success: true, size: response.data.length };
+    } catch (error) {
+      if (attempt < retries) {
+        const delay = Math.pow(2, attempt) * 1000;
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      } else {
+        return { success: false, reason: error.message, url: url };
+      }
+    }
+  }
+}
+
+/**
+ * Get file extension from URL
+ */
+function getFileExtension(url) {
+  const urlExt = path.extname(url).split("?")[0].toLowerCase();
+  if (urlExt && [".jpg", ".jpeg", ".png", ".gif", ".webp"].includes(urlExt)) {
+    return urlExt;
+  }
+  return ".jpg";
+}
+
+/**
+ * Resize image to multiple sizes
+ */
+async function resizeImage(inputPath, baseOutputPath, sizes) {
+  const results = {};
+
+  try {
+    for (const size of sizes) {
+      const outputPath = `${baseOutputPath}_${size.name}.jpg`;
+
+      await sharp(inputPath)
+        .resize(size.maxWidth, null, {
+          fit: "inside",
+          withoutEnlargement: true,
+        })
+        .jpeg({ quality: 85 })
+        .toFile(outputPath);
+
+      await fs.chmod(outputPath, 0o644);
+      results[size.name] = outputPath;
+    }
+
+    return { success: true, paths: results };
+  } catch (error) {
+    return { success: false, reason: error.message };
+  }
+}
 
 /**
  * Global search overlay endpoint
@@ -108,7 +191,7 @@ const searchOverlay = async (req, res, next) => {
       };
 
       let cities = await City.findAll(citiesQuery);
-      const totalCitiesCount = await City.count({
+      let totalCitiesCount = await City.count({
         where: { name: { [Op.like]: `%${searchTerm}%` } },
       });
 
@@ -173,31 +256,83 @@ const searchOverlay = async (req, res, next) => {
                 timezone: timezone,
               });
 
-              // Save city photos (limit to 10)
+              // Download and save city photos (limit to 10)
               if (cityDetails.photos && cityDetails.photos.length > 0) {
-                const photosToSave = cityDetails.photos
+                const cityDir = path.join(
+                  IMAGE_DIR,
+                  "cities",
+                  newCity.id.toString()
+                );
+                const photoPromises = cityDetails.photos
                   .slice(0, 10)
-                  .map((photo, index) => ({
-                    city_id: newCity.id,
-                    google_photo_reference: photo.photo_reference,
-                    url_small: photo.url_small,
-                    url_medium: photo.url_medium,
-                    url_large: photo.url_large,
-                    width: photo.width,
-                    height: photo.height,
-                    attribution: photo.html_attributions?.join("; "),
-                    photo_order: index,
-                  }));
+                  .map(async (photo, index) => {
+                    // Construct Google Maps photo URL (large size)
+                    const photoUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=1600&photo_reference=${photo.photo_reference}&key=${process.env.GOOGLE_MAPS_API_KEY}`;
 
-                await CityPhoto.bulkCreate(photosToSave, {
-                  ignoreDuplicates: true,
-                });
+                    // Download large image once
+                    const tempPath = path.join(cityDir, `${index}_temp.jpg`);
+                    const largeResult = await downloadImage(photoUrl, tempPath);
+
+                    if (!largeResult.success) {
+                      return null;
+                    }
+
+                    // Resize to create all sizes
+                    const sizes = [
+                      { name: "small", maxWidth: 400 },
+                      { name: "medium", maxWidth: 800 },
+                      { name: "large", maxWidth: 1600 },
+                    ];
+
+                    const basePath = path.join(cityDir, `${index}`);
+                    const resizeResult = await resizeImage(
+                      tempPath,
+                      basePath,
+                      sizes
+                    );
+
+                    // Clean up temp file
+                    try {
+                      await fs.unlink(tempPath);
+                    } catch (err) {
+                      // Ignore cleanup errors
+                    }
+
+                    if (!resizeResult.success) {
+                      return null;
+                    }
+
+                    return {
+                      city_id: newCity.id,
+                      google_photo_reference: photo.photo_reference,
+                      url_small: `/images/cities/${newCity.id}/${index}_small.jpg`,
+                      url_medium: `/images/cities/${newCity.id}/${index}_medium.jpg`,
+                      url_large: `/images/cities/${newCity.id}/${index}_large.jpg`,
+                      width: photo.width,
+                      height: photo.height,
+                      attribution: photo.html_attributions?.join("; "),
+                      photo_order: index,
+                    };
+                  });
+
+                const photosToSave = await Promise.all(photoPromises);
+                const validPhotos = photosToSave.filter((p) => p !== null);
+
+                if (validPhotos.length > 0) {
+                  await CityPhoto.bulkCreate(validPhotos, {
+                    ignoreDuplicates: true,
+                  });
+                }
               }
             }
           }
 
           // Re-query cities after saving
           cities = await City.findAll(citiesQuery);
+          // Update count after adding new cities from Google Maps
+          totalCitiesCount = await City.count({
+            where: { name: { [Op.like]: `%${searchTerm}%` } },
+          });
         } catch (error) {
           console.error(
             "[Search Overlay] Error auto-populating cities:",
@@ -289,6 +424,7 @@ const searchOverlay = async (req, res, next) => {
 
     const placeWhere = {
       name: { [Op.like]: `%${searchTerm}%` },
+      visible: true,
     };
 
     // Apply city context filter
@@ -324,7 +460,7 @@ const searchOverlay = async (req, res, next) => {
       order: [["rating", "DESC"]],
     });
 
-    const totalPlacesCount = await Place.count({ where: placeWhere });
+    let totalPlacesCount = await Place.count({ where: placeWhere });
 
     // Auto-populate places from Google Maps if less than limit
     if (places.length < resultLimit) {
@@ -354,6 +490,11 @@ const searchOverlay = async (req, res, next) => {
               });
             }
 
+            // Check if this place is actually a city (locality + political)
+            const isCity =
+              placeDetails.types?.includes("locality") &&
+              placeDetails.types?.includes("political");
+
             // Create place
             const newPlace = await Place.create({
               google_place_id: placeDetails.place_id,
@@ -369,27 +510,76 @@ const searchOverlay = async (req, res, next) => {
               phone_number: placeDetails.phone_number,
               website: placeDetails.website,
               opening_hours: placeDetails.opening_hours,
+              visible: !isCity, // Hide if it's a city
             });
 
-            // Save place photos (limit to 10)
+            // Download and save place photos (limit to 10)
             if (placeDetails.photos && placeDetails.photos.length > 0) {
-              const photosToSave = placeDetails.photos
+              const placeDir = path.join(
+                IMAGE_DIR,
+                "places",
+                newPlace.id.toString()
+              );
+              const photoPromises = placeDetails.photos
                 .slice(0, 10)
-                .map((photo, index) => ({
-                  place_id: newPlace.id,
-                  google_photo_reference: photo.photo_reference,
-                  url_small: photo.url_small,
-                  url_medium: photo.url_medium,
-                  url_large: photo.url_large,
-                  width: photo.width,
-                  height: photo.height,
-                  attribution: photo.html_attributions?.join("; "),
-                  photo_order: index,
-                }));
+                .map(async (photo, index) => {
+                  // Construct Google Maps photo URL (large size)
+                  const photoUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=1600&photo_reference=${photo.photo_reference}&key=${process.env.GOOGLE_MAPS_API_KEY}`;
 
-              await PlacePhoto.bulkCreate(photosToSave, {
-                ignoreDuplicates: true,
-              });
+                  // Download large image once
+                  const tempPath = path.join(placeDir, `${index}_temp.jpg`);
+                  const largeResult = await downloadImage(photoUrl, tempPath);
+
+                  if (!largeResult.success) {
+                    return null;
+                  }
+
+                  // Resize to create all sizes
+                  const sizes = [
+                    { name: "small", maxWidth: 400 },
+                    { name: "medium", maxWidth: 800 },
+                    { name: "large", maxWidth: 1600 },
+                  ];
+
+                  const basePath = path.join(placeDir, `${index}`);
+                  const resizeResult = await resizeImage(
+                    tempPath,
+                    basePath,
+                    sizes
+                  );
+
+                  // Clean up temp file
+                  try {
+                    await fs.unlink(tempPath);
+                  } catch (err) {
+                    // Ignore cleanup errors
+                  }
+
+                  if (!resizeResult.success) {
+                    return null;
+                  }
+
+                  return {
+                    place_id: newPlace.id,
+                    google_photo_reference: photo.photo_reference,
+                    url_small: `/images/places/${newPlace.id}/${index}_small.jpg`,
+                    url_medium: `/images/places/${newPlace.id}/${index}_medium.jpg`,
+                    url_large: `/images/places/${newPlace.id}/${index}_large.jpg`,
+                    width: photo.width,
+                    height: photo.height,
+                    attribution: photo.html_attributions?.join("; "),
+                    photo_order: index,
+                  };
+                });
+
+              const photosToSave = await Promise.all(photoPromises);
+              const validPhotos = photosToSave.filter((p) => p !== null);
+
+              if (validPhotos.length > 0) {
+                await PlacePhoto.bulkCreate(validPhotos, {
+                  ignoreDuplicates: true,
+                });
+              }
             }
           }
         }
@@ -415,6 +605,8 @@ const searchOverlay = async (req, res, next) => {
           limit: resultLimit,
           order: [["rating", "DESC"]],
         });
+        // Update count after adding new places from Google Maps
+        totalPlacesCount = await Place.count({ where: placeWhere });
       } catch (error) {
         console.error(
           "[Search Overlay] Error auto-populating places:",

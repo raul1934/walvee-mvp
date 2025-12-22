@@ -58,6 +58,13 @@ const Place = sequelize.define(
       type: DataTypes.JSON,
       comment: "Opening hours information from Google Maps",
     },
+    visible: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: true,
+      allowNull: false,
+      comment:
+        "Whether place should be visible in searches (false for cities saved as places)",
+    },
   },
   {
     tableName: "places",

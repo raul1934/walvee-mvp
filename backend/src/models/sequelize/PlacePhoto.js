@@ -57,6 +57,8 @@ const PlacePhoto = sequelize.define(
     indexes: [
       { fields: ["place_id"] },
       { fields: ["place_id", "google_photo_reference"], unique: true },
+      // Ensure each (place_id, photo_order) is unique to avoid duplicate orders
+      { fields: ["place_id", "photo_order"], unique: true },
     ],
   }
 );
