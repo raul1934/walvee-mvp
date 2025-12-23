@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import { apiClient, endpoints } from "@/api/apiClient";
-import { invokeInspire } from "@/api/inspireService";
+import { invokeInspire, modifyTrip, applyChanges } from "@/api/inspireService";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ChevronRight,
@@ -23,6 +23,8 @@ import OrganizeTripModal from "../components/inspire/OrganizeTripModal";
 import SidebarPlaceModal from "../components/inspire/SidebarPlaceModal";
 import UserAvatar from "../components/common/UserAvatar";
 import PlaceDetails from "../components/trip/PlaceDetails";
+import ProposedChanges from "../components/inspire/ProposedChanges";
+import ClarificationQuestions from "../components/inspire/ClarificationQuestions";
 
 const EXAMPLE_PROMPTS = [
   "Scuba trip through Southeast Asia on a budget.",
@@ -313,6 +315,12 @@ export default function InspirePrompt({ user }) {
   // Loading phrases
   const [loadingPhrase, setLoadingPhrase] = useState(0);
 
+  // Trip modification state (NEW)
+  const [tripId, setTripId] = useState(null); // Can be set from URL params or manually
+  const [proposedChanges, setProposedChanges] = useState(null);
+  const [clarificationQuestions, setClarificationQuestions] = useState(null);
+  const [isApplyingChanges, setIsApplyingChanges] = useState(false);
+
   // Example prompts rotation
   const [currentExampleIndex, setCurrentExampleIndex] = useState(0);
 
@@ -359,6 +367,15 @@ export default function InspirePrompt({ user }) {
     }
     setInitialCityPrefillDone(true);
   }, [searchParams, initialCityPrefillDone]);
+
+  // Parse tripId from URL for trip modification mode
+  useEffect(() => {
+    const tripIdParam = searchParams.get("tripId");
+    if (tripIdParam) {
+      setTripId(tripIdParam);
+      console.log("[InspirePrompt] Trip modification mode enabled:", tripIdParam);
+    }
+  }, [searchParams]);
 
   // Welcome content - Apple Intelligence style
   const welcomeContent = {
@@ -931,6 +948,135 @@ export default function InspirePrompt({ user }) {
       ? messages.filter((m) => !m.cityContext)
       : messages.filter((m) => m.cityContext === activeCity);
 
+  // ==================== TRIP MODIFICATION HANDLERS ====================
+
+  /**
+   * Handle trip modification request
+   * Sends query to AI for analysis and gets proposed changes or clarification questions
+   */
+  const handleModifyTrip = async (query) => {
+    setIsLoadingResponse(true);
+    try {
+      const conversationHistory = messages.map((m) => ({
+        role: m.role,
+        content: m.content,
+      }));
+
+      const response = await modifyTrip(tripId, query, conversationHistory);
+
+      if (response.response_type === "changes") {
+        // AI proposed changes
+        setProposedChanges(response.changes);
+
+        const aiMessage = {
+          role: "assistant",
+          content: response.message,
+          hasChanges: true,
+          changeCount: response.changes.length,
+          timestamp: Date.now(),
+        };
+        setMessages((prev) => [...prev, aiMessage]);
+      } else if (response.response_type === "clarification") {
+        // AI needs clarification
+        setClarificationQuestions(response.questions);
+
+        const aiMessage = {
+          role: "assistant",
+          content: response.message,
+          hasClarificationQuestions: true,
+          timestamp: Date.now(),
+        };
+        setMessages((prev) => [...prev, aiMessage]);
+      }
+    } catch (error) {
+      console.error("[TripModification] Error:", error);
+      const errorMessage = {
+        role: "assistant",
+        content:
+          "Sorry, I had trouble understanding that request. Could you try rephrasing it?",
+        timestamp: Date.now(),
+      };
+      setMessages((prev) => [...prev, errorMessage]);
+    } finally {
+      setIsLoadingResponse(false);
+      inputRef.current?.focus();
+    }
+  };
+
+  /**
+   * Handle approval of proposed changes
+   * Applies selected changes to the trip
+   */
+  const handleApproveChanges = async (selectedChanges) => {
+    setIsApplyingChanges(true);
+    try {
+      const response = await applyChanges(tripId, selectedChanges);
+
+      // Show success message
+      const successMessage = {
+        role: "assistant",
+        content: `✅ Successfully applied ${response.applied_changes.length} changes to your trip!${
+          response.failed_changes.length > 0
+            ? ` (${response.failed_changes.length} changes failed)`
+            : ""
+        }`,
+        timestamp: Date.now(),
+      };
+      setMessages((prev) => [...prev, successMessage]);
+
+      // Clear proposed changes
+      setProposedChanges(null);
+
+      // TODO: Update trip state with response.trip
+      // You may want to refresh the trip data or update local state here
+      console.log("[TripModification] Updated trip:", response.trip);
+    } catch (error) {
+      console.error("[TripModification] Apply error:", error);
+      const errorMessage = {
+        role: "assistant",
+        content:
+          "Sorry, something went wrong while applying the changes. Please try again.",
+        timestamp: Date.now(),
+      };
+      setMessages((prev) => [...prev, errorMessage]);
+    } finally {
+      setIsApplyingChanges(false);
+    }
+  };
+
+  /**
+   * Handle rejection of proposed changes
+   */
+  const handleRejectChanges = () => {
+    setProposedChanges(null);
+    const rejectionMessage = {
+      role: "assistant",
+      content: "No problem! Let me know if you'd like to make any other changes.",
+      timestamp: Date.now(),
+    };
+    setMessages((prev) => [...prev, rejectionMessage]);
+  };
+
+  /**
+   * Handle submission of clarification answers
+   * Converts answers to natural language and re-submits to AI
+   */
+  const handleSubmitClarificationAnswers = (answersText) => {
+    setClarificationQuestions(null);
+    setInputValue(answersText);
+
+    // Automatically submit with the answers
+    setTimeout(() => {
+      if (tripId) {
+        handleModifyTrip(answersText);
+      } else {
+        handleSubmit();
+      }
+    }, 100);
+  };
+
+  // ==================== END TRIP MODIFICATION HANDLERS ====================
+
   // Handle input submission
   const handleSubmit = async (e) => {
     e?.preventDefault();
@@ -947,6 +1093,15 @@ export default function InspirePrompt({ user }) {
 
     const currentInput = inputValue;
     setInputValue("");
+
+    // ===== TRIP MODIFICATION MODE =====
+    // If tripId is set, use trip modification flow instead of normal inspire
+    if (tripId) {
+      await handleModifyTrip(currentInput);
+      return;
+    }
+    // ===== END TRIP MODIFICATION MODE =====
+
     setIsLoadingResponse(true);
 
     try {
@@ -2243,6 +2398,24 @@ Provide 9-15 recommendations. Respond in ${
                         </AnimatePresence>
                       </div>
                     </div>
+                  )}
+
+                  {/* Trip Modification: Proposed Changes */}
+                  {proposedChanges && (
+                    <ProposedChanges
+                      changes={proposedChanges}
+                      onApprove={handleApproveChanges}
+                      onReject={handleRejectChanges}
+                      isApplying={isApplyingChanges}
+                    />
+                  )}
+
+                  {/* Trip Modification: Clarification Questions */}
+                  {clarificationQuestions && (
+                    <ClarificationQuestions
+                      questions={clarificationQuestions}
+                      onSubmitAnswers={handleSubmitClarificationAnswers}
+                    />
                   )}
 
                   <div ref={messagesEndRef} />

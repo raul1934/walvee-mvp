@@ -301,6 +301,8 @@ export const endpoints = {
   // Inspire prompts (LLM wrapper for Inspire flows)
   inspire: {
     call: "/inspire/call",
+    modifyTrip: "/inspire/modify-trip",
+    applyChanges: "/inspire/apply-changes",
   },
 
   // Cities

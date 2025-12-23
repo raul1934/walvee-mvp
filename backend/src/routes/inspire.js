@@ -10,4 +10,18 @@ const inspireController = require("../controllers/inspirePromptController");
  */
 router.post("/call", authenticate, inspireController.call);
 
+/**
+ * @route POST /inspire/modify-trip
+ * @desc Analyze user query and propose trip modifications
+ * @access Private
+ */
+router.post("/modify-trip", authenticate, inspireController.modifyTrip);
+
+/**
+ * @route POST /inspire/apply-changes
+ * @desc Apply approved changes to a trip
+ * @access Private
+ */
+router.post("/apply-changes", authenticate, inspireController.applyChanges);
+
 module.exports = router;
