@@ -18,6 +18,12 @@ import {
   MapPin,
   Trash2,
   Image as ImageIcon,
+  Info,
+  FileText,
+  Map as MapIcon,
+  Tag,
+  MessageSquare,
+  Repeat,
 } from "lucide-react";
 import { createPageUrl } from "@/utils";
 import {
@@ -1307,7 +1313,9 @@ export default function TripEditor() {
         .trip-editor-layout {
           display: grid;
           grid-template-columns: minmax(360px, 420px) 1fr;
-          height: calc(100vh - 8rem);
+          height: calc(100vh - 4rem);
+          min-height: calc(100vh - 4rem);
+          max-height: calc(100vh - 4rem);
         }
         .scrollbar-hide::-webkit-scrollbar {
           display: none;
@@ -1320,8 +1328,8 @@ export default function TripEditor() {
 
       {/* Header Section - Full Width */}
       <div className="bg-[#0A0B0F] border-b border-[#1F1F1F]">
-        <div className="container mx-auto px-4 py-3">
-          <div className="flex items-center justify-between mb-3">
+        <div className="container mx-auto px-4">
+          <div className="flex items-center justify-between mb-2 mt-2">
             <div className="flex items-center gap-4">
               <Link
                 to={tripId ? `/TripDetails/${tripId}` : createPageUrl("Home")}
@@ -1333,6 +1341,105 @@ export default function TripEditor() {
               <h1 className="text-xl font-bold">
                 {mode === "create" ? "Create Trip" : "Edit Trip"}
               </h1>
+
+              {/* Tabs for medium+ screens: placed between title and save button, left-aligned */}
+              <div className="hidden md:flex items-center gap-2 overflow-x-auto">
+                <button
+                  onClick={() => setActiveTab("basic")}
+                  className={`flex flex-col items-center gap-1 px-3 py-2 rounded-md transition-all ${
+                    activeTab === "basic"
+                      ? "bg-blue-600 text-white"
+                      : "text-gray-400 hover:text-gray-300"
+                  }`}
+                >
+                  <Info
+                    className={`w-5 h-5 ${
+                      activeTab === "basic" ? "text-white" : "text-gray-400"
+                    }`}
+                  />
+                  <span className="text-xs font-medium mt-1">Basic</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab("details")}
+                  className={`flex flex-col items-center gap-1 px-3 py-2 rounded-md transition-all ${
+                    activeTab === "details"
+                      ? "bg-blue-600 text-white"
+                      : "text-gray-400 hover:text-gray-300"
+                  }`}
+                >
+                  <FileText
+                    className={`w-5 h-5 ${
+                      activeTab === "details" ? "text-white" : "text-gray-400"
+                    }`}
+                  />
+                  <span className="text-xs font-medium mt-1">Details</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab("tags")}
+                  className={`flex flex-col items-center gap-1 px-3 py-2 rounded-md transition-all ${
+                    activeTab === "tags"
+                      ? "bg-blue-600 text-white"
+                      : "text-gray-400 hover:text-gray-300"
+                  }`}
+                >
+                  <Tag
+                    className={`w-5 h-5 ${
+                      activeTab === "tags" ? "text-white" : "text-gray-400"
+                    }`}
+                  />
+                  <span className="text-xs font-medium mt-1">Tags</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab("location")}
+                  className={`flex flex-col items-center gap-1 px-3 py-2 rounded-md transition-all ${
+                    activeTab === "location"
+                      ? "bg-blue-600 text-white"
+                      : "text-gray-400 hover:text-gray-300"
+                  }`}
+                >
+                  <MapIcon
+                    className={`w-5 h-5 ${
+                      activeTab === "location" ? "text-white" : "text-gray-400"
+                    }`}
+                  />
+                  <span className="text-xs font-medium mt-1">Location</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab("itinerary")}
+                  className={`flex flex-col items-center gap-1 px-3 py-2 rounded-md transition-all ${
+                    activeTab === "itinerary"
+                      ? "bg-blue-600 text-white"
+                      : "text-gray-400 hover:text-gray-300"
+                  }`}
+                >
+                  <MapPin
+                    className={`w-5 h-5 ${
+                      activeTab === "itinerary" ? "text-white" : "text-gray-400"
+                    }`}
+                  />
+                  <span className="text-xs font-medium mt-1">Itinerary</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab("images")}
+                  className={`flex flex-col items-center gap-1 px-3 py-2 rounded-md transition-all ${
+                    activeTab === "images"
+                      ? "bg-blue-600 text-white"
+                      : "text-gray-400 hover:text-gray-300"
+                  }`}
+                >
+                  <ImageIcon
+                    className={`w-5 h-5 ${
+                      activeTab === "images" ? "text-white" : "text-gray-400"
+                    }`}
+                  />
+                  <span className="text-xs font-medium mt-1">Photos</span>
+                </button>
+              </div>
             </div>
 
             <Button
@@ -1355,69 +1462,104 @@ export default function TripEditor() {
           </div>
         </div>
 
-        {/* Tab Navigation - Full Width */}
-        <div className="border-t border-[#1F1F1F]">
+        {/* Tab Navigation - Full Width (small screens only) */}
+        <div className="border-t border-[#1F1F1F] md:hidden">
           <div className="container mx-auto px-4">
             <div className="flex overflow-x-auto scrollbar-hide">
               <button
                 onClick={() => setActiveTab("basic")}
-                className={`px-6 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
+                className={`flex flex-col items-center gap-1 px-4 py-3 min-w-[72px] rounded-md transition-all ${
                   activeTab === "basic"
-                    ? "border-blue-500 text-blue-400"
-                    : "border-transparent text-gray-400 hover:text-gray-300"
+                    ? "bg-blue-600 text-white"
+                    : "text-gray-400 hover:text-gray-300"
                 }`}
               >
-                Basic Info
+                <Info
+                  className={`w-5 h-5 ${
+                    activeTab === "basic" ? "text-white" : "text-gray-400"
+                  }`}
+                />
+                <span className="text-xs font-medium mt-1">Basic</span>
               </button>
+
               <button
                 onClick={() => setActiveTab("details")}
-                className={`px-6 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
+                className={`flex flex-col items-center gap-1 px-4 py-3 min-w-[72px] rounded-md transition-all ${
                   activeTab === "details"
-                    ? "border-blue-500 text-blue-400"
-                    : "border-transparent text-gray-400 hover:text-gray-300"
+                    ? "bg-blue-600 text-white"
+                    : "text-gray-400 hover:text-gray-300"
                 }`}
               >
-                Details
+                <FileText
+                  className={`w-5 h-5 ${
+                    activeTab === "details" ? "text-white" : "text-gray-400"
+                  }`}
+                />
+                <span className="text-xs font-medium mt-1">Details</span>
               </button>
+
               <button
                 onClick={() => setActiveTab("tags")}
-                className={`px-6 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
+                className={`flex flex-col items-center gap-1 px-4 py-3 min-w-[72px] rounded-md transition-all ${
                   activeTab === "tags"
-                    ? "border-blue-500 text-blue-400"
-                    : "border-transparent text-gray-400 hover:text-gray-300"
+                    ? "bg-blue-600 text-white"
+                    : "text-gray-400 hover:text-gray-300"
                 }`}
               >
-                Tags
+                <Tag
+                  className={`w-5 h-5 ${
+                    activeTab === "tags" ? "text-white" : "text-gray-400"
+                  }`}
+                />
+                <span className="text-xs font-medium mt-1">Tags</span>
               </button>
+
               <button
                 onClick={() => setActiveTab("location")}
-                className={`px-6 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
+                className={`flex flex-col items-center gap-1 px-4 py-3 min-w-[72px] rounded-md transition-all ${
                   activeTab === "location"
-                    ? "border-blue-500 text-blue-400"
-                    : "border-transparent text-gray-400 hover:text-gray-300"
+                    ? "bg-blue-600 text-white"
+                    : "text-gray-400 hover:text-gray-300"
                 }`}
               >
-                Location
+                <MapIcon
+                  className={`w-5 h-5 ${
+                    activeTab === "location" ? "text-white" : "text-gray-400"
+                  }`}
+                />
+                <span className="text-xs font-medium mt-1">Location</span>
               </button>
+
               <button
                 onClick={() => setActiveTab("itinerary")}
-                className={`px-6 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
+                className={`flex flex-col items-center gap-1 px-4 py-3 min-w-[72px] rounded-md transition-all ${
                   activeTab === "itinerary"
-                    ? "border-blue-500 text-blue-400"
-                    : "border-transparent text-gray-400 hover:text-gray-300"
+                    ? "bg-blue-600 text-white"
+                    : "text-gray-400 hover:text-gray-300"
                 }`}
               >
-                Itinerary
+                <MapPin
+                  className={`w-5 h-5 ${
+                    activeTab === "itinerary" ? "text-white" : "text-gray-400"
+                  }`}
+                />
+                <span className="text-xs font-medium mt-1">Itinerary</span>
               </button>
+
               <button
                 onClick={() => setActiveTab("images")}
-                className={`px-6 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
+                className={`flex flex-col items-center gap-1 px-4 py-3 min-w-[72px] rounded-md transition-all ${
                   activeTab === "images"
-                    ? "border-blue-500 text-blue-400"
-                    : "border-transparent text-gray-400 hover:text-gray-300"
+                    ? "bg-blue-600 text-white"
+                    : "text-gray-400 hover:text-gray-300"
                 }`}
               >
-                Images
+                <ImageIcon
+                  className={`w-5 h-5 ${
+                    activeTab === "images" ? "text-white" : "text-gray-400"
+                  }`}
+                />
+                <span className="text-xs font-medium mt-1">Photos</span>
               </button>
             </div>
           </div>
@@ -1426,9 +1568,9 @@ export default function TripEditor() {
 
       <div className="trip-editor-layout">
         {/* Left Column - Form */}
-        <aside className="bg-[#0A0B0F] border-r border-[#1F1F1F] flex flex-col overflow-hidden">
+        <aside className="bg-[#0A0B0F] border-r border-[#1F1F1F] flex flex-col overflow-hidden min-h-0">
           {/* Scrollable Form Content */}
-          <div className="flex-1 overflow-y-auto scrollbar-hide p-4 space-y-4">
+          <div className="flex-1 overflow-y-auto scrollbar-hide space-y-4">
             {/* Basic Info Tab */}
             {activeTab === "basic" && (
               <>
@@ -1573,7 +1715,8 @@ export default function TripEditor() {
                     Trip Details
                   </h2>
 
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="max-h-[calc(100vh-12rem)] overflow-y-auto pr-2">
+                    <div className="space-y-4">
                     <div>
                       <Label
                         htmlFor="duration"
@@ -1750,6 +1893,7 @@ export default function TripEditor() {
                         <option value="private">Private</option>
                       </select>
                     </div>
+                  </div>
                   </div>
                 </div>
 
@@ -2136,8 +2280,8 @@ export default function TripEditor() {
         </aside>
 
         {/* Right Column - Map */}
-        <main className="relative bg-[#0A0B0F]">
-          <div className="h-full">
+        <main className="relative bg-[#0A0B0F] min-h-0">
+          <div className="h-full min-h-0">
             <TripMap
               markers={mapMarkers}
               center={mapCenter}
