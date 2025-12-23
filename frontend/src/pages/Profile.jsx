@@ -122,17 +122,17 @@ export default function Profile() {
 
           // Find trips by this user
           const userTripsByEmail = allTrips.filter(
-            (t) => t.author_email === targetUserEmail
+            (t) => t.author?.email === targetUserEmail
           );
 
           if (userTripsByEmail.length > 0) {
             const firstTrip = userTripsByEmail[0];
             userFromPublicData = {
               email: targetUserEmail,
-              // Use author_name from trip, fallback to "Traveler" if not present
-              full_name: firstTrip.author_name || "Traveler",
-              preferred_name: firstTrip.author_name?.split(" ")[0],
-              photo_url: firstTrip.author_photo,
+              // Use author data from trip, fallback to "Traveler" if not present
+              full_name: firstTrip.author?.full_name || "Traveler",
+              preferred_name: firstTrip.author?.preferred_name || firstTrip.author?.full_name?.split(" ")[0],
+              photo_url: firstTrip.author?.photo_url,
               // Normalize created date fields for frontend compatibility
               created_at: firstTrip.created_at || firstTrip.created_date,
               created_date: firstTrip.created_date || firstTrip.created_at,
@@ -229,18 +229,12 @@ export default function Profile() {
   const cityHasId = !!(userCity && userCity.id);
 
   const { data: userTrips = [], isLoading: isLoadingTrips } = useQuery({
-    queryKey: ["userTrips", profileUser?.email],
+    queryKey: ["userTrips", profileUser?.id],
     queryFn: async () => {
-      if (!profileUser?.email) return [];
-
-      const allTrips = await Trip.list({ sortBy: "created_at", order: "desc" }); // Trips are public
-      const userTrips = allTrips.filter(
-        (trip) => trip.author_email === profileUser.email
-      );
-
-      return userTrips;
+      if (!profileUser?.id) return [];
+      return await User.getUserTrips(profileUser.id, { sortBy: "created_at", order: "desc" });
     },
-    enabled: !!profileUser?.email,
+    enabled: !!profileUser?.id,
     initialData: [],
   });
 

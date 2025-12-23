@@ -81,8 +81,7 @@ export function useGlobalSearch(cityContext = null) {
               duration: trip.duration,
               likes: trip.likes || 0,
               views: trip.views || 0,
-              author_name: trip.author?.name,
-              author_photo: trip.author?.photo,
+              author: trip.author,
             })),
 
             places: (searchResults.places || []).map((place) => ({

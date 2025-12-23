@@ -168,90 +168,11 @@ export default function TripDetails() {
     refetchOnMount: false,
   });
 
-  const { data: followStatus } = useQuery({
-    queryKey: ["followStatus", tripData?.created_by, currentUser?.id],
-    queryFn: async () => {
-      if (!currentUser || !tripData) return null;
-      const cached = sessionStorage.getItem(
-        `followStatus_${tripData.created_by}_${currentUser.id}`
-      );
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        if (Date.now() - parsed.timestamp < 60 * 60 * 1000) {
-          return parsed.data;
-        }
-      }
-
-      try {
-        // Use the check endpoint which returns { following: boolean }
-        const status = await Follow.check(tripData.created_by);
-
-        sessionStorage.setItem(
-          `followStatus_${tripData.created_by}_${currentUser.id}`,
-          JSON.stringify({ data: status, timestamp: Date.now() })
-        );
-
-        return status;
-      } catch (error) {
-        console.warn("[Follow] Error checking status:", error.message);
-        return null;
-      }
-    },
-    enabled:
-      !!currentUser && !!tripData && tripData.created_by !== currentUser?.id,
-    retry: 0,
-    staleTime: Infinity,
-    cacheTime: Infinity,
-    refetchOnMount: false,
-    refetchOnWindowFocus: false,
-    refetchOnReconnect: false,
-  });
-
-  const { data: likeStatus } = useQuery({
-    queryKey: ["likeStatus", tripId, currentUser?.id],
-    queryFn: async () => {
-      if (!currentUser || !tripId) return null;
-
-      const cached = sessionStorage.getItem(
-        `likeStatus_${tripId}_${currentUser.id}`
-      );
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        if (Date.now() - parsed.timestamp < 60 * 60 * 1000) {
-          return parsed.data;
-        }
-      }
-
-      try {
-        const result = await TripLike.check(tripId);
-
-        sessionStorage.setItem(
-          `likeStatus_${tripId}_${currentUser.id}`,
-          JSON.stringify({
-            data: result,
-            timestamp: Date.now(),
-          })
-        );
-
-        return result;
-      } catch (error) {
-        console.warn("[Like] Error checking status:", error.message);
-        return null;
-      }
-    },
-    enabled: !!currentUser && !!tripId,
-    retry: 0,
-    staleTime: Infinity,
-    cacheTime: Infinity,
-    refetchOnMount: false,
-    refetchOnWindowFocus: false,
-    refetchOnReconnect: false,
-  });
-
-  const isFollowing = !!followStatus;
-  const hasLiked = !!likeStatus;
+  // Follow and like status now come directly from the trip data
+  const isFollowing = tripData?.currentUserFollowing || false;
+  const hasLiked = tripData?.currentUserLiked || false;
   const isAuthor =
-    currentUser && tripData && currentUser.id === tripData.created_by;
+    currentUser && tripData && currentUser.id === tripData.author?.id;
   const hasAlreadyStolen = derivations.some(
     (d) => d.newUser?.id === currentUser?.id
   );
@@ -657,8 +578,8 @@ export default function TripDetails() {
 
           // Extract photos from enriched places
           response.data.forEach((tripPlace) => {
-            if (tripPlace.placeDetails?.photos) {
-              const photos = tripPlace.placeDetails.photos
+            if (tripPlace.place?.photos) {
+              const photos = tripPlace.place.photos
                 .slice(0, 3)
                 .map((photo) => ({
                   url: photo.url_medium || photo.url_large || photo.url_small,
@@ -717,33 +638,33 @@ export default function TripDetails() {
             if (placeIndex !== -1) {
               const placeKey = `${selectedDay}-${placeIndex}`;
 
-              if (!enrichedPlaces[placeKey] && tripPlace.placeDetails) {
+              if (!enrichedPlaces[placeKey] && tripPlace.place) {
                 newEnrichedPlaces[placeKey] = {
                   ...currentDay.places[placeIndex],
                   rating:
-                    tripPlace.placeDetails.rating ||
+                    tripPlace.place.rating ||
                     currentDay.places[placeIndex].rating,
                   reviews_count:
-                    tripPlace.placeDetails.user_ratings_total ||
+                    tripPlace.place.user_ratings_total ||
                     currentDay.places[placeIndex].reviews_count,
                   user_ratings_total:
-                    tripPlace.placeDetails.user_ratings_total ||
+                    tripPlace.place.user_ratings_total ||
                     currentDay.places[placeIndex].user_ratings_total,
                   photos:
-                    tripPlace.placeDetails.photos
+                    tripPlace.place.photos
                       ?.slice(0, 5)
                       .map(
                         (photo) =>
                           photo.url_medium || photo.url_large || photo.url_small
                       ) || [],
-                  latitude: tripPlace.placeDetails.latitude,
-                  longitude: tripPlace.placeDetails.longitude,
+                  latitude: tripPlace.place.latitude,
+                  longitude: tripPlace.place.longitude,
                   price_level:
-                    tripPlace.placeDetails.price_level !== undefined
-                      ? tripPlace.placeDetails.price_level
+                    tripPlace.place.price_level !== undefined
+                      ? tripPlace.place.price_level
                       : currentDay.places[placeIndex].price_level,
                   place_id:
-                    tripPlace.placeDetails.google_place_id ||
+                    tripPlace.place.google_place_id ||
                     currentDay.places[placeIndex].place_id,
                 };
               }
@@ -786,15 +707,15 @@ export default function TripDetails() {
     if (currentDay.activities && currentDay.activities.length > 0) {
       currentDay.activities.forEach((activity, idx) => {
         if (
-          activity.placeDetails?.latitude &&
-          activity.placeDetails?.longitude
+          activity.place?.latitude &&
+          activity.place?.longitude
         ) {
           markers.push({
             id: `activity-${selectedDay}-${idx}`,
-            lat: activity.placeDetails.latitude,
-            lng: activity.placeDetails.longitude,
+            lat: activity.place.latitude,
+            lng: activity.place.longitude,
             title: activity.name,
-            address: activity.placeDetails.address || activity.location,
+            address: activity.place.address || activity.location,
             number: idx + 1,
           });
         } else if (activity.latitude && activity.longitude) {
@@ -1042,9 +963,9 @@ export default function TripDetails() {
     const currentDay = tripData?.itinerary?.[selectedDay];
     const activity = currentDay?.activities?.[placeIndex];
 
-    if (activity?.placeDetails?.id) {
+    if (activity?.place?.id) {
       try {
-        const data = await apiClient.get(`/places/${activity.placeDetails.id}`);
+        const data = await apiClient.get(`/places/${activity.place.id}`);
         if (data.success && data.data?.photos) {
           // Update with full photo URLs from backend
           const fullPhotos = data.data.photos
@@ -1233,8 +1154,9 @@ export default function TripDetails() {
   }, [tripData]);
 
   const authorFirstName = React.useMemo(() => {
-    return tripData?.author_name?.split(" ")[0] || "Traveler";
-  }, [tripData?.author_name]);
+    const name = tripData?.author?.preferred_name || tripData?.author?.full_name;
+    return name?.split(" ")[0] || "Traveler";
+  }, [tripData?.author]);
 
   // No debug logs in production: keep UI clean
 
@@ -1275,19 +1197,19 @@ export default function TripDetails() {
         const matchingPlace = currentDay.places?.find(
           (p) =>
             p.name === activity.name ||
-            p.address === activity.placeDetails?.address
+            p.address === activity.place?.address
         );
 
         return {
           name: activity.name,
-          address: activity.placeDetails?.address || activity.location,
-          rating: activity.placeDetails?.rating || null,
-          reviews_count: activity.placeDetails?.user_ratings_total || 0,
-          user_ratings_total: activity.placeDetails?.user_ratings_total || 0,
-          price_level: activity.placeDetails?.price_level,
-          place_id: activity.placeDetails?.google_place_id,
-          latitude: activity.placeDetails?.latitude || activity.latitude,
-          longitude: activity.placeDetails?.longitude || activity.longitude,
+          address: activity.place?.address || activity.location,
+          rating: activity.place?.rating || null,
+          reviews_count: activity.place?.user_ratings_total || 0,
+          user_ratings_total: activity.place?.user_ratings_total || 0,
+          price_level: activity.place?.price_level,
+          place_id: activity.place?.google_place_id,
+          latitude: activity.place?.latitude || activity.latitude,
+          longitude: activity.place?.longitude || activity.longitude,
           description: activity.description,
           time: activity.time,
           photo: matchingPlace?.photo || null,
@@ -1545,8 +1467,8 @@ export default function TripDetails() {
               <div className="trip-header-row">
                 <div className="trip-author-info">
                   <UserAvatar
-                    src={tripData.author_photo}
-                    name={tripData.author_name || "Traveler"}
+                    src={tripData.author?.photo_url}
+                    name={tripData.author?.preferred_name || tripData.author?.full_name || "Traveler"}
                     size="md"
                     email={tripData.created_by}
                   />
@@ -1555,9 +1477,9 @@ export default function TripDetails() {
                       tripData.created_by
                     )}`}
                     className="font-semibold text-white text-sm truncate hover:text-blue-400 transition-colors"
-                    title={tripData.author_name || "Traveler"}
+                    title={tripData.author?.preferred_name || tripData.author?.full_name || "Traveler"}
                   >
-                    {tripData.author_name || "Traveler"}
+                    {tripData.author?.preferred_name || tripData.author?.full_name || "Traveler"}
                   </Link>
                 </div>
 

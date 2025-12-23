@@ -407,8 +407,8 @@ export default function City({ cityNameOverride, isModal = false }) {
       if (!authorCount[authorId]) {
         authorCount[authorId] = {
           id: authorId,
-          name: trip.author_name,
-          avatar: trip.author_photo,
+          name: trip.author?.preferred_name || trip.author?.full_name,
+          avatar: trip.author?.photo_url,
           tripsCount: 0,
           followers: 0,
         };

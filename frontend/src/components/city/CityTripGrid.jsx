@@ -66,8 +66,8 @@ export default function CityTripGrid({ trips, isLoading, currentUserId }) {
                 {/* Author Avatar Overlay */}
                 <div className="absolute top-3 left-3 hover:scale-110 transition-transform">
                   <UserAvatar
-                    src={trip.author_photo}
-                    name={trip.author_name}
+                    src={trip.author?.photo_url}
+                    name={trip.author?.preferred_name || trip.author?.full_name}
                     size="md"
                     ring
                   />

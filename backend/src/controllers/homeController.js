@@ -239,7 +239,19 @@ const getHomeTrips = async (req, res) => {
       includeFollows: true,
     });
 
-    // Format response
+    // DEBUG: inspect cities presence to troubleshoot empty cities in frontend
+    try {
+      // log per-trip cities count and a short sample of the first trip's cities
+      console.log(
+        "[getHomeTrips] tripsWithContext cities counts:",
+        tripsWithContext.map((t) => ({ id: t.id, citiesCount: (t.cities || []).length }))
+      );
+      console.log("[getHomeTrips] sample trip cities:", tripsWithContext[0]?.cities?.slice(0, 3) || []);
+    } catch (err) {
+      console.warn("[getHomeTrips] debug log failed:", err && err.message ? err.message : err);
+    }
+
+    // Map and format trips for frontend
     const formattedTrips = tripsWithContext.map((trip) => {
       // Collect all images: cover + city photos + place photos
       const images = [];

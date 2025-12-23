@@ -200,7 +200,6 @@ export default function Home({ user, userLoading }) {
                         onRestrictedAction={handleRestrictedAction}
                         onFavoriteToggle={invalidateTrips}
                         currentUserId={user?.id}
-                        isLoadingLikes={isLoadingUserLikes}
                       />
                     ))
                   ) : (

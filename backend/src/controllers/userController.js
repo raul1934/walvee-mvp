@@ -1,4 +1,4 @@
-const { User, Trip, Follow, City } = require("../models/sequelize");
+const { User, Trip, Follow, City, Country, CityPhoto, Place, PlacePhoto, TripTag, TripPlace, TripItineraryDay, TripItineraryActivity } = require("../models/sequelize");
 const { Op } = require("sequelize");
 const {
   paginate,
@@ -6,6 +6,8 @@ const {
   buildSuccessResponse,
   buildErrorResponse,
 } = require("../utils/helpers");
+const { addUserContext } = require("../utils/userContext");
+const { INCLUDE_AUTHOR_FULL, INCLUDE_TRIP_CITIES, INCLUDE_PLACE_FULL } = require("./includes");
 
 const getUsers = async (req, res, next) => {
   try {
@@ -120,24 +122,50 @@ const updateCurrentUser = async (req, res, next) => {
 const getUserTrips = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { page, limit } = req.query;
+    const { page, limit, sortBy = "created_at", order = "desc" } = req.query;
     const { page: pageNum, limit: limitNum, offset } = paginate(page, limit);
 
     const { count: total, rows: trips } = await Trip.findAndCountAll({
       where: { author_id: id },
       offset,
       limit: limitNum,
+      order: [[sortBy, order.toUpperCase()]],
       include: [
+        INCLUDE_AUTHOR_FULL,
+        INCLUDE_TRIP_CITIES,
         {
-          model: User,
-          as: "author",
-          attributes: ["id", "full_name", "preferred_name", "photo_url"],
+          model: TripTag,
+          as: "tags",
+          attributes: ["id", "tag"],
+        },
+        {
+          model: TripPlace,
+          as: "places",
+          include: [INCLUDE_PLACE_FULL],
+        },
+        {
+          model: TripItineraryDay,
+          as: "itineraryDays",
+          include: [
+            {
+              model: TripItineraryActivity,
+              as: "activities",
+              include: [INCLUDE_PLACE_FULL],
+            },
+          ],
         },
       ],
     });
+
+    // Add user context (currentUserLiked, currentUserFollowing)
+    const tripsWithContext = await addUserContext(trips, req.user?.id, {
+      includeLikes: true,
+      includeFollows: true,
+    });
+
     const pagination = buildPaginationMeta(pageNum, limitNum, total);
 
-    res.json(buildSuccessResponse(trips, pagination));
+    res.json(buildSuccessResponse(tripsWithContext, pagination));
   } catch (error) {
     next(error);
   }

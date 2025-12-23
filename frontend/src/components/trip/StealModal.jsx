@@ -80,15 +80,15 @@ export default function StealModal({
               className="flex items-center gap-2 hover:opacity-80 transition-opacity"
             >
               <UserAvatar
-                src={trip.author_photo}
-                name={trip.author_name}
+                src={trip.author?.photo_url}
+                name={trip.author?.preferred_name || trip.author?.full_name}
                 size="sm"
                 email={trip.created_by}
               />
               <span className="text-sm text-gray-300">
                 Inspired by{" "}
                 <span className="text-blue-400 font-semibold hover:text-blue-300">
-                  @{trip.author_name?.split(" ")[0] || "Traveler"}
+                  @{trip.author?.preferred_name || trip.author?.full_name?.split(" ")[0] || "Traveler"}
                 </span>
               </span>
             </Link>
