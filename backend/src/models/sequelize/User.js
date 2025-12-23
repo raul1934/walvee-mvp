@@ -35,7 +35,8 @@ const User = sequelize.define(
       type: DataTypes.TEXT,
     },
     city_id: {
-      type: DataTypes.INTEGER,
+      // Use UUID to match `cities.id` which is a UUID PK
+      type: DataTypes.UUID,
       allowNull: true,
       references: {
         model: "cities",

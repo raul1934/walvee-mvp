@@ -111,6 +111,24 @@ const updateCurrentUser = async (req, res, next) => {
         .status(404)
         .json(buildErrorResponse("RESOURCE_NOT_FOUND", "User not found"));
     }
+
+    // Validate city_id if provided to avoid integer/UUID mismatch errors
+    if (Object.prototype.hasOwnProperty.call(updateData, 'city_id')) {
+      if (!updateData.city_id) {
+        // Allow clearing the city
+        updateData.city_id = null;
+      } else {
+        const city = await City.findByPk(updateData.city_id);
+        if (!city) {
+          return res
+            .status(400)
+            .json(buildErrorResponse("INVALID_CITY_ID", "City not found"));
+        }
+        // city exists; ensure we store the canonical id (UUID)
+        updateData.city_id = city.id;
+      }
+    }
+
     await user.update(updateData);
 
     res.json(buildSuccessResponse(user));
@@ -141,11 +159,13 @@ const getUserTrips = async (req, res, next) => {
         {
           model: TripPlace,
           as: "places",
+          separate: true,
           include: [INCLUDE_PLACE_FULL],
         },
         {
           model: TripItineraryDay,
           as: "itineraryDays",
+          separate: true,
           include: [
             {
               model: TripItineraryActivity,

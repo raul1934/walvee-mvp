@@ -1328,8 +1328,8 @@ export default function TripEditor() {
 
       {/* Header Section - Full Width */}
       <div className="bg-[#0A0B0F] border-b border-[#1F1F1F]">
-        <div className="container mx-auto px-4">
-          <div className="flex items-center justify-between mb-2 mt-2">
+        <div className="px-4">
+          <div className="flex items-center justify-between py-4">
             <div className="flex items-center gap-4">
               <Link
                 to={tripId ? `/TripDetails/${tripId}` : createPageUrl("Home")}
@@ -1341,111 +1341,12 @@ export default function TripEditor() {
               <h1 className="text-xl font-bold">
                 {mode === "create" ? "Create Trip" : "Edit Trip"}
               </h1>
-
-              {/* Tabs for medium+ screens: placed between title and save button, left-aligned */}
-              <div className="hidden md:flex items-center gap-2 overflow-x-auto">
-                <button
-                  onClick={() => setActiveTab("basic")}
-                  className={`flex flex-col items-center gap-1 px-3 py-2 rounded-md transition-all ${
-                    activeTab === "basic"
-                      ? "bg-blue-600 text-white"
-                      : "text-gray-400 hover:text-gray-300"
-                  }`}
-                >
-                  <Info
-                    className={`w-5 h-5 ${
-                      activeTab === "basic" ? "text-white" : "text-gray-400"
-                    }`}
-                  />
-                  <span className="text-xs font-medium mt-1">Basic</span>
-                </button>
-
-                <button
-                  onClick={() => setActiveTab("details")}
-                  className={`flex flex-col items-center gap-1 px-3 py-2 rounded-md transition-all ${
-                    activeTab === "details"
-                      ? "bg-blue-600 text-white"
-                      : "text-gray-400 hover:text-gray-300"
-                  }`}
-                >
-                  <FileText
-                    className={`w-5 h-5 ${
-                      activeTab === "details" ? "text-white" : "text-gray-400"
-                    }`}
-                  />
-                  <span className="text-xs font-medium mt-1">Details</span>
-                </button>
-
-                <button
-                  onClick={() => setActiveTab("tags")}
-                  className={`flex flex-col items-center gap-1 px-3 py-2 rounded-md transition-all ${
-                    activeTab === "tags"
-                      ? "bg-blue-600 text-white"
-                      : "text-gray-400 hover:text-gray-300"
-                  }`}
-                >
-                  <Tag
-                    className={`w-5 h-5 ${
-                      activeTab === "tags" ? "text-white" : "text-gray-400"
-                    }`}
-                  />
-                  <span className="text-xs font-medium mt-1">Tags</span>
-                </button>
-
-                <button
-                  onClick={() => setActiveTab("location")}
-                  className={`flex flex-col items-center gap-1 px-3 py-2 rounded-md transition-all ${
-                    activeTab === "location"
-                      ? "bg-blue-600 text-white"
-                      : "text-gray-400 hover:text-gray-300"
-                  }`}
-                >
-                  <MapIcon
-                    className={`w-5 h-5 ${
-                      activeTab === "location" ? "text-white" : "text-gray-400"
-                    }`}
-                  />
-                  <span className="text-xs font-medium mt-1">Location</span>
-                </button>
-
-                <button
-                  onClick={() => setActiveTab("itinerary")}
-                  className={`flex flex-col items-center gap-1 px-3 py-2 rounded-md transition-all ${
-                    activeTab === "itinerary"
-                      ? "bg-blue-600 text-white"
-                      : "text-gray-400 hover:text-gray-300"
-                  }`}
-                >
-                  <MapPin
-                    className={`w-5 h-5 ${
-                      activeTab === "itinerary" ? "text-white" : "text-gray-400"
-                    }`}
-                  />
-                  <span className="text-xs font-medium mt-1">Itinerary</span>
-                </button>
-
-                <button
-                  onClick={() => setActiveTab("images")}
-                  className={`flex flex-col items-center gap-1 px-3 py-2 rounded-md transition-all ${
-                    activeTab === "images"
-                      ? "bg-blue-600 text-white"
-                      : "text-gray-400 hover:text-gray-300"
-                  }`}
-                >
-                  <ImageIcon
-                    className={`w-5 h-5 ${
-                      activeTab === "images" ? "text-white" : "text-gray-400"
-                    }`}
-                  />
-                  <span className="text-xs font-medium mt-1">Photos</span>
-                </button>
-              </div>
             </div>
 
             <Button
               onClick={mode === "create" ? handleCreate : handleUpdate}
               disabled={loading || uploadingImage}
-              className="bg-gradient-to-r from-blue-600 to-purple-600 hover:opacity-90 text-white font-semibold h-10 px-6 rounded-lg"
+              className="bg-gradient-to-r from-blue-600 to-purple-600 hover:opacity-90 text-white font-semibold h-10 px-6 rounded-lg my-2 md:my-0"
             >
               {loading ? (
                 <>
@@ -1462,13 +1363,13 @@ export default function TripEditor() {
           </div>
         </div>
 
-        {/* Tab Navigation - Full Width (small screens only) */}
-        <div className="border-t border-[#1F1F1F] md:hidden">
-          <div className="container mx-auto px-4">
+        {/* Tab Navigation - Full Width */}
+        <div className="border-t border-[#1F1F1F]">
+          <div className="px-4">
             <div className="flex overflow-x-auto scrollbar-hide">
               <button
                 onClick={() => setActiveTab("basic")}
-                className={`flex flex-col items-center gap-1 px-4 py-3 min-w-[72px] rounded-md transition-all ${
+                className={`flex flex-col items-center gap-1 px-4 py-3 min-w-[80px] transition-all ${
                   activeTab === "basic"
                     ? "bg-blue-600 text-white"
                     : "text-gray-400 hover:text-gray-300"
@@ -1484,7 +1385,7 @@ export default function TripEditor() {
 
               <button
                 onClick={() => setActiveTab("details")}
-                className={`flex flex-col items-center gap-1 px-4 py-3 min-w-[72px] rounded-md transition-all ${
+                className={`flex flex-col items-center gap-1 px-4 py-3 min-w-[80px] transition-all ${
                   activeTab === "details"
                     ? "bg-blue-600 text-white"
                     : "text-gray-400 hover:text-gray-300"
@@ -1500,7 +1401,7 @@ export default function TripEditor() {
 
               <button
                 onClick={() => setActiveTab("tags")}
-                className={`flex flex-col items-center gap-1 px-4 py-3 min-w-[72px] rounded-md transition-all ${
+                className={`flex flex-col items-center gap-1 px-4 py-3 min-w-[80px] transition-all ${
                   activeTab === "tags"
                     ? "bg-blue-600 text-white"
                     : "text-gray-400 hover:text-gray-300"
@@ -1516,7 +1417,7 @@ export default function TripEditor() {
 
               <button
                 onClick={() => setActiveTab("location")}
-                className={`flex flex-col items-center gap-1 px-4 py-3 min-w-[72px] rounded-md transition-all ${
+                className={`flex flex-col items-center gap-1 px-4 py-3 min-w-[80px] transition-all ${
                   activeTab === "location"
                     ? "bg-blue-600 text-white"
                     : "text-gray-400 hover:text-gray-300"
@@ -1532,7 +1433,7 @@ export default function TripEditor() {
 
               <button
                 onClick={() => setActiveTab("itinerary")}
-                className={`flex flex-col items-center gap-1 px-4 py-3 min-w-[72px] rounded-md transition-all ${
+                className={`flex flex-col items-center gap-1 px-4 py-3 min-w-[80px] transition-all ${
                   activeTab === "itinerary"
                     ? "bg-blue-600 text-white"
                     : "text-gray-400 hover:text-gray-300"
@@ -1548,7 +1449,7 @@ export default function TripEditor() {
 
               <button
                 onClick={() => setActiveTab("images")}
-                className={`flex flex-col items-center gap-1 px-4 py-3 min-w-[72px] rounded-md transition-all ${
+                className={`flex flex-col items-center gap-1 px-4 py-3 min-w-[80px] transition-all ${
                   activeTab === "images"
                     ? "bg-blue-600 text-white"
                     : "text-gray-400 hover:text-gray-300"
@@ -1717,183 +1618,184 @@ export default function TripEditor() {
 
                   <div className="max-h-[calc(100vh-12rem)] overflow-y-auto pr-2">
                     <div className="space-y-4">
-                    <div>
-                      <Label
-                        htmlFor="duration"
-                        className="text-sm font-semibold text-white mb-2"
-                      >
-                        Duration (Days) <span className="text-red-400">*</span>
-                      </Label>
-                      <Input
-                        id="duration"
-                        type="number"
-                        min="1"
-                        value={formData.durationDays}
-                        onChange={(e) =>
-                          setFormData((prev) => ({
-                            ...prev,
-                            durationDays: parseInt(e.target.value) || 1,
-                          }))
-                        }
-                        className="bg-[#0D0D0D] border-gray-700 text-white h-12"
-                      />
-                      {errors.durationDays && (
-                        <p className="text-sm text-red-400 mt-1">
-                          {errors.durationDays}
-                        </p>
-                      )}
-                    </div>
+                      <div>
+                        <Label
+                          htmlFor="duration"
+                          className="text-sm font-semibold text-white mb-2"
+                        >
+                          Duration (Days){" "}
+                          <span className="text-red-400">*</span>
+                        </Label>
+                        <Input
+                          id="duration"
+                          type="number"
+                          min="1"
+                          value={formData.durationDays}
+                          onChange={(e) =>
+                            setFormData((prev) => ({
+                              ...prev,
+                              durationDays: parseInt(e.target.value) || 1,
+                            }))
+                          }
+                          className="bg-[#0D0D0D] border-gray-700 text-white h-12"
+                        />
+                        {errors.durationDays && (
+                          <p className="text-sm text-red-400 mt-1">
+                            {errors.durationDays}
+                          </p>
+                        )}
+                      </div>
 
-                    <div>
-                      <Label
-                        htmlFor="budget"
-                        className="text-sm font-semibold text-white mb-2"
-                      >
-                        Budget
-                      </Label>
-                      <Input
-                        id="budget"
-                        value={formData.budget}
-                        onChange={(e) =>
-                          setFormData((prev) => ({
-                            ...prev,
-                            budget: e.target.value,
-                          }))
-                        }
-                        placeholder="e.g., $2000 - $3000"
-                        className="bg-[#0D0D0D] border-gray-700 text-white h-12"
-                      />
-                    </div>
+                      <div>
+                        <Label
+                          htmlFor="budget"
+                          className="text-sm font-semibold text-white mb-2"
+                        >
+                          Budget
+                        </Label>
+                        <Input
+                          id="budget"
+                          value={formData.budget}
+                          onChange={(e) =>
+                            setFormData((prev) => ({
+                              ...prev,
+                              budget: e.target.value,
+                            }))
+                          }
+                          placeholder="e.g., $2000 - $3000"
+                          className="bg-[#0D0D0D] border-gray-700 text-white h-12"
+                        />
+                      </div>
 
-                    <div>
-                      <Label
-                        htmlFor="transportation"
-                        className="text-sm font-semibold text-white mb-2"
-                      >
-                        Transportation
-                      </Label>
-                      <Input
-                        id="transportation"
-                        value={formData.transportation}
-                        onChange={(e) =>
-                          setFormData((prev) => ({
-                            ...prev,
-                            transportation: e.target.value,
-                          }))
-                        }
-                        placeholder="e.g., Metro, Walking"
-                        className="bg-[#0D0D0D] border-gray-700 text-white h-12"
-                      />
-                    </div>
+                      <div>
+                        <Label
+                          htmlFor="transportation"
+                          className="text-sm font-semibold text-white mb-2"
+                        >
+                          Transportation
+                        </Label>
+                        <Input
+                          id="transportation"
+                          value={formData.transportation}
+                          onChange={(e) =>
+                            setFormData((prev) => ({
+                              ...prev,
+                              transportation: e.target.value,
+                            }))
+                          }
+                          placeholder="e.g., Metro, Walking"
+                          className="bg-[#0D0D0D] border-gray-700 text-white h-12"
+                        />
+                      </div>
 
-                    <div>
-                      <Label
-                        htmlFor="accommodation"
-                        className="text-sm font-semibold text-white mb-2"
-                      >
-                        Accommodation
-                      </Label>
-                      <Input
-                        id="accommodation"
-                        value={formData.accommodation}
-                        onChange={(e) =>
-                          setFormData((prev) => ({
-                            ...prev,
-                            accommodation: e.target.value,
-                          }))
-                        }
-                        placeholder="e.g., Hotel, Airbnb"
-                        className="bg-[#0D0D0D] border-gray-700 text-white h-12"
-                      />
-                    </div>
+                      <div>
+                        <Label
+                          htmlFor="accommodation"
+                          className="text-sm font-semibold text-white mb-2"
+                        >
+                          Accommodation
+                        </Label>
+                        <Input
+                          id="accommodation"
+                          value={formData.accommodation}
+                          onChange={(e) =>
+                            setFormData((prev) => ({
+                              ...prev,
+                              accommodation: e.target.value,
+                            }))
+                          }
+                          placeholder="e.g., Hotel, Airbnb"
+                          className="bg-[#0D0D0D] border-gray-700 text-white h-12"
+                        />
+                      </div>
 
-                    <div>
-                      <Label
-                        htmlFor="best_time"
-                        className="text-sm font-semibold text-white mb-2"
-                      >
-                        Best Time to Visit
-                      </Label>
-                      <Input
-                        id="best_time"
-                        value={formData.best_time_to_visit}
-                        onChange={(e) =>
-                          setFormData((prev) => ({
-                            ...prev,
-                            best_time_to_visit: e.target.value,
-                          }))
-                        }
-                        placeholder="e.g., Spring, Summer"
-                        className="bg-[#0D0D0D] border-gray-700 text-white h-12"
-                      />
-                    </div>
+                      <div>
+                        <Label
+                          htmlFor="best_time"
+                          className="text-sm font-semibold text-white mb-2"
+                        >
+                          Best Time to Visit
+                        </Label>
+                        <Input
+                          id="best_time"
+                          value={formData.best_time_to_visit}
+                          onChange={(e) =>
+                            setFormData((prev) => ({
+                              ...prev,
+                              best_time_to_visit: e.target.value,
+                            }))
+                          }
+                          placeholder="e.g., Spring, Summer"
+                          className="bg-[#0D0D0D] border-gray-700 text-white h-12"
+                        />
+                      </div>
 
-                    <div>
-                      <Label
-                        htmlFor="difficulty"
-                        className="text-sm font-semibold text-white mb-2"
-                      >
-                        Difficulty Level
-                      </Label>
-                      <Input
-                        id="difficulty"
-                        value={formData.difficulty_level}
-                        onChange={(e) =>
-                          setFormData((prev) => ({
-                            ...prev,
-                            difficulty_level: e.target.value,
-                          }))
-                        }
-                        placeholder="e.g., Easy, Moderate"
-                        className="bg-[#0D0D0D] border-gray-700 text-white h-12"
-                      />
-                    </div>
+                      <div>
+                        <Label
+                          htmlFor="difficulty"
+                          className="text-sm font-semibold text-white mb-2"
+                        >
+                          Difficulty Level
+                        </Label>
+                        <Input
+                          id="difficulty"
+                          value={formData.difficulty_level}
+                          onChange={(e) =>
+                            setFormData((prev) => ({
+                              ...prev,
+                              difficulty_level: e.target.value,
+                            }))
+                          }
+                          placeholder="e.g., Easy, Moderate"
+                          className="bg-[#0D0D0D] border-gray-700 text-white h-12"
+                        />
+                      </div>
 
-                    <div>
-                      <Label
-                        htmlFor="trip_type"
-                        className="text-sm font-semibold text-white mb-2"
-                      >
-                        Trip Type
-                      </Label>
-                      <Input
-                        id="trip_type"
-                        value={formData.trip_type}
-                        onChange={(e) =>
-                          setFormData((prev) => ({
-                            ...prev,
-                            trip_type: e.target.value,
-                          }))
-                        }
-                        placeholder="e.g., Cultural, Adventure"
-                        className="bg-[#0D0D0D] border-gray-700 text-white h-12"
-                      />
-                    </div>
+                      <div>
+                        <Label
+                          htmlFor="trip_type"
+                          className="text-sm font-semibold text-white mb-2"
+                        >
+                          Trip Type
+                        </Label>
+                        <Input
+                          id="trip_type"
+                          value={formData.trip_type}
+                          onChange={(e) =>
+                            setFormData((prev) => ({
+                              ...prev,
+                              trip_type: e.target.value,
+                            }))
+                          }
+                          placeholder="e.g., Cultural, Adventure"
+                          className="bg-[#0D0D0D] border-gray-700 text-white h-12"
+                        />
+                      </div>
 
-                    <div>
-                      <Label
-                        htmlFor="visibility"
-                        className="text-sm font-semibold text-white mb-2"
-                      >
-                        Visibility
-                      </Label>
-                      <select
-                        id="visibility"
-                        value={formData.visibility}
-                        onChange={(e) =>
-                          setFormData((prev) => ({
-                            ...prev,
-                            visibility: e.target.value,
-                            is_public: e.target.value === "public",
-                          }))
-                        }
-                        className="w-full bg-[#0D0D0D] border border-gray-700 text-white h-12 rounded-md px-3"
-                      >
-                        <option value="public">Public</option>
-                        <option value="private">Private</option>
-                      </select>
+                      <div>
+                        <Label
+                          htmlFor="visibility"
+                          className="text-sm font-semibold text-white mb-2"
+                        >
+                          Visibility
+                        </Label>
+                        <select
+                          id="visibility"
+                          value={formData.visibility}
+                          onChange={(e) =>
+                            setFormData((prev) => ({
+                              ...prev,
+                              visibility: e.target.value,
+                              is_public: e.target.value === "public",
+                            }))
+                          }
+                          className="w-full bg-[#0D0D0D] border border-gray-700 text-white h-12 rounded-md px-3"
+                        >
+                          <option value="public">Public</option>
+                          <option value="private">Private</option>
+                        </select>
+                      </div>
                     </div>
-                  </div>
                   </div>
                 </div>
 
