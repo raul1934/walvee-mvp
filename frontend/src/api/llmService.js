@@ -2,7 +2,7 @@
  * LLM Service - Backend integration for Google Gemini AI
  */
 
-import { apiClient, endpoints } from './apiClient';
+import { apiClient, endpoints } from "./apiClient";
 
 /**
  * Invoke an LLM with a prompt
@@ -18,12 +18,12 @@ export async function invokeLLM(options) {
     // Return the response data
     return response.data.response;
   } catch (error) {
-    console.error('[LLM Service] Error:', error);
+    console.error("[LLM Service] Error:", error);
     throw error;
   }
 }
 
 // Legacy API compatibility - matches base44 integrations API
 export const Core = {
-  InvokeLLM: invokeLLM
+  InvokeLLM: invokeLLM,
 };

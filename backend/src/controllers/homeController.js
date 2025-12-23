@@ -239,18 +239,6 @@ const getHomeTrips = async (req, res) => {
       includeFollows: true,
     });
 
-    // DEBUG: inspect cities presence to troubleshoot empty cities in frontend
-    try {
-      // log per-trip cities count and a short sample of the first trip's cities
-      console.log(
-        "[getHomeTrips] tripsWithContext cities counts:",
-        tripsWithContext.map((t) => ({ id: t.id, citiesCount: (t.cities || []).length }))
-      );
-      console.log("[getHomeTrips] sample trip cities:", tripsWithContext[0]?.cities?.slice(0, 3) || []);
-    } catch (err) {
-      console.warn("[getHomeTrips] debug log failed:", err && err.message ? err.message : err);
-    }
-
     // Map and format trips for frontend
     const formattedTrips = tripsWithContext.map((trip) => {
       // Collect all images: cover + city photos + place photos
@@ -328,12 +316,14 @@ const getHomeTrips = async (req, res) => {
         created_at: trip.created_at,
         currentUserLiked: trip.currentUserLiked || false,
         currentUserFollowing: trip.currentUserFollowing || false,
-        author: trip.author ? {
-          id: trip.author.id,
-          full_name: trip.author.full_name,
-          preferred_name: trip.author.preferred_name,
-          photo_url: getFullImageUrl(trip.author.photo_url),
-        } : null,
+        author: trip.author
+          ? {
+              id: trip.author.id,
+              full_name: trip.author.full_name,
+              preferred_name: trip.author.preferred_name,
+              photo_url: getFullImageUrl(trip.author.photo_url),
+            }
+          : null,
         itinerary: trip.itineraryDays
           ? trip.itineraryDays.map((day) => ({
               day: day.day_number,
@@ -372,14 +362,18 @@ const getHomeTrips = async (req, res) => {
                             ? parseFloat(a.place.rating)
                             : null,
                           price_level: a.place.price_level,
-                          city: a.place.city ? {
-                            id: a.place.city.id,
-                            name: a.place.city.name,
-                            country: a.place.city.country ? {
-                              id: a.place.city.country.id,
-                              name: a.place.city.country.name,
-                            } : null,
-                          } : null,
+                          city: a.place.city
+                            ? {
+                                id: a.place.city.id,
+                                name: a.place.city.name,
+                                country: a.place.city.country
+                                  ? {
+                                      id: a.place.city.country.id,
+                                      name: a.place.city.country.name,
+                                    }
+                                  : null,
+                              }
+                            : null,
                         }
                       : null,
                   }))
