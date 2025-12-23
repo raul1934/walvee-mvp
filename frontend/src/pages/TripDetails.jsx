@@ -32,7 +32,6 @@ import { useDragScroll } from "../components/hooks/useDragScroll";
 import PlaceDetails from "../components/trip/PlaceDetails";
 import ImagePlaceholder from "../components/common/ImagePlaceholder";
 import StealModal from "../components/trip/StealModal";
-import ComingSoonModal from "@/components/common/ComingSoonModal";
 import { useNotification } from "@/contexts/NotificationContext";
 import TravelerTips from "../components/trip/TravelerTips";
 import { findPlaceInTrip } from "../components/utils/placeId";
@@ -1089,10 +1088,8 @@ export default function TripDetails() {
   };
 
   const handleEditClick = () => {
-    setIsComingSoonOpen(true);
+    navigate(`/trip/${tripId}/edit`);
   };
-
-  const [isComingSoonOpen, setIsComingSoonOpen] = React.useState(false);
 
   const { showNotification } = useNotification();
 
@@ -2368,19 +2365,6 @@ export default function TripDetails() {
         onConfirm={handleStealConfirm}
         trip={tripData}
         isLoading={isStealLoading}
-      />
-      <ComingSoonModal
-        isOpen={isComingSoonOpen}
-        onClose={() => setIsComingSoonOpen(false)}
-        title="Trip editor — coming soon"
-        description="We're building an easy-to-use trip editor so you can customize itineraries, add places, and share your versions. Want to be notified when it ships?"
-        features={[
-          "Edit days and places",
-          "Reorder your itinerary",
-          "Save drafts",
-          "Publish or keep private",
-        ]}
-        primaryLabel="Notify me"
       />
     </div>
   );

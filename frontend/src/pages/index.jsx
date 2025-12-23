@@ -5,6 +5,8 @@ import Home from "./Home";
 
 import TripDetails from "./TripDetails";
 
+import TripEditor from "./TripEditor";
+
 import Onboarding from "./Onboarding";
 
 import PrivacySettings from "./PrivacySettings";
@@ -34,6 +36,8 @@ const PAGES = {
   Home: Home,
 
   TripDetails: TripDetails,
+
+  TripEditor: TripEditor,
 
   Onboarding: Onboarding,
 
@@ -82,6 +86,9 @@ function PagesContent() {
 
           <Route path="/TripDetails/:tripId" element={<TripDetails />} />
           <Route path="/tripdetails/:tripId" element={<TripDetails />} />
+
+          <Route path="/trip/create" element={<TripEditor />} />
+          <Route path="/trip/:tripId/edit" element={<TripEditor />} />
 
           <Route path="/Onboarding" element={<Onboarding />} />
 
