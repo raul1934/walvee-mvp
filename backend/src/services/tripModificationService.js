@@ -1,6 +1,6 @@
 const { v4: uuidv4 } = require("uuid");
 const { Op } = require("sequelize");
-const { sequelize } = require("../../database/sequelize");
+const { sequelize } = require("../database/sequelize");
 const {
   Trip,
   City,

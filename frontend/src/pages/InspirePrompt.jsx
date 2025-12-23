@@ -877,33 +877,7 @@ export default function InspirePrompt({ user }) {
       // Use Inspire service (backend wrapper) to request structured itinerary
       const response = await invokeInspire({
         prompt,
-        response_json_schema: {
-          type: "object",
-          properties: {
-            itinerary: {
-              type: "array",
-              items: {
-                type: "object",
-                properties: {
-                  day: { type: "number" },
-                  title: { type: "string" },
-                  description: { type: "string" },
-                  places: {
-                    type: "array",
-                    items: {
-                      type: "object",
-                      properties: {
-                        name: { type: "string" },
-                        estimated_duration: { type: "string" },
-                        notes: { type: "string" },
-                      },
-                    },
-                  },
-                },
-              },
-            },
-          },
-        },
+        schema_type: "organize_trip",
       });
 
       // Response might be an object or JSON string
@@ -1201,26 +1175,7 @@ INSTRUCTIONS:
 Provide 9-15 recommendations. Respond in ${
           userLanguageForAI === "pt" ? "Portuguese" : "English"
         }.`,
-        response_json_schema: {
-          type: "object",
-          properties: {
-            message: { type: "string" },
-            recommendations: {
-              type: "array",
-              items: {
-                type: "object",
-                properties: {
-                  name: { type: "string" },
-                  type: { type: "string" },
-                  description: { type: "string" },
-                  city: { type: "string" },
-                  country: { type: "string" },
-                  why: { type: "string" },
-                },
-              },
-            },
-          },
-        },
+        schema_type: "recommendations",
       });
 
       // Add AI message with recommendations

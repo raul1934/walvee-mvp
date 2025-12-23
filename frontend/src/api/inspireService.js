@@ -2,7 +2,7 @@ import { apiClient, endpoints } from "./apiClient";
 
 /**
  * Invoke the Inspire endpoint (wraps LLM chat with Inspire-specific defaults)
- * @param {Object} options - { prompt, response_json_schema, temperature, max_output_tokens }
+ * @param {Object} options - { prompt, trip_id (optional), conversation_history (optional) }
  */
 export async function invokeInspire(options) {
   try {
@@ -23,12 +23,12 @@ export async function invokeInspire(options) {
  */
 export async function modifyTrip(tripId, query, history = []) {
   try {
-    const response = await apiClient.post(endpoints.inspire.modifyTrip, {
+    const response = await apiClient.post(endpoints.inspire.call, {
+      prompt: query,
       trip_id: tripId,
-      user_query: query,
       conversation_history: history,
     });
-    return response.data;
+    return response.data.data;
   } catch (error) {
     console.error("[InspireService] modifyTrip error:", error);
     throw error;

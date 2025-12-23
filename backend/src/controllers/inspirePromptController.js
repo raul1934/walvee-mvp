@@ -30,16 +30,16 @@ const initGemini = () => {
 /**
  * @route   POST /inspire/call
  * @desc    Handle inspiration prompts (wrapper around LLM chat with recommend defaults)
+ *          If trip_id is provided, this becomes a trip modification flow
  * @access  Private
  */
 exports.call = async (req, res) => {
   try {
     const {
       prompt,
-      model = "gemini-2.5-flash",
-      response_json_schema,
-      temperature,
-      max_output_tokens,
+      trip_id,
+      conversation_history = [],
+      schema_type, // "organize_trip" | "recommendations" | undefined for plain text
     } = req.body;
 
     if (!prompt) {
@@ -60,38 +60,128 @@ exports.call = async (req, res) => {
         );
     }
 
-    // Prepare model configuration - expose a small set of tunables
-    const modelConfig = {
-      model,
-    };
+    // If trip_id is provided, use trip modification flow
+    if (trip_id) {
+      const userId = req.user.id;
 
-    const generationConfig = {};
-    if (temperature != null)
-      generationConfig.temperature = parseFloat(temperature);
-    if (max_output_tokens != null)
-      generationConfig.maxOutputTokens = parseInt(max_output_tokens);
+      // 1. Fetch trip with all associations
+      const trip = await Trip.findOne({
+        where: { id: trip_id, author_id: userId },
+        include: [
+          {
+            model: City,
+            as: "cities",
+            include: [{ model: Country, as: "country" }],
+          },
+          {
+            model: TripPlace,
+            as: "places",
+            include: [{ model: Place, as: "place" }],
+          },
+          {
+            model: TripItineraryDay,
+            as: "itineraryDays",
+            include: [
+              {
+                model: TripItineraryActivity,
+                as: "activities",
+              },
+            ],
+          },
+        ],
+      });
 
-    if (response_json_schema) {
-      generationConfig.responseMimeType = "application/json";
-      generationConfig.responseSchema = response_json_schema;
+      if (!trip) {
+        return res
+          .status(404)
+          .json(
+            buildErrorResponse(
+              "NOT_FOUND",
+              "Trip not found or you do not have permission"
+            )
+          );
+      }
+
+      // 2. Build trip context for AI
+      const tripContext = {
+        id: trip.id,
+        title: trip.title,
+        cities: trip.cities.map((c) => ({
+          id: c.id,
+          name: c.name,
+          country: c.country?.name || null,
+        })),
+        places: trip.places.map((p) => ({
+          name: p.name,
+          address: p.address,
+          city: p.place?.city?.name || null,
+        })),
+        itinerary: trip.itineraryDays.map((day) => ({
+          day: day.day_number,
+          title: day.title,
+          activities: day.activities.map((a) => ({
+            name: a.name,
+            time: a.time,
+            location: a.location,
+          })),
+        })),
+      };
+
+      // 3. Build system prompt for trip modification
+      const systemPrompt = buildTripModificationPrompt(
+        tripContext,
+        prompt,
+        conversation_history
+      );
+
+      // 4. Call Gemini with trip modification JSON schema
+      const responseSchema = getTripModificationSchema();
+
+      const modelConfig = {
+        model: "gemini-2.0-flash-exp",
+        generationConfig: {
+          responseMimeType: "application/json",
+          responseSchema,
+        },
+      };
+
+      const geminiModel = genAI.getGenerativeModel(modelConfig);
+      const result = await geminiModel.generateContent(systemPrompt);
+      const responseData = result.response;
+      const text = responseData.text();
+
+      let parsedResponse = JSON.parse(text);
+
+      return res.json(buildSuccessResponse(parsedResponse));
     }
 
-    if (Object.keys(generationConfig).length > 0) {
-      modelConfig.generationConfig = generationConfig;
+    // Normal inspire flow - determine schema based on schema_type
+    const modelConfig = {
+      model: "gemini-2.5-flash",
+    };
+
+    // Add JSON schema if schema_type is provided
+    if (schema_type) {
+      const schema = getSchemaByType(schema_type);
+      if (schema) {
+        modelConfig.generationConfig = {
+          responseMimeType: "application/json",
+          responseSchema: schema,
+        };
+      }
     }
 
     const geminiModel = genAI.getGenerativeModel(modelConfig);
-
     const result = await geminiModel.generateContent(prompt);
     const response_data = result.response;
     const text = response_data.text();
 
+    // Parse JSON if schema was used
     let parsedResponse = text;
-    if (response_json_schema) {
+    if (schema_type) {
       try {
         parsedResponse = JSON.parse(text);
       } catch (err) {
-        // keep text if parsing fails
         console.warn(
           "[inspirePrompt] Failed to parse JSON response:",
           err.message || err
@@ -99,7 +189,7 @@ exports.call = async (req, res) => {
       }
     }
 
-    return res.json(buildSuccessResponse({ response: parsedResponse, model }));
+    return res.json(buildSuccessResponse({ response: parsedResponse }));
   } catch (error) {
     console.error("[inspirePrompt] Error:", error);
     return res
@@ -466,4 +556,65 @@ function getTripModificationSchema() {
     },
     required: ["response_type", "message"],
   };
+}
+
+/**
+ * Get JSON schema by type for normal inspire flows
+ */
+function getSchemaByType(schemaType) {
+  switch (schemaType) {
+    case "organize_trip":
+      return {
+        type: "object",
+        properties: {
+          itinerary: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                day: { type: "number" },
+                title: { type: "string" },
+                description: { type: "string" },
+                places: {
+                  type: "array",
+                  items: {
+                    type: "object",
+                    properties: {
+                      name: { type: "string" },
+                      estimated_duration: { type: "string" },
+                      notes: { type: "string" },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      };
+
+    case "recommendations":
+      return {
+        type: "object",
+        properties: {
+          message: { type: "string" },
+          recommendations: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                name: { type: "string" },
+                type: { type: "string" },
+                description: { type: "string" },
+                city: { type: "string" },
+                country: { type: "string" },
+                why: { type: "string" },
+              },
+            },
+          },
+        },
+      };
+
+    default:
+      return null;
+  }
 }
