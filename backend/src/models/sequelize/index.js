@@ -29,7 +29,7 @@ function initModels() {
   Country.hasMany(City, { foreignKey: "country_id", as: "cities" });
   City.belongsTo(Country, { foreignKey: "country_id", as: "country" });
 
-  User.belongsTo(City, { foreignKey: "city_id", as: "cityData" });
+  User.belongsTo(City, { foreignKey: "city_id", as: "city" });
   City.hasMany(User, { foreignKey: "city_id", as: "users" });
 
   // `destination_city_id` column deprecated - use many-to-many `trip_cities` instead
@@ -147,12 +147,12 @@ function initModels() {
   City.hasMany(CityPhoto, { foreignKey: "city_id", as: "photos" });
   CityPhoto.belongsTo(City, { foreignKey: "city_id", as: "city" });
 
-  TripPlace.belongsTo(Place, { foreignKey: "place_id", as: "placeDetails" });
+  TripPlace.belongsTo(Place, { foreignKey: "place_id", as: "place" });
   Place.hasMany(TripPlace, { foreignKey: "place_id", as: "tripPlaces" });
 
   TripItineraryActivity.belongsTo(Place, {
     foreignKey: "place_id",
-    as: "placeDetails",
+    as: "place",
   });
   Place.hasMany(TripItineraryActivity, {
     foreignKey: "place_id",

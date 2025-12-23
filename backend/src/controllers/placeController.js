@@ -274,7 +274,7 @@ const getTripPlacesEnriched = async (req, res, next) => {
           include: [
             {
               model: Place,
-              as: "placeDetails",
+              as: "place",
               include: [
                 {
                   model: PlacePhoto,
@@ -299,7 +299,7 @@ const getTripPlacesEnriched = async (req, res, next) => {
     const enrichedPlaces = [];
 
     for (const tripPlace of trip.places) {
-      if (tripPlace.placeDetails?.photos?.length > 0) {
+      if (tripPlace.place?.photos?.length > 0) {
         // Already enriched with photos
         enrichedPlaces.push(tripPlace);
       } else if (tripPlace.name) {
@@ -403,7 +403,7 @@ const getTripPlacesEnriched = async (req, res, next) => {
               ],
             });
 
-            tripPlace.placeDetails = completePlace;
+            tripPlace.place = completePlace;
           }
         } catch (error) {
           console.error(

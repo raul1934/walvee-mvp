@@ -10,6 +10,9 @@ const {
   TripReview,
   Place,
   PlacePhoto,
+  City,
+  Country,
+  CityPhoto,
 } = require("../models/sequelize");
 const { Op } = require("sequelize");
 const {
@@ -19,6 +22,8 @@ const {
   buildErrorResponse,
   getFullImageUrl,
 } = require("../utils/helpers");
+const { addUserContext } = require("../utils/userContext");
+const { INCLUDE_CITY_WITH_COUNTRY, INCLUDE_TRIP_CITIES } = require("./includes");
 const getTrips = async (req, res, next) => {
   try {
     const {
@@ -89,7 +94,7 @@ const getTrips = async (req, res, next) => {
         include: [
           {
             model: Place,
-            as: "placeDetails",
+            as: "place",
             attributes: [
               "id",
               "latitude",
@@ -103,9 +108,12 @@ const getTrips = async (req, res, next) => {
       },
       // include cities for filtering by destination and for responses
       {
-        model: require("../models/sequelize").City,
+        model: City,
         as: "cities",
         attributes: ["id", "name"],
+        include: [
+          { model: Country, as: "country", attributes: ["id", "name", "code"] },
+        ],
         through: { attributes: ["city_order"], timestamps: false },
         required: false,
       },
@@ -128,7 +136,7 @@ const getTrips = async (req, res, next) => {
             include: [
               {
                 model: Place,
-                as: "placeDetails",
+                as: "place",
                 attributes: [
                   "id",
                   "latitude",
@@ -153,9 +161,16 @@ const getTrips = async (req, res, next) => {
                     order: [["photo_order", "ASC"]],
                   },
                   {
-                    model: require("../models/sequelize").City,
+                    model: City,
                     as: "city",
                     attributes: ["id", "name"],
+                    include: [
+                      {
+                        model: Country,
+                        as: "country",
+                        attributes: ["id", "name", "code"],
+                      },
+                    ],
                     required: false,
                   },
                 ],
@@ -220,9 +235,16 @@ const getTrips = async (req, res, next) => {
       },
     });
 
+    // Add user context
+    const userId = req.user?.id;
+    const tripsWithContext = await addUserContext(trips, userId, {
+      includeLikes: true,
+      includeFollows: true,
+    });
+
     // Format the response
     const formattedTrips = await Promise.all(
-      trips.map((trip) => formatTripResponse(trip))
+      tripsWithContext.map((trip) => formatTripResponse(trip))
     );
 
     const pagination = buildPaginationMeta(pageNum, limitNum, count);
@@ -290,7 +312,7 @@ const getTripById = async (req, res, next) => {
           include: [
             {
               model: Place,
-              as: "placeDetails",
+              as: "place",
               attributes: [
                 "id",
                 "latitude",
@@ -321,7 +343,7 @@ const getTripById = async (req, res, next) => {
               include: [
                 {
                   model: Place,
-                  as: "placeDetails",
+                  as: "place",
                   attributes: [
                     "id",
                     "latitude",
@@ -470,7 +492,7 @@ const createTrip = async (req, res, next) => {
           include: [
             {
               model: Place,
-              as: "placeDetails",
+              as: "place",
               attributes: [
                 "id",
                 "latitude",
@@ -492,7 +514,7 @@ const createTrip = async (req, res, next) => {
               include: [
                 {
                   model: Place,
-                  as: "placeDetails",
+                  as: "place",
                   attributes: [
                     "id",
                     "latitude",
@@ -628,7 +650,7 @@ const updateTrip = async (req, res, next) => {
           include: [
             {
               model: Place,
-              as: "placeDetails",
+              as: "place",
               attributes: [
                 "id",
                 "latitude",
@@ -650,7 +672,7 @@ const updateTrip = async (req, res, next) => {
               include: [
                 {
                   model: Place,
-                  as: "placeDetails",
+                  as: "place",
                   attributes: [
                     "id",
                     "latitude",
@@ -756,11 +778,11 @@ async function formatTripResponse(trip) {
       if (day.activities) {
         day.activities.forEach((activity) => {
           if (
-            activity.placeDetails?.photos &&
-            !addedPlaceIds.has(activity.placeDetails.id)
+            activity.place?.photos &&
+            !addedPlaceIds.has(activity.place.id)
           ) {
-            addedPlaceIds.add(activity.placeDetails.id);
-            activity.placeDetails.photos.forEach((photo) => {
+            addedPlaceIds.add(activity.place.id);
+            activity.place.photos.forEach((photo) => {
               if (photo.url_medium) {
                 images.push(getFullImageUrl(photo.url_medium));
               }
@@ -813,7 +835,7 @@ async function formatTripResponse(trip) {
         if (day.activities) {
           day.activities.forEach((activity) => {
             const location =
-              activity.location || activity.placeDetails?.address || "";
+              activity.location || activity.place?.address || "";
             const parts = location.split(",");
             if (parts.length > 0) {
               const cityName = parts[0].trim();
@@ -884,12 +906,16 @@ async function formatTripResponse(trip) {
     steals: derivationsCount,
     created_at: tripData.created_at,
     updated_at: tripData.updated_at,
-    created_by: tripData.author?.id || null,
-    author_name:
-      tripData.author?.preferred_name || tripData.author?.full_name || null,
-    author_photo: getFullImageUrl(tripData.author?.photo_url) || null,
-    author_email: tripData.author?.email || null,
-    author_bio: tripData.author?.bio || null,
+    currentUserLiked: tripData.currentUserLiked || false,
+    currentUserFollowing: tripData.currentUserFollowing || false,
+    author: tripData.author ? {
+      id: tripData.author.id,
+      full_name: tripData.author.full_name,
+      preferred_name: tripData.author.preferred_name,
+      photo_url: getFullImageUrl(tripData.author.photo_url),
+      email: tripData.author.email,
+      bio: tripData.author.bio,
+    } : null,
     tags: tripData.tags ? tripData.tags.map((t) => t.tag) : [],
     // Return raw cities array; frontend should format names/locations for display
     cities: citiesWithIds,
@@ -899,23 +925,23 @@ async function formatTripResponse(trip) {
           title: day.title,
           places: day.activities
             ? day.activities
-                .filter((a) => a.placeDetails)
+                .filter((a) => a.place)
                 .map((a) => ({
-                  id: a.placeDetails.id,
-                  place_id: a.placeDetails.google_place_id,
-                  name: a.placeDetails.name,
-                  address: a.placeDetails.address,
-                  rating: a.placeDetails.rating
-                    ? parseFloat(a.placeDetails.rating)
+                  id: a.place.id,
+                  place_id: a.place.google_place_id,
+                  name: a.place.name,
+                  address: a.place.address,
+                  rating: a.place.rating
+                    ? parseFloat(a.place.rating)
                     : null,
-                  price_level: a.placeDetails.price_level,
-                  types: a.placeDetails.types || [],
+                  price_level: a.place.price_level,
+                  types: a.place.types || [],
                   description: a.description || "",
-                  photo: a.placeDetails.photos?.[0]
-                    ? getFullImageUrl(a.placeDetails.photos[0].url_medium)
+                  photo: a.place.photos?.[0]
+                    ? getFullImageUrl(a.place.photos[0].url_medium)
                     : null,
-                  photos: a.placeDetails.photos
-                    ? a.placeDetails.photos.map((p) => ({
+                  photos: a.place.photos
+                    ? a.place.photos.map((p) => ({
                         url_small: getFullImageUrl(p.url_small),
                         url_medium: getFullImageUrl(p.url_medium),
                         url_large: getFullImageUrl(p.url_large),
@@ -933,19 +959,27 @@ async function formatTripResponse(trip) {
                 description: a.description,
                 activity_order: a.activity_order,
                 place_id: a.place_id,
-                placeDetails: a.placeDetails
+                place: a.place
                   ? {
-                      id: a.placeDetails.id,
-                      google_place_id: a.placeDetails.google_place_id,
-                      name: a.placeDetails.name,
-                      address: a.placeDetails.address,
-                      latitude: a.placeDetails.latitude,
-                      longitude: a.placeDetails.longitude,
-                      rating: a.placeDetails.rating
-                        ? parseFloat(a.placeDetails.rating)
+                      id: a.place.id,
+                      google_place_id: a.place.google_place_id,
+                      name: a.place.name,
+                      address: a.place.address,
+                      latitude: a.place.latitude,
+                      longitude: a.place.longitude,
+                      rating: a.place.rating
+                        ? parseFloat(a.place.rating)
                         : null,
-                      user_ratings_total: a.placeDetails.user_ratings_total,
-                      price_level: a.placeDetails.price_level,
+                      user_ratings_total: a.place.user_ratings_total,
+                      price_level: a.place.price_level,
+                      city: a.place.city ? {
+                        id: a.place.city.id,
+                        name: a.place.city.name,
+                        country: a.place.city.country ? {
+                          id: a.place.city.country.id,
+                          name: a.place.city.country.name,
+                        } : null,
+                      } : null,
                     }
                   : null,
               }))

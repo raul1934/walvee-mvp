@@ -527,7 +527,7 @@ const getCityTrips = async (req, res, next) => {
           include: [
             {
               model: Place,
-              as: "placeDetails",
+              as: "place",
               attributes: ["id", "latitude", "longitude", "google_place_id"],
             },
           ],
@@ -551,7 +551,7 @@ const getCityTrips = async (req, res, next) => {
               include: [
                 {
                   model: Place,
-                  as: "placeDetails",
+                  as: "place",
                   attributes: [
                     "id",
                     "latitude",
@@ -758,25 +758,25 @@ const getCityTrips = async (req, res, next) => {
                 title: day.title,
                 places: day.activities
                   ? day.activities
-                      .filter((a) => a.placeDetails)
+                      .filter((a) => a.place)
                       .map((a) => ({
-                        id: a.placeDetails.id,
-                        place_id: a.placeDetails.google_place_id,
-                        name: a.placeDetails.name,
-                        address: a.placeDetails.address,
-                        rating: a.placeDetails.rating
-                          ? parseFloat(a.placeDetails.rating)
+                        id: a.place.id,
+                        place_id: a.place.google_place_id,
+                        name: a.place.name,
+                        address: a.place.address,
+                        rating: a.place.rating
+                          ? parseFloat(a.place.rating)
                           : null,
-                        price_level: a.placeDetails.price_level,
-                        types: a.placeDetails.types || [],
+                        price_level: a.place.price_level,
+                        types: a.place.types || [],
                         description: a.description || "",
-                        photo: a.placeDetails.photos?.[0]
+                        photo: a.place.photos?.[0]
                           ? require("../utils/helpers").getFullImageUrl(
-                              a.placeDetails.photos[0].url_medium
+                              a.place.photos[0].url_medium
                             )
                           : null,
-                        photos: a.placeDetails.photos
-                          ? a.placeDetails.photos.map((p) => ({
+                        photos: a.place.photos
+                          ? a.place.photos.map((p) => ({
                               url_small:
                                 require("../utils/helpers").getFullImageUrl(
                                   p.url_small
@@ -982,7 +982,7 @@ const getCityLocals = async (req, res, next) => {
       include: [
         {
           model: CityModel,
-          as: "cityData",
+          as: "city",
           attributes: ["id", "name"],
           include: [
             {
@@ -1015,8 +1015,8 @@ const getCityLocals = async (req, res, next) => {
             Follow.count({ where: { follower_id: user.id } }),
           ]);
 
-        const cityName = user.cityData
-          ? `${user.cityData.name}, ${user.cityData.country?.name || ""}`
+        const cityName = user.city
+          ? `${user.city.name}, ${user.city.country?.name || ""}`
           : null;
 
         return {

@@ -227,14 +227,14 @@ export default React.memo(
               <div className="flex items-center gap-3">
                 {/* User Avatar - not clickable to avoid nested links */}
                 <UserAvatar
-                  src={trip.author_photo}
-                  name={trip.author_name || "Arthur Gonçalves"}
+                  src={trip.author?.photo_url}
+                  name={trip.author?.preferred_name || trip.author?.full_name || "Traveler"}
                   size="md"
                 />
                 <div>
                   {/* User name - not a link to avoid nested anchors */}
                   <div className="font-semibold text-white text-sm">
-                    {trip.author_name || "Arthur Gonçalves"}
+                    {trip.author?.preferred_name || trip.author?.full_name || "Traveler"}
                   </div>
                   <p className="text-xs text-gray-400">
                     {trip.start_date &&

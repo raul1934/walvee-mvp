@@ -728,7 +728,7 @@ const searchOverlay = async (req, res, next) => {
       include: [
         {
           model: City,
-          as: "cityData",
+          as: "city",
           attributes: ["name", "country_id"],
           required: false,
           include: [
@@ -762,8 +762,8 @@ const searchOverlay = async (req, res, next) => {
           // Public fields only - do not expose private data
           name: user.preferred_name || user.full_name || user.email,
           photo: getFullImageUrl(user.photo_url),
-          city: user.cityData?.name || null,
-          country: user.cityData?.country?.name || null,
+          city: user.city?.name || null,
+          country: user.city?.country?.name || null,
           instagram_username: instagram,
           instagram_display: instagram
             ? `@${instagram}`

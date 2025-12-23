@@ -297,7 +297,7 @@ const completeOnboarding = async (req, res, next) => {
       include: [
         {
           model: City,
-          as: "cityData",
+          as: "city",
           include: [
             { model: require("../models/sequelize").Country, as: "country" },
           ],

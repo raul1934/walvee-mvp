@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from "react";
-import { TripLike } from "@/api/entities";
 import apiClient, { endpoints } from "@/api/apiClient";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
@@ -63,37 +62,13 @@ export default function Home({ user, userLoading }) {
     onSuccess: (data) => {},
   });
 
-  // Fetch ALL user's likes in a SINGLE query to avoid rate limit
-  const { data: userLikes = [], isLoading: isLoadingUserLikes } = useQuery({
-    queryKey: ["userLikes", user?.id],
-    queryFn: async () => {
-      if (!user?.id) return [];
-      try {
-        // Single query to get all likes by this user
-        return await TripLike.filter({ liker_id: user.id });
-      } catch (error) {
-        return [];
-      }
-    },
-    enabled: !!user && !userLoading,
-    initialData: [],
-    staleTime: 5 * 60 * 1000,
-    cacheTime: 10 * 60 * 1000,
-    refetchOnWindowFocus: false,
-    refetchOnMount: false,
-  });
+  // User likes are now included in trip data as currentUserLiked
+  // No need for separate bulk fetch
 
-  // Create a Set of liked trip IDs for fast lookup
-  const userLikedTripIds = React.useMemo(() => {
-    return new Set(userLikes.map((like) => like.trip_id));
-  }, [userLikes]);
-
-  // Function to invalidate the user likes query, triggering a refetch - memoized
-  const invalidateUserLikes = React.useCallback(() => {
-    if (user?.id) {
-      queryClient.invalidateQueries(["userLikes", user.id]);
-    }
-  }, [user?.id, queryClient]);
+  // Function to invalidate trips query after like/unlike
+  const invalidateTrips = React.useCallback(() => {
+    queryClient.invalidateQueries(["homeTrips"]);
+  }, [queryClient]);
 
   useEffect(() => {
     const checkScroll = () => {
@@ -211,7 +186,7 @@ export default function Home({ user, userLoading }) {
                       <p className="text-sm">{error.message}</p>
                     </div>
                   )}
-                  {isLoading || isLoadingUserLikes ? (
+                  {isLoading ? (
                     <div className="flex justify-center items-center py-20">
                       <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-500 border-t-transparent" />
                     </div>
@@ -221,11 +196,10 @@ export default function Home({ user, userLoading }) {
                         key={`${trip.id}-${index}`}
                         trip={trip}
                         isLoggedIn={!!user}
-                        isFavorited={userLikedTripIds.has(trip.id)}
+                        isFavorited={trip.currentUserLiked || false}
                         onRestrictedAction={handleRestrictedAction}
-                        onFavoriteToggle={invalidateUserLikes}
+                        onFavoriteToggle={invalidateTrips}
                         currentUserId={user?.id}
-                        userLikedTripIds={userLikedTripIds}
                         isLoadingLikes={isLoadingUserLikes}
                       />
                     ))

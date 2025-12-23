@@ -16,6 +16,8 @@ const {
   buildErrorResponse,
   getFullImageUrl,
 } = require("../utils/helpers");
+const { addUserContext } = require("../utils/userContext");
+const { INCLUDE_CITY_WITH_COUNTRY } = require("./includes");
 
 /**
  * Get random trips for home page
@@ -89,13 +91,14 @@ const getHomeTrips = async (req, res) => {
                 include: [
                   {
                     model: Place,
-                    as: "placeDetails",
+                    as: "place",
                     attributes: [
                       "id",
                       "name",
                       "address",
                       "rating",
                       "price_level",
+                      "city_id",
                     ],
                     include: [
                       {
@@ -104,6 +107,7 @@ const getHomeTrips = async (req, res) => {
                         attributes: ["url_small", "url_medium", "url_large"],
                         limit: 3,
                       },
+                      INCLUDE_CITY_WITH_COUNTRY,
                     ],
                   },
                 ],
@@ -176,13 +180,14 @@ const getHomeTrips = async (req, res) => {
                 include: [
                   {
                     model: Place,
-                    as: "placeDetails",
+                    as: "place",
                     attributes: [
                       "id",
                       "name",
                       "address",
                       "rating",
                       "price_level",
+                      "city_id",
                     ],
                     include: [
                       {
@@ -191,6 +196,7 @@ const getHomeTrips = async (req, res) => {
                         attributes: ["url_small", "url_medium", "url_large"],
                         limit: 3,
                       },
+                      INCLUDE_CITY_WITH_COUNTRY,
                     ],
                   },
                 ],
@@ -226,8 +232,15 @@ const getHomeTrips = async (req, res) => {
       });
     }
 
+    // Add user context (likes/follows)
+    const userId = req.user?.id;
+    const tripsWithContext = await addUserContext(trips, userId, {
+      includeLikes: true,
+      includeFollows: true,
+    });
+
     // Format response
-    const formattedTrips = trips.map((trip) => {
+    const formattedTrips = tripsWithContext.map((trip) => {
       // Collect all images: cover + city photos + place photos
       const images = [];
 
@@ -255,11 +268,11 @@ const getHomeTrips = async (req, res) => {
           if (day.activities) {
             day.activities.forEach((activity) => {
               if (
-                activity.placeDetails?.photos &&
-                !addedPlaceIds.has(activity.placeDetails.id)
+                activity.place?.photos &&
+                !addedPlaceIds.has(activity.place.id)
               ) {
-                addedPlaceIds.add(activity.placeDetails.id);
-                activity.placeDetails.photos.forEach((photo) => {
+                addedPlaceIds.add(activity.place.id);
+                activity.place.photos.forEach((photo) => {
                   if (photo.url_medium) {
                     images.push(getFullImageUrl(photo.url_medium));
                   }
@@ -301,30 +314,32 @@ const getHomeTrips = async (req, res) => {
         likes: trip.likes_count || 0,
         views: trip.views_count || 0,
         created_at: trip.created_at,
-        author_name:
-          trip.author?.preferred_name ||
-          trip.author?.full_name ||
-          "Unknown User",
-        author_photo: getFullImageUrl(trip.author?.photo_url),
-        author_id: trip.author?.id,
+        currentUserLiked: trip.currentUserLiked || false,
+        currentUserFollowing: trip.currentUserFollowing || false,
+        author: trip.author ? {
+          id: trip.author.id,
+          full_name: trip.author.full_name,
+          preferred_name: trip.author.preferred_name,
+          photo_url: getFullImageUrl(trip.author.photo_url),
+        } : null,
         itinerary: trip.itineraryDays
           ? trip.itineraryDays.map((day) => ({
               day: day.day_number,
               title: day.title,
               places: day.activities
                 ? day.activities
-                    .filter((a) => a.placeDetails)
+                    .filter((a) => a.place)
                     .map((a) => ({
-                      name: a.placeDetails.name,
-                      address: a.placeDetails.address,
-                      rating: a.placeDetails.rating
-                        ? parseFloat(a.placeDetails.rating)
+                      name: a.place.name,
+                      address: a.place.address,
+                      rating: a.place.rating
+                        ? parseFloat(a.place.rating)
                         : null,
-                      price_level: a.placeDetails.price_level,
+                      price_level: a.place.price_level,
                       types: [],
                       description: a.description || "",
-                      photo: a.placeDetails.photos?.[0]
-                        ? getFullImageUrl(a.placeDetails.photos[0].url_medium)
+                      photo: a.place.photos?.[0]
+                        ? getFullImageUrl(a.place.photos[0].url_medium)
                         : null,
                     }))
                 : [],
@@ -336,15 +351,23 @@ const getHomeTrips = async (req, res) => {
                     description: a.description,
                     activity_order: a.activity_order,
                     place_id: a.place_id,
-                    placeDetails: a.placeDetails
+                    place: a.place
                       ? {
-                          id: a.placeDetails.id,
-                          name: a.placeDetails.name,
-                          address: a.placeDetails.address,
-                          rating: a.placeDetails.rating
-                            ? parseFloat(a.placeDetails.rating)
+                          id: a.place.id,
+                          name: a.place.name,
+                          address: a.place.address,
+                          rating: a.place.rating
+                            ? parseFloat(a.place.rating)
                             : null,
-                          price_level: a.placeDetails.price_level,
+                          price_level: a.place.price_level,
+                          city: a.place.city ? {
+                            id: a.place.city.id,
+                            name: a.place.city.name,
+                            country: a.place.city.country ? {
+                              id: a.place.city.country.id,
+                              name: a.place.city.country.name,
+                            } : null,
+                          } : null,
                         }
                       : null,
                   }))
