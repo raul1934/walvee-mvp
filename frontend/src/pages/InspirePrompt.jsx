@@ -16,8 +16,11 @@ import {
 import { Button } from "@/components/ui/button";
 import FiltersModal from "../components/inspire/FiltersModal";
 import CitiesModal from "../components/inspire/CitiesModal";
-import MiniCardGrid from "../components/inspire/MiniCardGrid";
+import RecommendationList from "../components/inspire/RecommendationList";
 import RecommendationModal from "../components/inspire/RecommendationModal";
+import PlacesSidebar from "../components/inspire/PlacesSidebar";
+import OrganizeTripModal from "../components/inspire/OrganizeTripModal";
+import SidebarPlaceModal from "../components/inspire/SidebarPlaceModal";
 import UserAvatar from "../components/common/UserAvatar";
 import PlaceDetails from "../components/trip/PlaceDetails";
 
@@ -297,6 +300,13 @@ export default function InspirePrompt({ user }) {
   const [selectedRecommendation, setSelectedRecommendation] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
+  // Sidebar & Organizer state
+  const [selectedSidebarPlace, setSelectedSidebarPlace] = useState(null);
+  const [isSidebarPlaceModalOpen, setIsSidebarPlaceModalOpen] = useState(false);
+  const [isOrganizeTripModalOpen, setIsOrganizeTripModalOpen] = useState(false);
+  const [tripDays, setTripDays] = useState(3);
+  const [isOrganizingTrip, setIsOrganizingTrip] = useState(false);
+
   // Show more recommendations
   const [showAllRecommendations, setShowAllRecommendations] = useState(false);
 
@@ -566,6 +576,7 @@ export default function InspirePrompt({ user }) {
     const newTab = {
       name: cityName,
       places: [],
+      organizedItinerary: null,
       createdAt: Date.now(),
     };
 
@@ -683,7 +694,7 @@ export default function InspirePrompt({ user }) {
 
         const updatedTabs = prevTabs.map((tab) => {
           if (tab.name === existingTab.name) {
-            // Match by original tab name to update
+            // Match by original tab name to update and invalidate organizedItinerary
             return {
               ...tab,
               places: [
@@ -699,6 +710,7 @@ export default function InspirePrompt({ user }) {
                   addedAt: Date.now(),
                 },
               ],
+              organizedItinerary: null,
             };
           }
           return tab;
@@ -726,6 +738,7 @@ export default function InspirePrompt({ user }) {
               addedAt: Date.now(),
             },
           ],
+          organizedItinerary: null,
           createdAt: Date.now(),
         };
 
@@ -761,6 +774,7 @@ export default function InspirePrompt({ user }) {
           return {
             ...tab,
             places: (tab.places || []).filter((p) => p.name !== placeName),
+            organizedItinerary: null, // Invalidate organized itinerary when places change
           };
         }
         return tab;
@@ -801,6 +815,114 @@ export default function InspirePrompt({ user }) {
 
     setIsModalOpen(false);
     setSelectedRecommendation(null);
+  };
+
+  // Sidebar place selection
+  const handleSelectSidebarPlace = (place) => {
+    setSelectedSidebarPlace(place);
+    setIsSidebarPlaceModalOpen(true);
+  };
+
+  const handleCloseSidebarPlaceModal = () => {
+    setSelectedSidebarPlace(null);
+    setIsSidebarPlaceModalOpen(false);
+  };
+
+  // Organize trip handlers
+  const handleOrganizeClick = () => {
+    setIsOrganizeTripModalOpen(true);
+  };
+
+  const handleClearItinerary = (cityName) => {
+    setCityTabs((prev) =>
+      prev.map((tab) =>
+        tab.name === cityName ? { ...tab, organizedItinerary: null } : tab
+      )
+    );
+  };
+
+  const handleConfirmOrganize = async ({ cityName, places, days }) => {
+    if (!cityName) return;
+    setIsOrganizingTrip(true);
+
+    try {
+      const placesList = (places || [])
+        .map(
+          (p, idx) =>
+            `${idx + 1}. ${p.name}${p.address ? ` - ${p.address}` : ""}${
+              p.rating ? ` (rating: ${p.rating})` : ""
+            }`
+        )
+        .join("\n");
+
+      const prompt = `You are an expert travel planner. Create a ${days}-day itinerary for ${cityName} based on these places:\n\n${placesList}\n\nReturn JSON with a top-level key "itinerary" which is an array of days. Each day should be an object with: day (number), title (short), description (1-2 sentences), places: [{ name, estimated_duration, notes }]. Keep durations short (e.g., "2h" or "30m").`;
+
+      // Use LLM service to request structured itinerary
+      const response = await invokeLLM({
+        prompt,
+        response_json_schema: {
+          type: "object",
+          properties: {
+            itinerary: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  day: { type: "number" },
+                  title: { type: "string" },
+                  description: { type: "string" },
+                  places: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      properties: {
+                        name: { type: "string" },
+                        estimated_duration: { type: "string" },
+                        notes: { type: "string" },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      });
+
+      // Response might be an object or JSON string
+      let parsed = null;
+      if (response && typeof response === "object") {
+        parsed = response.itinerary || response;
+      } else if (typeof response === "string") {
+        try {
+          const obj = JSON.parse(response);
+          parsed = obj.itinerary || obj;
+        } catch (e) {
+          // try to extract JSON block from string
+          const jsonMatch = response.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            parsed = JSON.parse(jsonMatch[0]).itinerary;
+          }
+        }
+      }
+
+      if (!parsed) {
+        console.warn("Organizer returned unexpected format", response);
+        parsed = [];
+      }
+
+      setCityTabs((prev) =>
+        prev.map((tab) =>
+          tab.name === cityName ? { ...tab, organizedItinerary: parsed } : tab
+        )
+      );
+
+      setIsOrganizeTripModalOpen(false);
+    } catch (error) {
+      console.error("[OrganizeTrip] Error:", error);
+    } finally {
+      setIsOrganizingTrip(false);
+    }
   };
 
   // Get filtered messages based on active city
@@ -1847,6 +1969,21 @@ Provide 9-15 recommendations. Respond in ${
           flex-direction: column;
         }
 
+        /* Organize Trip Modal tweaks */
+        .place-modal-content.p-6 {
+          max-width: 700px;
+          padding: 24px;
+        }
+
+        .organize-days-input {
+          width: 120px;
+        }
+
+        .organize-places-list {
+          max-height: 320px;
+          overflow-y: auto;
+        }
+
         @keyframes slideInFromRight {
           from {
             transform: translateX(100%);
@@ -1938,95 +2075,24 @@ Provide 9-15 recommendations. Respond in ${
       <div className="inspire-main-layout">
         {/* Places Sidebar - Only show when city is active */}
         {activeCity && (
-          <aside className="places-sidebar open">
-            <div className="places-sidebar-header">
-              <h3 className="text-base font-bold text-white mb-1">
-                Your Places
-              </h3>
-              <p className="text-sm text-gray-400">
-                {activeCityPlaces.length}{" "}
-                {activeCityPlaces.length === 1 ? "place" : "places"} added
-              </p>
-            </div>
-
-            <div className="places-sidebar-content">
-              {activeCityPlaces.length === 0 ? (
-                <div className="text-center py-12 px-4">
-                  <div className="w-16 h-16 mx-auto mb-4 bg-gray-800/50 rounded-full flex items-center justify-center">
-                    <MapPin className="w-8 h-8 text-gray-600" />
-                  </div>
-                  <p className="text-sm text-gray-400 mb-2">
-                    No places added yet
-                  </p>
-                  <p className="text-xs text-gray-500">
-                    Start exploring and add places to build your itinerary
-                  </p>
-                </div>
-              ) : (
-                <div>
-                  {activeCityPlaces.map((place, idx) => {
-                    const priceInfo = place.price_level
-                      ? getPriceRangeInfo(place.price_level)
-                      : null;
-
-                    return (
-                      <div
-                        key={`${place.name}-${idx}`}
-                        className="place-sidebar-item"
-                      >
-                        <div className="place-sidebar-item-header">
-                          <div className="place-sidebar-item-icon">
-                            <MapPin className="w-5 h-5 text-blue-400" />
-                          </div>
-                          <div className="place-sidebar-item-content">
-                            <div
-                              className="place-sidebar-item-name"
-                              title={place.name}
-                            >
-                              {place.name}
-                            </div>
-                            <div
-                              className="place-sidebar-item-address"
-                              title={place.address}
-                            >
-                              {place.address}
-                            </div>
-                          </div>
-                        </div>
-
-                        {(place.rating || priceInfo) && (
-                          <div className="place-sidebar-item-meta">
-                            {place.rating && (
-                              <div className="place-sidebar-item-rating">
-                                <Star className="w-3.5 h-3.5 fill-current" />
-                                <span>{place.rating.toFixed(1)}</span>
-                              </div>
-                            )}
-                            {priceInfo && (
-                              <div className="place-sidebar-item-price">
-                                {priceInfo.symbol}
-                              </div>
-                            )}
-                          </div>
-                        )}
-
-                        <button
-                          className="place-sidebar-item-remove"
-                          onClick={() =>
-                            handleRemovePlace(activeCity, place.name)
-                          }
-                          title="Remove from trip"
-                          aria-label="Remove place"
-                        >
-                          <X className="w-3.5 h-3.5 text-red-400" />
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </aside>
+          <PlacesSidebar
+            activeCity={activeCity}
+            places={activeCityPlaces}
+            organizedItinerary={
+              cityTabs.find((t) => t.name === activeCity)?.organizedItinerary
+            }
+            onOrganizeClick={() => handleOrganizeClick()}
+            onPlaceClick={(place) => handleSelectSidebarPlace(place)}
+            onRemovePlace={(placeName) =>
+              handleRemovePlace(activeCity, placeName)
+            }
+            onClearItinerary={() => handleClearItinerary(activeCity)}
+            getPriceRangeInfo={getPriceRangeInfo}
+            onOpenPlaceDetails={(place) => {
+              setSelectedRecommendation(place);
+              setIsModalOpen(true);
+            }}
+          />
         )}
 
         {/* Scrollable Content Area - Chat */}
@@ -2147,31 +2213,10 @@ Provide 9-15 recommendations. Respond in ${
 
                         {msg.role === "assistant" && msg.recommendations && (
                           <>
-                            <MiniCardGrid
-                              recommendations={msg.recommendations.slice(
-                                0,
-                                showAllRecommendations
-                                  ? msg.recommendations.length
-                                  : 6
-                              )}
+                            <RecommendationList
+                              recommendations={msg.recommendations}
                               onCardClick={handleRecommendationClick}
                             />
-
-                            {msg.recommendations.length > 6 &&
-                              !showAllRecommendations && (
-                                <div className="show-more-container">
-                                  <Button
-                                    onClick={() =>
-                                      setShowAllRecommendations(true)
-                                    }
-                                    variant="outline"
-                                    className="bg-gray-800/50 hover:bg-gray-700 border-gray-700 text-white"
-                                  >
-                                    Show {msg.recommendations.length - 6} more
-                                    recommendations
-                                  </Button>
-                                </div>
-                              )}
                           </>
                         )}
                       </div>
@@ -2343,6 +2388,43 @@ Provide 9-15 recommendations. Respond in ${
             </div>
           )}
         </>
+      )}
+
+      {/* Sidebar Place Modal */}
+      {isSidebarPlaceModalOpen && selectedSidebarPlace && (
+        <SidebarPlaceModal
+          isOpen={isSidebarPlaceModalOpen}
+          onClose={handleCloseSidebarPlaceModal}
+          place={selectedSidebarPlace}
+          user={user}
+          onAddToTrip={() => {
+            handleAddPlaceToTrip(selectedSidebarPlace);
+            handleCloseSidebarPlaceModal();
+          }}
+          onRemove={() => {
+            handleRemovePlace(activeCity, selectedSidebarPlace.name);
+            handleCloseSidebarPlaceModal();
+          }}
+        />
+      )}
+
+      {/* Organize Trip Modal */}
+      {isOrganizeTripModalOpen && (
+        <OrganizeTripModal
+          isOpen={isOrganizeTripModalOpen}
+          onClose={() => setIsOrganizeTripModalOpen(false)}
+          places={activeCityPlaces}
+          tripDays={tripDays}
+          setTripDays={setTripDays}
+          isOrganizing={isOrganizingTrip}
+          onConfirm={() =>
+            handleConfirmOrganize({
+              cityName: activeCity,
+              places: activeCityPlaces,
+              days: tripDays,
+            })
+          }
+        />
       )}
     </div>
   );

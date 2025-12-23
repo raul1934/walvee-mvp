@@ -10,9 +10,10 @@ import { apiClient, endpoints } from './apiClient';
  * @param {string} options.prompt - The prompt to send to the LLM
  * @returns {Promise<any>} - LLM response
  */
-export async function invokeLLM({ prompt }) {
+export async function invokeLLM(options) {
   try {
-    const response = await apiClient.post(endpoints.llm.chat, { prompt });
+    // Forward all options to the API so callers can pass response_json_schema, temperature, etc.
+    const response = await apiClient.post(endpoints.llm.chat, options);
 
     // Return the response data
     return response.data.response;
