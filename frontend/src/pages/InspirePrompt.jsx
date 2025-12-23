@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import { apiClient, endpoints } from "@/api/apiClient";
-import { invokeLLM } from "@/api/llmService";
+import { invokeInspire } from "@/api/inspireService";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ChevronRight,
@@ -857,8 +857,8 @@ export default function InspirePrompt({ user }) {
 
       const prompt = `You are an expert travel planner. Create a ${days}-day itinerary for ${cityName} based on these places:\n\n${placesList}\n\nReturn JSON with a top-level key "itinerary" which is an array of days. Each day should be an object with: day (number), title (short), description (1-2 sentences), places: [{ name, estimated_duration, notes }]. Keep durations short (e.g., "2h" or "30m").`;
 
-      // Use LLM service to request structured itinerary
-      const response = await invokeLLM({
+      // Use Inspire service (backend wrapper) to request structured itinerary
+      const response = await invokeInspire({
         prompt,
         response_json_schema: {
           type: "object",
@@ -993,7 +993,7 @@ IMPORTANT: Always check grammar and spelling in your responses. Ensure all text 
         systemPrompt += `\n\nCURRENT CITY CONTEXT: The user is currently planning their trip to ${activeCity}. Focus recommendations ONLY on places, activities, and experiences IN ${activeCity}. Do NOT suggest other cities.`;
       }
 
-      const response = await invokeLLM({
+      const response = await invokeInspire({
         prompt: `${systemPrompt}
 
 CONVERSATION HISTORY:

@@ -1,0 +1,127 @@
+{
+    "id": "5045d398-eac0-49c7-b9c0-f01f9ac51fa0",
+    "title": "2-week Japan Highlights",
+    "description": "A curated itinerary covering Tokyo, Kyoto and Osaka.",
+    "duration": "14 days",
+    "duration_days": 14,
+    "budget": 2500,
+    "transportation": "train,walk",
+    "accommodation": "hotels,ryokan",
+    "best_time_to_visit": "spring,autumn",
+    "difficulty_level": "moderate",
+    "trip_type": "sightseeing",
+    "images": [
+        "https://example.com/uploads/cover.jpg",
+        "https://example.com/uploads/city1_medium.jpg"
+    ],
+    "destination_lat": 35.6762,
+    "destination_lng": 139.6503,
+    "is_public": true,
+    "is_featured": false,
+    "likes": 123,
+    "views": 4200,
+    "steals": 5,
+    "created_at": "2025-12-19T02:38:00.364Z",
+    "updated_at": "2025-12-20T10:12:00.000Z",
+    "currentUserLiked": false,
+    "currentUserFollowing": false,
+    "author": {
+        "id": "user-123",
+        "full_name": "Ana Silva",
+        "preferred_name": "Ana",
+        "photo_url": "https://example.com/uploads/users/ana.jpg",
+        "email": "ana@example.com",
+        "bio": "Traveler and photographer"
+    },
+    "tags": [
+        "photography",
+        "food",
+        "culture"
+    ],
+    "cities": [
+        {
+            "id": "city-1",
+            "name": "Tokyo",
+            "country": "Japan",
+            "order": 0
+        },
+        {
+            "id": "city-2",
+            "name": "Kyoto",
+            "country": "Japan",
+            "order": 1
+        }
+    ],
+    "itinerary": [
+        {
+            "day": 1,
+            "title": "Arrival & Shibuya",
+            "places": [
+                {
+                    "id": "place-123",
+                    "place_id": "ChIJ...",
+                    "name": "Shibuya Crossing",
+                    "address": "Shibuya, Tokyo",
+                    "rating": 4.6,
+                    "price_level": null,
+                    "types": [
+                        "landmark",
+                        "neighborhood"
+                    ],
+                    "description": "Iconic crossing and observation points.",
+                    "photo": "https://example.com/uploads/places/shibuya_medium.jpg",
+                    "photos": [
+                        {
+                            "url_small": "https://example.com/uploads/places/p1_small.jpg",
+                            "url_medium": "https://example.com/uploads/places/p1_medium.jpg",
+                            "url_large": "https://example.com/uploads/places/p1_large.jpg"
+                        }
+                    ]
+                }
+            ],
+            "activities": [
+                {
+                    "time": "10:00",
+                    "name": "Walk Shibuya",
+                    "latitude": 35.6595,
+                    "longitude": 139.7004,
+                    "location": "Shibuya, Tokyo",
+                    "description": "Explore the crossing and nearby streets",
+                    "activity_order": 0,
+                    "place_id": "place-123",
+                    "place": {
+                        "id": "place-123",
+                        "google_place_id": "ChIJ...",
+                        "name": "Shibuya Crossing",
+                        "address": "Shibuya, Tokyo",
+                        "latitude": 35.6595,
+                        "longitude": 139.7004,
+                        "rating": 4.6,
+                        "user_ratings_total": 12000,
+                        "price_level": null,
+                        "city": {
+                            "id": "city-1",
+                            "name": "Tokyo",
+                            "country": {
+                                "id": "country-jp",
+                                "name": "Japan"
+                            }
+                        }
+                    }
+                }
+            ]
+        }
+    ],
+    "comments": [
+        {
+            "id": "c1",
+            "comment": "Great itinerary!",
+            "created_at": "2025-12-20T12:00:00.000Z",
+            "commenter": {
+                "id": "user-456",
+                "name": "Marcos",
+                "photo": "https://example.com/uploads/users/marcos.jpg"
+            }
+        }
+    ]
+}

@@ -11,6 +11,7 @@ const cityRoutes = require("./cities");
 const placeRoutes = require("./places");
 const placeFavoriteRoutes = require("./placeFavorites");
 const llmRoutes = require("./llm");
+const inspireRoutes = require("./inspire");
 const searchRoutes = require("./search");
 const homeRoutes = require("./home");
 
@@ -29,6 +30,7 @@ router.use("/cities", cityRoutes);
 router.use("/places", placeRoutes);
 router.use("/place-favorites", placeFavoriteRoutes);
 router.use("/llm", llmRoutes);
+router.use("/inspire", inspireRoutes);
 router.use("/search", searchRoutes);
 router.use("/home", homeRoutes);
 

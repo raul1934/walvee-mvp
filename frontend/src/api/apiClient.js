@@ -298,6 +298,11 @@ export const endpoints = {
     travelers: "/home/travelers",
   },
 
+  // Inspire prompts (LLM wrapper for Inspire flows)
+  inspire: {
+    call: "/inspire/call",
+  },
+
   // Cities
   cities: {
     getById: (id) => `/cities/${id}`,
