@@ -1,4 +1,17 @@
-const { User, Trip, Follow, City, Country, CityPhoto, Place, PlacePhoto, TripTag, TripPlace, TripItineraryDay, TripItineraryActivity } = require("../models/sequelize");
+const {
+  User,
+  Trip,
+  Follow,
+  City,
+  Country,
+  CityPhoto,
+  Place,
+  PlacePhoto,
+  TripTag,
+  TripPlace,
+  TripItineraryDay,
+  TripItineraryActivity,
+} = require("../models/sequelize");
 const { Op } = require("sequelize");
 const {
   paginate,
@@ -7,7 +20,11 @@ const {
   buildErrorResponse,
 } = require("../utils/helpers");
 const { addUserContext } = require("../utils/userContext");
-const { INCLUDE_AUTHOR_FULL, INCLUDE_TRIP_CITIES, INCLUDE_PLACE_FULL } = require("./includes");
+const {
+  INCLUDE_AUTHOR_FULL,
+  INCLUDE_TRIP_CITIES,
+  INCLUDE_PLACE_FULL,
+} = require("./includes");
 
 const getUsers = async (req, res, next) => {
   try {
@@ -113,7 +130,7 @@ const updateCurrentUser = async (req, res, next) => {
     }
 
     // Validate city_id if provided to avoid integer/UUID mismatch errors
-    if (Object.prototype.hasOwnProperty.call(updateData, 'city_id')) {
+    if (Object.prototype.hasOwnProperty.call(updateData, "city_id")) {
       if (!updateData.city_id) {
         // Allow clearing the city
         updateData.city_id = null;
