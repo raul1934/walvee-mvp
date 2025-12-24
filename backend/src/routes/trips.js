@@ -21,7 +21,7 @@ router.post(
     body("description").optional().isString().trim().isLength({ max: 5000 }),
     body("durationDays").isInt({ min: 1 }),
     body("visibility").optional().isIn(["public", "private"]),
-    body("imageUrl").optional().isURL(),
+    body("imageUrl").optional().isString(),
     body("images").optional().isArray(),
     body("locations").optional().isArray(),
     body("cities").optional().isArray(),
@@ -62,7 +62,7 @@ router.put(
     body("description").optional().isString().trim().isLength({ max: 5000 }),
     body("durationDays").optional().isInt({ min: 1 }),
     body("visibility").optional().isIn(["public", "private"]),
-    body("imageUrl").optional().isURL(),
+    body("imageUrl").optional().isString(),
     body("images").optional().isArray(),
     body("locations").optional().isArray(),
     body("itinerary").optional().isArray(),
@@ -70,10 +70,12 @@ router.put(
     body("cities.*")
       .optional()
       .custom((val) => {
-        if (typeof val === "number") return true;
-        if (typeof val === "object" && Number.isInteger(val.id)) return true;
+        const isUuid = (v) =>
+          typeof v === "string" && /^[0-9a-fA-F\-]{36}$/.test(v);
+        if (typeof val === "string" && isUuid(val)) return true;
+        if (typeof val === "object" && isUuid(val.id)) return true;
         throw new Error(
-          "each city must be an integer id or object with an `id` integer"
+          "each city must be a uuid string or object with an `id` uuid"
         );
       }),
   ],

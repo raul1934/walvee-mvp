@@ -4,7 +4,11 @@
       "Bash(npm start)",
       "Bash(npm run dev:*)",
       "Bash(npm install:*)",
-      "Bash(node scripts/migrate-associations.js:*)"
+      "Bash(node scripts/migrate-associations.js:*)",
+      "Bash(npx sequelize-cli:*)",
+      "Bash(grep:*)",
+      "Bash(node:*)",
+      "Bash(curl:*)"
     ]
   }
 }

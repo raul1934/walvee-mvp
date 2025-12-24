@@ -38,9 +38,6 @@ const Trip = sequelize.define(
     trip_type: {
       type: DataTypes.STRING(50),
     },
-    cover_image: {
-      type: DataTypes.TEXT,
-    },
     author_id: {
       type: DataTypes.UUID,
       allowNull: false,

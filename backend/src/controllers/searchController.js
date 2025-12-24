@@ -7,6 +7,7 @@ const {
   User,
   Trip,
   Follow,
+  TripImage,
 } = require("../models/sequelize");
 const { Op } = require("sequelize");
 const {
@@ -437,6 +438,25 @@ const searchOverlay = async (req, res, next) => {
             "photo_url",
           ],
         },
+        {
+          model: TripImage,
+          as: "images",
+          attributes: ["id", "place_photo_id", "city_photo_id", "is_cover", "image_order"],
+          include: [
+            {
+              model: PlacePhoto,
+              as: "placePhoto",
+              attributes: ["url_small", "url_medium", "url_large"],
+            },
+            {
+              model: CityPhoto,
+              as: "cityPhoto",
+              attributes: ["url_small", "url_medium", "url_large"],
+            },
+          ],
+          order: [["image_order", "ASC"]],
+          limit: 1, // Only get the first image (cover)
+        },
       ],
       distinct: true,
       limit: resultLimit,
@@ -453,7 +473,6 @@ const searchOverlay = async (req, res, next) => {
         "id",
         "title",
         "description",
-        "cover_image",
         "duration",
         [
           require("../database/sequelize").sequelize.literal(
@@ -471,22 +490,35 @@ const searchOverlay = async (req, res, next) => {
       distinct: true,
     });
 
-    response.results.trips = trips.map((trip) => ({
-      id: trip.id,
-      title: trip.title,
-      // Provide cities array (ordered) instead of legacy destination
-      cities: (trip.cities || []).map((c) => ({ id: c.id, name: c.name })),
-      description: trip.description,
-      image: trip.cover_image,
-      duration: trip.duration,
-      likes: trip.likes_count,
-      views: trip.views_count,
-      author: {
-        id: trip.author?.id,
-        name: trip.author?.preferred_name || trip.author?.full_name,
-        photo: trip.author?.photo_url,
-      },
-    }));
+    response.results.trips = trips.map((trip) => {
+      // Get first image from trip_images
+      let imageUrl = null;
+      if (trip.images && trip.images.length > 0) {
+        const firstImage = trip.images[0];
+        if (firstImage.placePhoto) {
+          imageUrl = getFullImageUrl(firstImage.placePhoto.url_medium);
+        } else if (firstImage.cityPhoto) {
+          imageUrl = getFullImageUrl(firstImage.cityPhoto.url_medium);
+        }
+      }
+
+      return {
+        id: trip.id,
+        title: trip.title,
+        // Provide cities array (ordered) instead of legacy destination
+        cities: (trip.cities || []).map((c) => ({ id: c.id, name: c.name })),
+        description: trip.description,
+        image: imageUrl,
+        duration: trip.duration,
+        likes: trip.likes_count,
+        views: trip.views_count,
+        author: {
+          id: trip.author?.id,
+          name: trip.author?.preferred_name || trip.author?.full_name,
+          photo: trip.author?.photo_url,
+        },
+      };
+    });
     response.counts.trips = totalTripsCount;
 
     // ===== SEARCH PLACES =====

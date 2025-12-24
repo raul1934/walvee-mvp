@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { Trip, Upload } from "@/api/entities";
+import { Trip } from "@/api/entities";
 import { apiClient, endpoints } from "@/api/apiClient";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNotification } from "@/contexts/NotificationContext";
@@ -36,6 +36,7 @@ import {
 import {
   SortableContext,
   verticalListSortingStrategy,
+  horizontalListSortingStrategy,
   useSortable,
   arrayMove,
 } from "@dnd-kit/sortable";
@@ -47,12 +48,10 @@ export default function TripEditor() {
   const navigate = useNavigate();
   const { user: currentUser } = useAuth();
   const { showNotification } = useNotification();
-  const fileInputRef = useRef(null);
 
   // State management
   const [mode, setMode] = useState("create");
   const [loading, setLoading] = useState(false);
-  const [uploadingImage, setUploadingImage] = useState(false);
   const [errors, setErrors] = useState({});
 
   const [formData, setFormData] = useState({
@@ -65,7 +64,7 @@ export default function TripEditor() {
     best_time_to_visit: "",
     difficulty_level: "",
     trip_type: "",
-    cover_image: "",
+    trip_images: [],
     images: [],
     visibility: "public",
     is_public: true,
@@ -75,6 +74,7 @@ export default function TripEditor() {
       {
         day: 1,
         title: "",
+        description: "",
         activities: [
           {
             time: "",
@@ -119,10 +119,15 @@ export default function TripEditor() {
   // City modal state
   const [selectedCity, setSelectedCity] = useState(null);
   const [showCityModal, setShowCityModal] = useState(false);
-  const [cityPlaces, setCityPlaces] = useState([]);
+  const [showAddCityModal, setShowAddCityModal] = useState(false);
+  const [showPlacePickerModal, setShowPlacePickerModal] = useState(false);
+  const [placePickerActivity, setPlacePickerActivity] = useState(null); // { dayIndex, activityIndex }
+  const [cityPlaces, setCityPlaces] = useState({}); // Object keyed by city ID
   const [cityPlacesLoading, setCityPlacesLoading] = useState(false);
   const [cityPlaceType, setCityPlaceType] = useState("all");
   const [cityPlaceSearch, setCityPlaceSearch] = useState("");
+  // When user types a place search, store global results here (across cities)
+  const [globalPlaceSearchResults, setGlobalPlaceSearchResults] = useState([]);
 
   // Drag and drop sensors
   const sensors = useSensors(
@@ -231,7 +236,7 @@ export default function TripEditor() {
       best_time_to_visit: trip.best_time_to_visit || "",
       difficulty_level: trip.difficulty_level || "",
       trip_type: trip.trip_type || "",
-      cover_image: trip.cover_image || "",
+      trip_images: trip.images || [],
       images: trip.images || [],
       visibility: trip.is_public ? "public" : "private",
       is_public: trip.is_public,
@@ -268,6 +273,7 @@ export default function TripEditor() {
             {
               day: 1,
               title: "",
+              description: "",
               activities: [
                 {
                   time: "",
@@ -332,6 +338,7 @@ export default function TripEditor() {
             return {
               day: day.day_number || day.day || 1,
               title: day.title || "",
+              description: day.description || "",
               activities,
             };
           });
@@ -341,40 +348,15 @@ export default function TripEditor() {
     // Ensure first day is selected when loading existing trip
     setSelectedDayIndex(0);
 
-    // Set cover image ID if available
-    if (trip.cover_image) {
-      // Try to find the image ID from trip photos or place photos
-      const allImages = [];
-
-      // Collect images from itinerary places
-      trip.itineraryDays?.forEach((day) => {
-        day.activities?.forEach((activity) => {
-          if (activity.place && activity.place.photos) {
-            activity.place.photos.forEach((photo) => {
-              if (photo.url === trip.cover_image) {
-                setCoverImageId(photo.id || photo.url);
-              }
-              allImages.push({ id: photo.id || photo.url, url: photo.url });
-            });
-          }
-        });
-      });
-
-      // Collect images from cities
-      trip.cities?.forEach((city) => {
-        if (city.photos && Array.isArray(city.photos)) {
-          city.photos.forEach((photo) => {
-            if (photo.url === trip.cover_image) {
-              setCoverImageId(photo.id || photo.url);
-            }
-            allImages.push({ id: photo.id || photo.url, url: photo.url });
-          });
+    // Set cover image ID if available from trip_images
+    if (trip.images && Array.isArray(trip.images)) {
+      const coverImage = trip.images.find((img) => img.is_cover);
+      if (coverImage) {
+        // Use the photo ID as the identifier
+        const imageId = coverImage.place_photo_id || coverImage.city_photo_id;
+        if (imageId) {
+          setCoverImageId(imageId);
         }
-      });
-
-      // If not found in images, just use the URL
-      if (allImages.length === 0) {
-        setCoverImageId(trip.cover_image);
       }
     }
   };
@@ -424,7 +406,7 @@ export default function TripEditor() {
       best_time_to_visit: formData.best_time_to_visit || null,
       difficulty_level: formData.difficulty_level || null,
       trip_type: formData.trip_type || null,
-      imageUrl: formData.cover_image || null,
+      trip_images: formData.trip_images || [],
       images: formData.images || [],
       visibility: formData.visibility,
       cities: formData.cities.map((c) => c.id),
@@ -517,49 +499,6 @@ export default function TripEditor() {
       }
     } finally {
       setLoading(false);
-    }
-  };
-
-  // Image upload handler
-  const handleImageUpload = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (!file.type.startsWith("image/")) {
-      showNotification({
-        type: "error",
-        title: "Invalid file",
-        message: "Please select an image file",
-      });
-      return;
-    }
-
-    if (file.size > 5 * 1024 * 1024) {
-      showNotification({
-        type: "error",
-        title: "File too large",
-        message: "Image size must be less than 5MB",
-      });
-      return;
-    }
-
-    setUploadingImage(true);
-    try {
-      const { fileUrl } = await Upload.uploadImage(file);
-      setFormData((prev) => ({ ...prev, cover_image: fileUrl }));
-      showNotification({
-        type: "success",
-        title: "Image uploaded",
-        message: "Cover image uploaded successfully",
-      });
-    } catch (error) {
-      showNotification({
-        type: "error",
-        title: "Upload failed",
-        message: "Failed to upload image. Please try again.",
-      });
-    } finally {
-      setUploadingImage(false);
     }
   };
 
@@ -685,6 +624,7 @@ export default function TripEditor() {
         {
           day: prev.itinerary.length + 1,
           title: "",
+          description: "",
           activities: [
             {
               time: "",
@@ -961,118 +901,118 @@ export default function TripEditor() {
             </div>
 
             {/* Main content */}
-            <div className="flex-1">
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex-1 min-w-0">
-                  <Input
-                    value={activity.name}
-                    onChange={(e) =>
-                      handleUpdateActivity(
-                        dayIndex,
-                        activityIndex,
-                        "name",
-                        e.target.value
-                      )
-                    }
-                    placeholder="e.g., Greek Dinner"
-                    className="bg-transparent border-0 text-white text-lg font-semibold p-0 placeholder:text-gray-400 focus:ring-0 focus:outline-none"
-                  />
-                  <div className="text-xs text-gray-400 mt-1 truncate">
-                    {activity.place?.address || activity.location || ""}
-                  </div>
-                </div>
-
-                <div className="flex-shrink-0 text-xs text-yellow-400">
-                  N/A (0)
-                </div>
-              </div>
-
-              {/* Linked place / search input (kept for functionality) */}
-              <div className="mt-3">
-                <Input
-                  value={activity.place_id ? activity.location : searchQuery}
-                  onChange={(e) => {
-                    if (!activity.place_id) {
-                      handlePlaceSearch(
-                        dayIndex,
-                        activityIndex,
-                        e.target.value
-                      );
-                    }
+            <div className="flex-1 space-y-3">
+              {/* Place selector button */}
+              {activity.place ? (
+                <button
+                  onClick={() => {
+                    setPlacePickerActivity({ dayIndex, activityIndex });
+                    setShowPlacePickerModal(true);
                   }}
-                  placeholder="Search for a place..."
-                  className="bg-transparent border-0 text-gray-300 p-0 placeholder:text-gray-500 focus:ring-0 focus:outline-none"
-                  disabled={!!activity.place_id}
-                />
-
-                {!activity.place_id &&
-                  showDropdown &&
-                  searchResults.length > 0 && (
-                    <div className="absolute z-10 w-full mt-1 bg-[#1A1B23] border border-gray-700 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                      {searchResults.map((place) => (
-                        <button
-                          key={place.id}
-                          onClick={() =>
-                            handleSelectPlace(dayIndex, activityIndex, place)
-                          }
-                          className="w-full text-left px-4 py-3 hover:bg-[#2A2B35] transition-colors border-b border-gray-700 last:border-0"
-                        >
-                          <div className="flex items-center gap-3">
-                            {place.photos && place.photos.length > 0 ? (
-                              <img
-                                src={
-                                  place.photos[0].url_small ||
-                                  place.photos[0].url_medium
-                                }
-                                alt={place.name}
-                                className="w-12 h-12 rounded object-cover"
-                              />
-                            ) : (
-                              <div className="w-12 h-12 bg-gray-700 rounded flex items-center justify-center">
-                                <MapPin className="w-6 h-6 text-gray-400" />
-                              </div>
-                            )}
-                            <div className="flex-1">
-                              <div className="font-semibold text-white text-sm">
-                                {place.name}
-                              </div>
-                              <div className="text-xs text-gray-400">
-                                {place.address}
-                              </div>
-                              {place.rating && (
-                                <div className="text-xs text-yellow-500 mt-1">
-                                  ⭐ {place.rating.toFixed(1)} (
-                                  {place.user_ratings_total || 0} reviews)
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-
-                {activity.place && (
-                  <div className="mt-2 p-3 bg-blue-900/10 rounded-lg border border-blue-500/30">
-                    <div className="flex items-center gap-2">
-                      <MapPin className="w-4 h-4 text-blue-400" />
-                      <span className="text-sm text-blue-300">
-                        Linked to: {activity.place.name}
-                      </span>
+                  className="w-full text-left p-3 bg-blue-900/10 rounded-lg border border-blue-500/30 hover:bg-blue-900/20 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    {activity.place.photos &&
+                    activity.place.photos.length > 0 ? (
+                      <img
+                        src={
+                          activity.place.photos[0].url_small ||
+                          activity.place.photos[0].url_medium
+                        }
+                        alt={activity.place.name}
+                        className="w-12 h-12 rounded object-cover"
+                      />
+                    ) : (
+                      <div className="w-12 h-12 bg-blue-700 rounded flex items-center justify-center">
+                        <MapPin className="w-5 h-5 text-blue-300" />
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <div className="text-white font-semibold truncate">
+                        {activity.place.name}
+                      </div>
+                      <div className="text-xs text-gray-400 truncate">
+                        {activity.place.address}
+                      </div>
                       {activity.place.rating && (
-                        <span className="text-xs text-yellow-500">
-                          ⭐ {activity.place.rating.toFixed(1)}
-                        </span>
+                        <div className="text-xs text-yellow-500 mt-1">
+                          ⭐ {activity.place.rating.toFixed(1)}{" "}
+                          {activity.place.user_ratings_total && (
+                            <span className="text-gray-500">
+                              ({activity.place.user_ratings_total})
+                            </span>
+                          )}
+                        </div>
                       )}
                     </div>
+                    <Repeat className="w-4 h-4 text-blue-400 flex-shrink-0" />
                   </div>
-                )}
+                </button>
+              ) : (
+                <button
+                  onClick={() => {
+                    setPlacePickerActivity({ dayIndex, activityIndex });
+                    setShowPlacePickerModal(true);
+                  }}
+                  className="w-full text-left p-4 bg-[#1A1B23] rounded-lg border-2 border-dashed border-gray-600 hover:border-blue-500 hover:bg-[#1F2029] transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 bg-gray-700 rounded flex items-center justify-center">
+                      <MapPin className="w-5 h-5 text-gray-400" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="text-gray-300 font-medium">
+                        Add a place
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        Click to search for a place
+                      </div>
+                    </div>
+                    <Plus className="w-5 h-5 text-gray-400" />
+                  </div>
+                </button>
+              )}
 
-                {activity.description && (
-                  <div className="text-sm text-gray-400 mt-3">
-                    {activity.description}
-                  </div>
-                )}
+              {/* Time input */}
+              <div>
+                <Label className="text-xs text-gray-400 mb-1">
+                  Time (optional)
+                </Label>
+                <Input
+                  type="time"
+                  value={activity.time || ""}
+                  onChange={(e) =>
+                    handleUpdateActivity(
+                      dayIndex,
+                      activityIndex,
+                      "time",
+                      e.target.value
+                    )
+                  }
+                  placeholder="e.g., 14:00"
+                  className="bg-[#1A1B23] border-gray-700 text-white h-9"
+                />
+              </div>
+
+              {/* Description input */}
+              <div>
+                <Label className="text-xs text-gray-400 mb-1">
+                  Notes (optional)
+                </Label>
+                <Textarea
+                  value={activity.description || ""}
+                  onChange={(e) =>
+                    handleUpdateActivity(
+                      dayIndex,
+                      activityIndex,
+                      "description",
+                      e.target.value
+                    )
+                  }
+                  placeholder="Add notes about this activity..."
+                  className="bg-[#1A1B23] border-gray-700 text-white min-h-[60px] resize-none"
+                  rows={2}
+                />
               </div>
             </div>
 
@@ -1118,25 +1058,25 @@ export default function TripEditor() {
     const isActive = selectedDayIndex === dayIndex;
 
     return (
-      <div ref={setNodeRef} style={style} className="relative mr-2">
+      <div ref={setNodeRef} style={style}>
         <button
           {...attributes}
           {...listeners}
           onClick={() => setSelectedDayIndex(dayIndex)}
-          className={`flex flex-col items-start gap-1 min-w-max px-3 py-2 rounded-md ${
+          className={`shrink-0 px-4 py-3 rounded-lg text-sm transition-all relative ${
             isActive
-              ? "bg-[#0B1220] text-blue-400"
+              ? "bg-gray-900 text-white"
               : "bg-transparent text-gray-400 hover:text-gray-300"
           }`}
         >
-          <span className="text-sm font-medium">{`Day ${String(
+          <div className="font-semibold mb-0.5">{`Day ${String(
             day.day
-          ).padStart(2, "0")}`}</span>
-          <span className="text-xs text-gray-500">
+          ).padStart(2, "0")}`}</div>
+          <div className="text-xs opacity-80">
             {(day.activities || []).length} places
-          </span>
+          </div>
           {isActive && (
-            <div className="mt-2 h-1 w-full bg-blue-500 rounded-full" />
+            <div className="absolute bottom-0 left-0 right-0 h-1 bg-blue-600 rounded-t-full" />
           )}
         </button>
       </div>
@@ -1160,11 +1100,11 @@ export default function TripEditor() {
         const places = Array.isArray(response.data)
           ? response.data
           : response.data.data || response.data.results || [];
-        setCityPlaces(places);
+        setCityPlaces((prev) => ({ ...prev, [city.id]: places }));
       }
     } catch (error) {
       console.error("Error fetching city places:", error);
-      setCityPlaces([]);
+      setCityPlaces((prev) => ({ ...prev, [city.id]: [] }));
     }
   };
 
@@ -1194,10 +1134,14 @@ export default function TripEditor() {
               ? response.data
               : response.data.data || response.data.results || []
             : [];
-        if (active) setCityPlaces(places);
+        if (active && selectedCity) {
+          setCityPlaces((prev) => ({ ...prev, [selectedCity.id]: places }));
+        }
       } catch (err) {
         console.error("Error searching city places:", err);
-        if (active) setCityPlaces([]);
+        if (active && selectedCity) {
+          setCityPlaces((prev) => ({ ...prev, [selectedCity.id]: [] }));
+        }
       } finally {
         if (active) setCityPlacesLoading(false);
       }
@@ -1208,6 +1152,35 @@ export default function TripEditor() {
       clearTimeout(timer);
     };
   }, [cityPlaceSearch, cityPlaceType, showCityModal, selectedCity]);
+
+  // Don't pre-load places for all cities when modal opens — wait for user input.
+  // Debounce user input and perform a search across cities when the user types.
+  useEffect(() => {
+    if (!showPlacePickerModal) return;
+
+    let active = true;
+    const timer = setTimeout(() => {
+      if (!cityPlaceSearch || !cityPlaceSearch.trim()) {
+        // Clear global search results if any
+        setGlobalPlaceSearchResults([]);
+        return;
+      }
+
+      (async () => {
+        try {
+          await searchCityPlacesNow(cityPlaceSearch);
+        } catch (err) {
+          if (active)
+            console.error("Error searching places on user input:", err);
+        }
+      })();
+    }, 350);
+
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [showPlacePickerModal, cityPlaceSearch, cityPlaceType, selectedCity]);
 
   const searchCityPlacesNow = async (query) => {
     setCityPlacesLoading(true);
@@ -1229,16 +1202,27 @@ export default function TripEditor() {
             ? response.data
             : response.data.data || response.data.results || []
           : [];
-      setCityPlaces(places);
+
+      if (selectedCity) {
+        setCityPlaces((prev) => ({ ...prev, [selectedCity.id]: places }));
+        setGlobalPlaceSearchResults([]);
+      } else {
+        // Global search across cities — store in separate state so UI can show results
+        setGlobalPlaceSearchResults(places);
+      }
     } catch (err) {
       console.error("Error searching city places:", err);
-      setCityPlaces([]);
+      if (selectedCity) {
+        setCityPlaces((prev) => ({ ...prev, [selectedCity.id]: [] }));
+      } else {
+        setGlobalPlaceSearchResults([]);
+      }
     } finally {
       setCityPlacesLoading(false);
     }
   };
 
-  const SortableCity = ({ city }) => {
+  const SortableCity = ({ city, index }) => {
     const {
       attributes,
       listeners,
@@ -1260,37 +1244,48 @@ export default function TripEditor() {
       <div
         ref={setNodeRef}
         style={style}
-        className="inline-flex items-center gap-2 bg-blue-600/20 border border-blue-500/30 rounded-lg px-3 py-2"
+        className="w-full bg-gray-800/50 rounded-xl p-3 hover:bg-gray-800 transition-all"
       >
-        <button
-          {...attributes}
-          {...listeners}
-          className="cursor-grab active:cursor-grabbing text-blue-400"
-        >
-          <GripVertical className="w-4 h-4" />
-        </button>
-        <button
-          onClick={() => handleCityClick(city)}
-          className="flex-1 text-left"
-        >
-          <div className="text-sm font-medium text-blue-300">
-            {city.name}
-            {city.country && `, ${city.country}`}
-          </div>
-          {(city.placesCount > 0 || city.tripsCount > 0) && (
-            <div className="text-xs text-blue-400/70 mt-0.5">
-              {city.placesCount > 0 && `${city.placesCount} places`}
-              {city.placesCount > 0 && city.tripsCount > 0 && " • "}
-              {city.tripsCount > 0 && `${city.tripsCount} trips`}
+        <div className="flex items-center gap-3">
+          <div className="relative shrink-0">
+            <div className="w-12 h-12 bg-blue-900/50 rounded-xl flex items-center justify-center">
+              <MapPin className="w-6 h-6 text-blue-400" />
             </div>
-          )}
-        </button>
-        <button
-          onClick={() => handleRemoveCity(city.id)}
-          className="text-blue-400 hover:text-blue-300"
-        >
-          <X className="w-4 h-4" />
-        </button>
+            <div className="absolute -top-1 -left-1 w-5 h-5 bg-blue-600 rounded-full flex items-center justify-center text-xs font-bold">
+              {index + 1}
+            </div>
+          </div>
+          <button
+            onClick={() => handleCityClick(city)}
+            className="flex-1 min-w-0 text-left"
+          >
+            <h4 className="font-semibold mb-1 truncate">{city.name}</h4>
+            <p className="text-xs text-gray-400 mb-1.5 truncate">
+              {city.state && `${city.state}, `}
+              {city.country?.name || city.country}
+            </p>
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-gray-500">
+                  {city.placesCount || 0} places • {city.tripsCount || 0} trips
+                </span>
+              </div>
+            </div>
+          </button>
+          <button
+            {...attributes}
+            {...listeners}
+            className="cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-300 p-2"
+          >
+            <GripVertical className="w-5 h-5" />
+          </button>
+          <button
+            onClick={() => handleRemoveCity(city.id)}
+            className="text-gray-400 hover:text-red-400 p-2"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
       </div>
     );
   };
@@ -1345,7 +1340,7 @@ export default function TripEditor() {
 
             <Button
               onClick={mode === "create" ? handleCreate : handleUpdate}
-              disabled={loading || uploadingImage}
+              disabled={loading}
               className="bg-gradient-to-r from-blue-600 to-purple-600 hover:opacity-90 text-white font-semibold h-10 px-6 rounded-lg my-2 md:my-0"
             >
               {loading ? (
@@ -1543,66 +1538,6 @@ export default function TripEditor() {
                         </p>
                       </div>
                     </div>
-                  </div>
-                </div>
-
-                <div className="p-4">
-                  <h2 className="text-base font-semibold text-white mb-3">
-                    Cover Image
-                  </h2>
-
-                  <div className="space-y-4">
-                    {formData.cover_image ? (
-                      <div className="relative aspect-video rounded-xl overflow-hidden">
-                        <img
-                          src={formData.cover_image}
-                          alt="Cover"
-                          className="w-full h-full object-cover"
-                        />
-                        <button
-                          onClick={() =>
-                            setFormData((prev) => ({
-                              ...prev,
-                              cover_image: "",
-                            }))
-                          }
-                          className="absolute top-3 right-3 bg-red-600 hover:bg-red-700 text-white p-2 rounded-full"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
-                    ) : (
-                      <div
-                        onClick={() => fileInputRef.current?.click()}
-                        className="aspect-video rounded-xl border-2 border-dashed border-gray-700 hover:border-gray-600 flex flex-col items-center justify-center cursor-pointer bg-[#0D0D0D] transition-colors"
-                      >
-                        {uploadingImage ? (
-                          <div className="flex flex-col items-center gap-3">
-                            <div className="animate-spin rounded-full h-8 w-8 border-2 border-blue-500 border-t-transparent" />
-                            <p className="text-sm text-gray-400">
-                              Uploading...
-                            </p>
-                          </div>
-                        ) : (
-                          <>
-                            <ImageIcon className="w-12 h-12 text-gray-600 mb-3" />
-                            <p className="text-sm text-gray-400">
-                              Click to upload cover image
-                            </p>
-                            <p className="text-xs text-gray-500 mt-1">
-                              Max size: 5MB
-                            </p>
-                          </>
-                        )}
-                      </div>
-                    )}
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="image/*"
-                      onChange={handleImageUpload}
-                      className="hidden"
-                    />
                   </div>
                 </div>
               </>
@@ -1868,43 +1803,23 @@ export default function TripEditor() {
 
             {/* Location Tab */}
             {activeTab === "location" && (
-              <>
-                <div className="p-4">
-                  <h2 className="text-base font-semibold text-white mb-3">
-                    Cities
-                  </h2>
+              <div className="h-full flex flex-col">
+                {/* Header with Add Button */}
+                <div className="p-4 border-b border-[#1F1F1F] flex items-center justify-between">
+                  <h3 className="text-base font-semibold text-white">Cities</h3>
+                  <Button
+                    onClick={() => setShowAddCityModal(true)}
+                    className="bg-blue-600 hover:bg-blue-700 h-9 px-4 text-sm"
+                  >
+                    <Plus className="w-4 h-4 mr-1" />
+                    Add City
+                  </Button>
+                </div>
 
-                  <div className="space-y-4">
-                    <div className="relative">
-                      <Input
-                        value={citySearchQuery}
-                        onChange={(e) => handleCitySearch(e.target.value)}
-                        placeholder="Search for cities..."
-                        className="bg-[#0D0D0D] border-gray-700 text-white h-12"
-                      />
-
-                      {showCityDropdown && citySearchResults.length > 0 && (
-                        <div className="absolute z-10 w-full mt-1 bg-[#1A1B23] border border-gray-700 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                          {citySearchResults.map((city) => (
-                            <button
-                              key={city.id}
-                              onClick={() => handleAddCity(city)}
-                              className="w-full text-left px-4 py-3 hover:bg-[#2A2B35] transition-colors border-b border-gray-700 last:border-0"
-                            >
-                              <div className="font-semibold text-white text-sm">
-                                {city.name}
-                              </div>
-                              <div className="text-xs text-gray-400">
-                                {city.state && `${city.state}, `}
-                                {city.country?.name}
-                              </div>
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-
-                    {formData.cities.length > 0 && (
+                {/* Cities List */}
+                <div className="flex-1 overflow-y-auto scrollbar-hide">
+                  <div className="px-4 pb-20">
+                    {formData.cities.length > 0 ? (
                       <DndContext
                         sensors={sensors}
                         collisionDetection={closestCenter}
@@ -1916,19 +1831,33 @@ export default function TripEditor() {
                             .map((c) => c.id)}
                           strategy={verticalListSortingStrategy}
                         >
-                          <div className="grid grid-cols-1 gap-3">
+                          <div className="space-y-3 pt-4">
                             {formData.cities
                               .filter((c) => c && c.id)
-                              .map((city) => (
-                                <SortableCity key={city.id} city={city} />
+                              .map((city, index) => (
+                                <SortableCity
+                                  key={city.id}
+                                  city={city}
+                                  index={index}
+                                />
                               ))}
                           </div>
                         </SortableContext>
                       </DndContext>
+                    ) : (
+                      <div className="text-center py-12">
+                        <MapPin className="w-12 h-12 text-gray-600 mx-auto mb-3" />
+                        <p className="text-gray-400 text-sm">
+                          No cities added yet
+                        </p>
+                        <p className="text-gray-500 text-xs mt-1">
+                          Click "Add City" to get started
+                        </p>
+                      </div>
                     )}
                   </div>
                 </div>
-              </>
+              </div>
             )}
 
             {/* Itinerary Tab */}
@@ -1956,12 +1885,18 @@ export default function TripEditor() {
                   )}
 
                   {/* Days Tabs */}
-                  <div className="border-b border-[#1F1F1F] overflow-x-auto scrollbar-hide">
-                    <div className="flex min-w-max">
-                      <button className="relative flex items-center gap-2 p-4 border-b border-[#1F1F1F] text-gray-400 font-medium">
-                        Days
-                      </button>
+                  <div className="relative flex items-center gap-2 p-4 border-b border-[#1F1F1F]">
+                    <button
+                      onClick={() =>
+                        setSelectedDayIndex(Math.max(0, selectedDayIndex - 1))
+                      }
+                      disabled={selectedDayIndex === 0}
+                      className="shrink-0 w-8 h-8 rounded-full bg-gray-800 hover:bg-gray-700 flex items-center justify-center transition-colors disabled:opacity-30"
+                    >
+                      <ArrowLeft className="w-4 h-4" />
+                    </button>
 
+                    <div className="flex-1 flex items-center gap-2 overflow-x-auto scrollbar-hide">
                       <DndContext
                         sensors={sensors}
                         collisionDetection={closestCenter}
@@ -1971,7 +1906,7 @@ export default function TripEditor() {
                           items={formData.itinerary
                             .filter((d) => d && d.day)
                             .map((d) => d.day)}
-                          strategy={verticalListSortingStrategy}
+                          strategy={horizontalListSortingStrategy}
                         >
                           {formData.itinerary
                             .filter((d) => d && d.day)
@@ -1985,6 +1920,23 @@ export default function TripEditor() {
                         </SortableContext>
                       </DndContext>
                     </div>
+
+                    <button
+                      onClick={() =>
+                        setSelectedDayIndex(
+                          Math.min(
+                            formData.itinerary.length - 1,
+                            selectedDayIndex + 1
+                          )
+                        )
+                      }
+                      disabled={
+                        selectedDayIndex === formData.itinerary.length - 1
+                      }
+                      className="shrink-0 w-8 h-8 rounded-full bg-gray-800 hover:bg-gray-700 flex items-center justify-center transition-colors disabled:opacity-30"
+                    >
+                      <ArrowLeft className="w-4 h-4 rotate-180" />
+                    </button>
                   </div>
 
                   {/* Day Content */}
@@ -2019,6 +1971,28 @@ export default function TripEditor() {
                               formData.cities[0]?.name || "the city"
                             }`}
                             className="bg-[#0D0D0D] border-gray-700 text-white h-12"
+                          />
+                        </div>
+
+                        {/* Day Description */}
+                        <div className="mb-4">
+                          <Label className="text-sm font-semibold text-white mb-2">
+                            Day Description (Optional)
+                          </Label>
+                          <Textarea
+                            value={selectedDay.description || ""}
+                            onChange={(e) => {
+                              const newItinerary = [...formData.itinerary];
+                              newItinerary[boundedIndex].description =
+                                e.target.value;
+                              setFormData((prev) => ({
+                                ...prev,
+                                itinerary: newItinerary,
+                              }));
+                            }}
+                            placeholder="Add a description for this day..."
+                            className="bg-[#0D0D0D] border-gray-700 text-white min-h-[80px] resize-none"
+                            rows={3}
                           />
                         </div>
 
@@ -2087,6 +2061,8 @@ export default function TripEditor() {
                                 source: "place",
                                 sourceName: activity.place.name,
                                 placeId: activity.place.id,
+                                placePhotoId: photo.id,
+                                cityPhotoId: null,
                               });
                             });
                           }
@@ -2103,6 +2079,8 @@ export default function TripEditor() {
                               source: "city",
                               sourceName: city.name,
                               cityId: city.id,
+                              placePhotoId: null,
+                              cityPhotoId: photo.id,
                             });
                           });
                         }
@@ -2146,9 +2124,41 @@ export default function TripEditor() {
                                 <Button
                                   onClick={() => {
                                     setCoverImageId(image.id);
+                                    // Update trip_images: set all to is_cover: false, then set this one to true
+                                    const updatedTripImages = [
+                                      // Remove existing trip_image for this photo if it exists
+                                      ...formData.trip_images.filter(
+                                        (ti) =>
+                                          ti.place_photo_id !==
+                                            image.placePhotoId &&
+                                          ti.city_photo_id !== image.cityPhotoId
+                                      ),
+                                      // Set all others to not cover
+                                      ...formData.trip_images
+                                        .filter(
+                                          (ti) =>
+                                            ti.place_photo_id ===
+                                              image.placePhotoId ||
+                                            ti.city_photo_id ===
+                                              image.cityPhotoId
+                                        )
+                                        .map((ti) => ({
+                                          ...ti,
+                                          is_cover: false,
+                                        })),
+                                      // Add this image as cover
+                                      {
+                                        place_photo_id:
+                                          image.placePhotoId || null,
+                                        city_photo_id:
+                                          image.cityPhotoId || null,
+                                        is_cover: true,
+                                        image_order: 0,
+                                      },
+                                    ];
                                     setFormData((prev) => ({
                                       ...prev,
-                                      cover_image: image.url,
+                                      trip_images: updatedTripImages,
                                     }));
                                     showNotification({
                                       type: "success",
@@ -2196,7 +2206,7 @@ export default function TripEditor() {
       {/* City Modal */}
       {showCityModal && selectedCity && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-          <div className="w-full max-w-4xl max-h-[90vh] flex flex-col">
+          <div className="w-full max-w-4xl max-h-[90vh] flex flex-col bg-[#0A0B0F] rounded-xl shadow-2xl border border-[#1F1F1F]">
             {/* Modal Header */}
             <div className="flex items-center justify-between p-6 border-b border-[#2A2B35]">
               <div>
@@ -2383,6 +2393,284 @@ export default function TripEditor() {
                           Add to Itinerary
                         </Button>
                       </div>
+                    ))}
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add City Modal */}
+      {showAddCityModal && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+          <div className="relative bg-[#0D0D0D] rounded-2xl border border-[#1F1F1F] shadow-2xl transition-all w-full max-w-3xl h-[600px] flex flex-col">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-6 border-b border-[#1F1F1F] shrink-0">
+              <h2 className="text-xl font-bold text-white">Add City</h2>
+              <button
+                onClick={() => {
+                  setShowAddCityModal(false);
+                  setCitySearchQuery("");
+                  setShowCityDropdown(false);
+                }}
+                className="text-gray-400 hover:text-white"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            {/* Search Section */}
+            <div className="p-6 shrink-0">
+              <Input
+                value={citySearchQuery}
+                onChange={(e) => handleCitySearch(e.target.value)}
+                placeholder="Search for cities..."
+                className="bg-[#0A0B0F] border-gray-700 text-white h-12"
+                autoFocus
+              />
+            </div>
+
+            {/* Results Section */}
+            <div className="flex-1 overflow-y-auto scrollbar-hide">
+              {!showCityDropdown && !citySearchQuery && (
+                <div className="px-6 py-12 text-center">
+                  <p className="text-gray-500 text-sm">
+                    Start typing to search for cities...
+                  </p>
+                </div>
+              )}
+
+              {showCityDropdown &&
+                citySearchResults.length === 0 &&
+                citySearchQuery && (
+                  <div className="px-6 py-12 text-center">
+                    <p className="text-gray-400 text-sm">No cities found</p>
+                  </div>
+                )}
+
+              {showCityDropdown && citySearchResults.length > 0 && (
+                <div className="p-4 space-y-1">
+                  {citySearchResults.map((city) => (
+                    <button
+                      key={city.id}
+                      onClick={() => {
+                        handleAddCity(city);
+                        setShowAddCityModal(false);
+                        setCitySearchQuery("");
+                        setShowCityDropdown(false);
+                      }}
+                      className="flex items-center gap-4 p-4 hover:bg-[#1A1B23] rounded-xl transition-colors group w-full"
+                    >
+                      <div className="w-16 h-16 rounded-xl overflow-hidden bg-gradient-to-br from-purple-600/20 to-blue-600/20 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
+                        {city.image ? (
+                          <img
+                            src={`http://localhost:3000${city.image}`}
+                            alt={city.name}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <MapPin className="w-8 h-8 text-blue-400" />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0 text-left">
+                        <h3 className="font-semibold text-white group-hover:text-blue-400 transition-colors truncate">
+                          {city.name}
+                        </h3>
+                        <p className="text-sm text-gray-400 truncate">
+                          {city.country?.name || city.country} •{" "}
+                          {city.tripsCount || 0} trips • {city.placesCount || 0}{" "}
+                          places
+                        </p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Place Picker Modal */}
+      {showPlacePickerModal && placePickerActivity && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+          <div className="relative bg-[#0D0D0D] rounded-2xl border border-[#1F1F1F] shadow-2xl transition-all w-full max-w-3xl h-[600px] flex flex-col">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-6 border-b border-[#1F1F1F] shrink-0">
+              <h2 className="text-xl font-bold text-white">Select a Place</h2>
+              <button
+                onClick={() => {
+                  setShowPlacePickerModal(false);
+                  setPlacePickerActivity(null);
+                  setCityPlaceSearch("");
+                }}
+                className="text-gray-400 hover:text-white"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            {/* Search Section */}
+            <div className="p-6 shrink-0 space-y-4">
+              <Input
+                value={cityPlaceSearch}
+                onChange={(e) => setCityPlaceSearch(e.target.value)}
+                placeholder="Search for places..."
+                className="bg-[#0A0B0F] border-gray-700 text-white h-12"
+                autoFocus
+              />
+
+              {/* Filter Tabs */}
+              <div className="flex gap-2 flex-wrap">
+                {[
+                  "all",
+                  "restaurant",
+                  "tourist_attraction",
+                  "museum",
+                  "park",
+                  "shopping_mall",
+                ].map((type) => (
+                  <button
+                    key={type}
+                    onClick={() => setCityPlaceType(type)}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      cityPlaceType === type
+                        ? "bg-blue-600 text-white"
+                        : "bg-[#1A1B23] text-gray-400 hover:text-white"
+                    }`}
+                  >
+                    {type === "all"
+                      ? "All"
+                      : type === "tourist_attraction"
+                      ? "Attractions"
+                      : type === "shopping_mall"
+                      ? "Shopping"
+                      : type.charAt(0).toUpperCase() + type.slice(1)}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Places List */}
+            <div className="flex-1 overflow-y-auto scrollbar-hide">
+              {(() => {
+                // Get places to show: if user is searching globally, use the global results;
+                // otherwise, use preloaded city places (per-city lists).
+                const allPlaces =
+                  cityPlaceSearch && globalPlaceSearchResults.length > 0
+                    ? globalPlaceSearchResults.map((p) => ({
+                        ...p,
+                        cityName: p.city || p.cityName || "",
+                      }))
+                    : formData.cities.flatMap((city) => {
+                        if (!cityPlaces[city.id]) return [];
+                        return cityPlaces[city.id].map((place) => ({
+                          ...place,
+                          cityName: city.name,
+                        }));
+                      });
+
+                // Filter places
+                const filteredPlaces = allPlaces.filter((place) => {
+                  const matchesSearch = cityPlaceSearch
+                    ? place.name
+                        .toLowerCase()
+                        .includes(cityPlaceSearch.toLowerCase())
+                    : true;
+                  const matchesType =
+                    cityPlaceType === "all" ||
+                    (place.types && place.types.includes(cityPlaceType));
+                  return matchesSearch && matchesType;
+                });
+
+                if (filteredPlaces.length === 0) {
+                  return (
+                    <div className="px-6 py-12 text-center">
+                      <MapPin className="w-12 h-12 mx-auto mb-3 text-gray-600" />
+                      <p className="text-gray-400 text-sm">
+                        {cityPlaceSearch
+                          ? "No places found matching your search"
+                          : "No places available. Add cities to your trip first."}
+                      </p>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="p-4 space-y-2">
+                    {filteredPlaces.map((place) => (
+                      <button
+                        key={place.id}
+                        onClick={() => {
+                          // Update the activity with the selected place
+                          const updatedItinerary = [...formData.itinerary];
+                          updatedItinerary[
+                            placePickerActivity.dayIndex
+                          ].activities[placePickerActivity.activityIndex] = {
+                            ...updatedItinerary[placePickerActivity.dayIndex]
+                              .activities[placePickerActivity.activityIndex],
+                            name: place.name,
+                            location: place.address || "",
+                            place_id: place.id,
+                            place: place,
+                          };
+                          setFormData((prev) => ({
+                            ...prev,
+                            itinerary: updatedItinerary,
+                          }));
+                          setShowPlacePickerModal(false);
+                          setPlacePickerActivity(null);
+                          setCityPlaceSearch("");
+                          showNotification({
+                            type: "success",
+                            title: "Place added",
+                            message: `${place.name} added to itinerary`,
+                          });
+                        }}
+                        className="w-full text-left p-4 hover:bg-[#1A1B23] rounded-xl transition-colors group"
+                      >
+                        <div className="flex items-center gap-3">
+                          {place.photos && place.photos.length > 0 ? (
+                            <img
+                              src={
+                                place.photos[0].url_small ||
+                                place.photos[0].url_medium
+                              }
+                              alt={place.name}
+                              className="w-16 h-16 rounded-lg object-cover"
+                            />
+                          ) : (
+                            <div className="w-16 h-16 bg-gray-700 rounded-lg flex items-center justify-center">
+                              <MapPin className="w-6 h-6 text-gray-400" />
+                            </div>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <div className="font-semibold text-white group-hover:text-blue-400 transition-colors truncate">
+                              {place.name}
+                            </div>
+                            <div className="text-xs text-gray-400 truncate">
+                              {place.address}
+                            </div>
+                            <div className="flex items-center gap-2 mt-1">
+                              {place.rating && (
+                                <span className="text-xs text-yellow-500">
+                                  ⭐ {place.rating.toFixed(1)}
+                                </span>
+                              )}
+                              {place.user_ratings_total && (
+                                <span className="text-xs text-gray-500">
+                                  ({place.user_ratings_total})
+                                </span>
+                              )}
+                              <span className="text-xs text-gray-500">
+                                • {place.cityName}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </button>
                     ))}
                   </div>
                 );

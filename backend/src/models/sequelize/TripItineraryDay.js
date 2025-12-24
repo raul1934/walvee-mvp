@@ -24,6 +24,9 @@ const TripItineraryDay = sequelize.define(
     title: {
       type: DataTypes.STRING(255),
     },
+    description: {
+      type: DataTypes.TEXT,
+    },
   },
   {
     tableName: "trip_itinerary_days",

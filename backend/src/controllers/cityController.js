@@ -4,6 +4,8 @@ const {
   CityReview,
   Trip,
   CityPhoto,
+  TripImage,
+  PlacePhoto,
 } = require("../models/sequelize");
 const { Op, Sequelize } = require("sequelize");
 const { sequelize } = require("../database/sequelize");
@@ -60,15 +62,62 @@ const searchCities = async (req, res, next) => {
         where: {
           name: { [Op.like]: `%${query}%` },
         },
-        include: [{ model: Country, as: "country" }],
+        include: [
+          { model: Country, as: "country" },
+          {
+            model: CityPhoto,
+            as: "photos",
+            required: false,
+            limit: 1,
+            order: [["photo_order", "ASC"]],
+          },
+        ],
+        attributes: {
+          include: [
+            [
+              sequelize.literal(`(
+                SELECT COUNT(*)
+                FROM trip_cities tc
+                WHERE tc.city_id = City.id
+              )`),
+              "tripsCount",
+            ],
+            [
+              sequelize.literal(`(
+                SELECT COUNT(*)
+                FROM places p
+                WHERE p.city_id = City.id
+              )`),
+              "placesCount",
+            ],
+          ],
+        },
         limit: 5,
         order: [["name", "ASC"]],
       });
     }
 
-    // STEP 2: If we have 5 or more results, return them immediately
+    // STEP 2: If we have 5 or more results, format and return them immediately
     if (existingCities.length >= 5) {
-      return res.json(buildSuccessResponse(existingCities));
+      const formattedCities = existingCities.map((city) => ({
+        id: city.id,
+        name: city.name,
+        state: city.state,
+        country: city.country,
+        google_maps_id: city.google_maps_id,
+        latitude: city.latitude,
+        longitude: city.longitude,
+        timezone: city.timezone,
+        created_at: city.created_at,
+        updated_at: city.updated_at,
+        tripsCount: parseInt(city.dataValues.tripsCount) || 0,
+        placesCount: parseInt(city.dataValues.placesCount) || 0,
+        image:
+          city.photos && city.photos.length > 0
+            ? city.photos[0].url_medium || city.photos[0].url_small
+            : null,
+      }));
+      return res.json(buildSuccessResponse(formattedCities));
     }
 
     // STEP 3: We have less than 5 results, fetch from Google Maps API
@@ -153,17 +202,66 @@ const searchCities = async (req, res, next) => {
       // Don't return error to user, fall through to step 5
     }
 
-    // STEP 5: Query database again to get all matching cities
+    // STEP 5: Query database again to get all matching cities with counts
     const finalCities = await City.findAll({
       where: {
         name: { [Op.like]: `%${query}%` },
       },
-      include: [{ model: Country, as: "country" }],
+      include: [
+        { model: Country, as: "country" },
+        {
+          model: CityPhoto,
+          as: "photos",
+          required: false,
+          limit: 1,
+          order: [["photo_order", "ASC"]],
+        },
+      ],
+      attributes: {
+        include: [
+          [
+            sequelize.literal(`(
+              SELECT COUNT(*)
+              FROM trip_cities tc
+              WHERE tc.city_id = City.id
+            )`),
+            "tripsCount",
+          ],
+          [
+            sequelize.literal(`(
+              SELECT COUNT(*)
+              FROM places p
+              WHERE p.city_id = City.id
+            )`),
+            "placesCount",
+          ],
+        ],
+      },
       limit: 10,
       order: [["name", "ASC"]],
     });
 
-    return res.json(buildSuccessResponse(finalCities));
+    // Format cities to include counts in the response
+    const formattedCities = finalCities.map((city) => ({
+      id: city.id,
+      name: city.name,
+      state: city.state,
+      country: city.country,
+      google_maps_id: city.google_maps_id,
+      latitude: city.latitude,
+      longitude: city.longitude,
+      timezone: city.timezone,
+      created_at: city.created_at,
+      updated_at: city.updated_at,
+      tripsCount: parseInt(city.dataValues.tripsCount) || 0,
+      placesCount: parseInt(city.dataValues.placesCount) || 0,
+      image:
+        city.photos && city.photos.length > 0
+          ? city.photos[0].url_medium || city.photos[0].url_small
+          : null,
+    }));
+
+    return res.json(buildSuccessResponse(formattedCities));
   } catch (error) {
     next(error);
   }
@@ -598,6 +696,25 @@ const getCityTrips = async (req, res, next) => {
           through: { attributes: ["city_order"], timestamps: false },
           required: false,
         },
+        {
+          model: TripImage,
+          as: "images",
+          attributes: ["id", "place_photo_id", "city_photo_id", "is_cover", "image_order"],
+          include: [
+            {
+              model: PlacePhoto,
+              as: "placePhoto",
+              attributes: ["url_small", "url_medium", "url_large"],
+            },
+            {
+              model: CityPhoto,
+              as: "cityPhoto",
+              attributes: ["url_small", "url_medium", "url_large"],
+            },
+          ],
+          required: false,
+          order: [["image_order", "ASC"]],
+        },
       ],
       // If sorting by likes_count, use a derived subquery
       order:
@@ -717,6 +834,21 @@ const getCityTrips = async (req, res, next) => {
       paginatedTrips.map(async (trip) => {
         const cities = await extractCitiesWithIds(trip);
 
+        // Extract cover image from trip_images
+        let coverImageUrl = null;
+        if (trip.images && trip.images.length > 0) {
+          const coverImage = trip.images.find((img) => img.is_cover) || trip.images[0];
+          if (coverImage.placePhoto?.url_medium) {
+            coverImageUrl = require("../utils/helpers").getFullImageUrl(
+              coverImage.placePhoto.url_medium
+            );
+          } else if (coverImage.cityPhoto?.url_medium) {
+            coverImageUrl = require("../utils/helpers").getFullImageUrl(
+              coverImage.cityPhoto.url_medium
+            );
+          }
+        }
+
         return {
           id: trip.id,
           title: trip.title,
@@ -728,7 +860,7 @@ const getCityTrips = async (req, res, next) => {
           best_time_to_visit: trip.best_time_to_visit,
           difficulty_level: trip.difficulty_level,
           trip_type: trip.trip_type,
-          cover_image: trip.cover_image,
+          cover_image: coverImageUrl,
           author_id: trip.author_id,
           destination_lat: trip.destination_lat,
           destination_lng: trip.destination_lng,

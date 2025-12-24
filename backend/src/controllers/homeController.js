@@ -8,6 +8,7 @@ const {
   PlacePhoto,
   TripItineraryDay,
   TripItineraryActivity,
+  TripImage,
 } = require("../models/sequelize");
 const { Op } = require("sequelize");
 const { sequelize } = require("../database/sequelize");
@@ -40,7 +41,6 @@ const getHomeTrips = async (req, res) => {
           "duration",
           "budget",
           "is_public",
-          "cover_image",
           [
             sequelize.literal(`(
               SELECT COUNT(*) FROM trip_likes tl WHERE tl.trip_id = Trip.id
@@ -115,6 +115,24 @@ const getHomeTrips = async (req, res) => {
             ],
             order: [["day_number", "ASC"]],
           },
+          {
+            model: TripImage,
+            as: "images",
+            attributes: ["id", "place_photo_id", "city_photo_id", "is_cover", "image_order"],
+            include: [
+              {
+                model: PlacePhoto,
+                as: "placePhoto",
+                attributes: ["url_small", "url_medium", "url_large"],
+              },
+              {
+                model: CityPhoto,
+                as: "cityPhoto",
+                attributes: ["url_small", "url_medium", "url_large"],
+              },
+            ],
+            order: [["image_order", "ASC"]],
+          },
         ],
       });
     } catch (err) {
@@ -135,7 +153,6 @@ const getHomeTrips = async (req, res) => {
           "duration",
           "budget",
           "is_public",
-          "cover_image",
           "views_count",
           "created_at",
         ],
@@ -205,6 +222,24 @@ const getHomeTrips = async (req, res) => {
             ],
             order: [["day_number", "ASC"]],
           },
+          {
+            model: TripImage,
+            as: "images",
+            attributes: ["id", "place_photo_id", "city_photo_id", "is_cover", "image_order"],
+            include: [
+              {
+                model: PlacePhoto,
+                as: "placePhoto",
+                attributes: ["url_small", "url_medium", "url_large"],
+              },
+              {
+                model: CityPhoto,
+                as: "cityPhoto",
+                attributes: ["url_small", "url_medium", "url_large"],
+              },
+            ],
+            order: [["image_order", "ASC"]],
+          },
         ],
       });
 
@@ -241,44 +276,23 @@ const getHomeTrips = async (req, res) => {
 
     // Map and format trips for frontend
     const formattedTrips = tripsWithContext.map((trip) => {
-      // Collect all images: cover + city photos + place photos
+      // Collect all images from trip_images table
       const images = [];
 
-      // Add cover image first
-      if (trip.cover_image) {
-        images.push(getFullImageUrl(trip.cover_image));
-      }
+      // Add images from trip_images (sorted by image_order, cover first if is_cover=true)
+      if (trip.images && trip.images.length > 0) {
+        trip.images.forEach((tripImage) => {
+          let imageUrl = null;
 
-      // Add photos from cities (if present)
-      if (trip.cities && trip.cities.length > 0) {
-        trip.cities.forEach((city) => {
-          if (city.photos) {
-            city.photos.forEach((photo) => {
-              if (photo.url_medium)
-                images.push(getFullImageUrl(photo.url_medium));
-            });
+          // Get the photo URL from either place photo or city photo
+          if (tripImage.placePhoto) {
+            imageUrl = tripImage.placePhoto.url_medium;
+          } else if (tripImage.cityPhoto) {
+            imageUrl = tripImage.cityPhoto.url_medium;
           }
-        });
-      }
 
-      // Add place photos from itinerary days and activities
-      if (trip.itineraryDays) {
-        const addedPlaceIds = new Set();
-        trip.itineraryDays.forEach((day) => {
-          if (day.activities) {
-            day.activities.forEach((activity) => {
-              if (
-                activity.place?.photos &&
-                !addedPlaceIds.has(activity.place.id)
-              ) {
-                addedPlaceIds.add(activity.place.id);
-                activity.place.photos.forEach((photo) => {
-                  if (photo.url_medium) {
-                    images.push(getFullImageUrl(photo.url_medium));
-                  }
-                });
-              }
-            });
+          if (imageUrl) {
+            images.push(getFullImageUrl(imageUrl));
           }
         });
       }

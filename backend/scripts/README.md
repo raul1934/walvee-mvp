@@ -5,6 +5,7 @@ This directory contains scripts to migrate all images from the database to a new
 ## Overview
 
 The migration process:
+
 1. Downloads all images from external URLs (Google Maps, etc.) and local uploads
 2. Organizes them in a clean directory structure under `backend/images/`
 3. Updates all database URLs to point to the new locations
@@ -14,6 +15,7 @@ The migration process:
 
 - **`migrate-images.js`** - Main migration script
 - **`verify-migration.js`** - Post-migration verification script
+- **`add-trip-photos.js`** - Helper to add existing place/city photos to trips
 - **`README.md`** - This file
 
 ## Prerequisites
@@ -34,6 +36,7 @@ node scripts/migrate-images.js --dry-run
 ```
 
 This will:
+
 - Download all images to the new directory structure
 - Create backups
 - Show you what would be updated in the database
@@ -49,6 +52,7 @@ node scripts/migrate-images.js
 ```
 
 This will:
+
 - Download all images
 - Update all database URLs
 - Create backups before making changes
@@ -63,6 +67,7 @@ node scripts/verify-migration.js
 ```
 
 This will:
+
 - Check all database URLs are updated correctly
 - Verify all files exist on disk
 - Generate a verification report
@@ -144,6 +149,7 @@ All generated in `backend/backups/`:
 ## What Gets Migrated
 
 ✅ **Migrated:**
+
 - User profile photos (Google OAuth, uploaded)
 - Trip cover images (uploaded, external)
 - Trip images from trip_images table
@@ -151,6 +157,7 @@ All generated in `backend/backups/`:
 - City photos from Google Maps (all 3 sizes)
 
 ❌ **Skipped:**
+
 - Unsplash URLs (these are dynamic/generic fallbacks)
 - Null/empty URLs
 - Invalid URLs
@@ -179,11 +186,13 @@ If migration fails or you need to rollback:
 After successful migration:
 
 1. ✅ Update server.js to serve static files from `/images/`:
+
    ```javascript
-   app.use('/images', express.static(path.join(__dirname, 'images')));
+   app.use("/images", express.static(path.join(__dirname, "images")));
    ```
 
 2. ✅ Update `.gitignore` to exclude images if needed:
+
    ```
    images/
    ```
@@ -195,19 +204,23 @@ After successful migration:
 ## Troubleshooting
 
 ### Script fails with "connect ECONNREFUSED"
+
 - Ensure MySQL database is running
 - Check database credentials in .env file
 
 ### Downloads fail with 404 errors
+
 - Some external URLs may be dead/expired
 - Check the migration log for failed URLs
 - These will be skipped and logged
 
 ### Script runs out of memory
+
 - Reduce `MAX_CONCURRENT_DOWNLOADS` to 3 or less
 - Run migration in batches (modify script if needed)
 
 ### Database transaction fails
+
 - Check database user has UPDATE permissions
 - Ensure no other process is locking the tables
 - Review error message in console

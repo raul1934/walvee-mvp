@@ -283,6 +283,59 @@ const searchPlace = async (query, destination = null) => {
 };
 
 /**
+ * Search for places (text search) and return multiple results
+ * @param {string} query
+ * @param {string|null} destination
+ * @param {string|null} type
+ * @param {number} limit
+ */
+const searchPlacesText = async (
+  query,
+  destination = null,
+  type = null,
+  limit = 10
+) => {
+  if (!GOOGLE_MAPS_API_KEY) {
+    throw new Error("Google Maps API key is not configured");
+  }
+
+  try {
+    const params = {
+      query: destination ? `${query}, ${destination}` : query,
+      key: GOOGLE_MAPS_API_KEY,
+      // types is optional and sometimes ignored by Text Search, but include as a hint
+    };
+    if (type) params.type = type;
+
+    const response = await axios.get(`${PLACES_API_BASE_URL}/textsearch/json`, {
+      params,
+    });
+
+    if (
+      response.data.status !== "OK" &&
+      response.data.status !== "ZERO_RESULTS"
+    ) {
+      console.error(
+        `[Google Maps Service] Text search error: ${response.data.status}`
+      );
+      throw new Error(`Google Places API error: ${response.data.status}`);
+    }
+
+    const results = response.data.results || [];
+    // Limit results
+    return results.slice(0, limit);
+  } catch (error) {
+    console.error(
+      "[Google Maps Service] Error searching places text:",
+      error.message
+    );
+    throw error;
+  }
+};
+
+
+
+/**
  * Get detailed place information including photos
  * @param {string} placeId - Google Maps Place ID
  * @returns {Promise<Object>} Complete place details with photos

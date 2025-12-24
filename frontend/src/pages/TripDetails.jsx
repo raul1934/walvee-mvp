@@ -183,24 +183,24 @@ export default function TripDetails() {
   const followMutation = useMutation({
     mutationFn: async () => {
       if (!currentUser || !tripData) throw new Error("Not authenticated");
-      if (tripData.created_by === currentUser.id)
+      if (tripData.author?.id === currentUser.id)
         throw new Error("Cannot follow yourself.");
 
-      return await Follow.create(tripData.created_by);
+      return await Follow.create(tripData.author?.id);
     },
     onMutate: async () => {
       const startTime = Date.now();
 
       await queryClient.cancelQueries([
         "followStatus",
-        tripData?.created_by,
+        tripData?.author?.id,
         currentUser?.id,
       ]);
       await queryClient.cancelQueries(["currentUser"]);
 
       const previousFollow = queryClient.getQueryData([
         "followStatus",
-        tripData?.created_by,
+        tripData?.author?.id,
         currentUser?.id,
       ]);
       const previousUser = queryClient.getQueryData(["currentUser"]);
@@ -208,16 +208,16 @@ export default function TripDetails() {
       const optimisticFollow = {
         id: "optimistic-follow",
         following: true,
-        followee_id: tripData.created_by,
+        followee_id: tripData.author?.id,
         follower_id: currentUser.id,
       };
 
       queryClient.setQueryData(
-        ["followStatus", tripData?.created_by, currentUser?.id],
+        ["followStatus", tripData?.author?.id, currentUser?.id],
         optimisticFollow
       );
       sessionStorage.setItem(
-        `followStatus_${tripData.created_by}_${currentUser.id}`,
+        `followStatus_${tripData.author?.id}_${currentUser.id}`,
         JSON.stringify({
           data: optimisticFollow,
           timestamp: Date.now(),
@@ -230,12 +230,12 @@ export default function TripDetails() {
       console.error("[Follow] Mutation error:", err);
 
       queryClient.setQueryData(
-        ["followStatus", tripData?.created_by, currentUser?.id],
+        ["followStatus", tripData?.author?.id, currentUser?.id],
         context.previousFollow
       );
       queryClient.setQueryData(["currentUser"], context.previousUser);
       sessionStorage.setItem(
-        `followStatus_${tripData.created_by}_${currentUser.id}`,
+        `followStatus_${tripData.author?.id}_${currentUser.id}`,
         JSON.stringify({
           data: context.previousFollow,
           timestamp: Date.now(),
@@ -250,16 +250,25 @@ export default function TripDetails() {
     },
     onSuccess: async (data) => {
       queryClient.setQueryData(
-        ["followStatus", tripData?.created_by, currentUser?.id],
+        ["followStatus", tripData?.author?.id, currentUser?.id],
         data
       );
       sessionStorage.setItem(
-        `followStatus_${tripData.created_by}_${currentUser.id}`,
+        `followStatus_${tripData.author?.id}_${currentUser.id}`,
         JSON.stringify({
           data: data,
           timestamp: Date.now(),
         })
       );
+
+      // Update trip data with new follow status
+      queryClient.setQueryData(["trip", tripId], (oldData) => {
+        if (!oldData) return oldData;
+        return {
+          ...oldData,
+          currentUserFollowing: true,
+        };
+      });
 
       // Invalidate queries to refresh counts
       queryClient.invalidateQueries(["currentUser"]);
@@ -274,31 +283,31 @@ export default function TripDetails() {
       if (!tripData || !currentUser) throw new Error("Not authenticated");
       if (!isFollowing) throw new Error("Not following");
 
-      return await Follow.unfollow(tripData.created_by);
+      return await Follow.unfollow(tripData.author?.id);
     },
     onMutate: async () => {
       const startTime = Date.now();
 
       await queryClient.cancelQueries([
         "followStatus",
-        tripData?.created_by,
+        tripData?.author?.id,
         currentUser?.id,
       ]);
       await queryClient.cancelQueries(["currentUser"]);
 
       const previousFollow = queryClient.getQueryData([
         "followStatus",
-        tripData?.created_by,
+        tripData?.author?.id,
         currentUser?.id,
       ]);
       const previousUser = queryClient.getQueryData(["currentUser"]);
 
       queryClient.setQueryData(
-        ["followStatus", tripData?.created_by, currentUser?.id],
+        ["followStatus", tripData?.author?.id, currentUser?.id],
         null
       );
       sessionStorage.setItem(
-        `followStatus_${tripData.created_by}_${currentUser.id}`,
+        `followStatus_${tripData.author?.id}_${currentUser.id}`,
         JSON.stringify({
           data: null,
           timestamp: Date.now(),
@@ -311,12 +320,12 @@ export default function TripDetails() {
       console.error("[Unfollow] Mutation error:", err);
 
       queryClient.setQueryData(
-        ["followStatus", tripData?.created_by, currentUser?.id],
+        ["followStatus", tripData?.author?.id, currentUser?.id],
         context.previousFollow
       );
       queryClient.setQueryData(["currentUser"], context.previousUser);
       sessionStorage.setItem(
-        `followStatus_${tripData.created_by}_${currentUser.id}`,
+        `followStatus_${tripData.author?.id}_${currentUser.id}`,
         JSON.stringify({
           data: context.previousFollow,
           timestamp: Date.now(),
@@ -331,16 +340,25 @@ export default function TripDetails() {
     },
     onSuccess: async () => {
       queryClient.setQueryData(
-        ["followStatus", tripData?.created_by, currentUser?.id],
+        ["followStatus", tripData?.author?.id, currentUser?.id],
         null
       );
       sessionStorage.setItem(
-        `followStatus_${tripData.created_by}_${currentUser.id}`,
+        `followStatus_${tripData.author?.id}_${currentUser.id}`,
         JSON.stringify({
           data: null,
           timestamp: Date.now(),
         })
       );
+
+      // Update trip data with new follow status
+      queryClient.setQueryData(["trip", tripId], (oldData) => {
+        if (!oldData) return oldData;
+        return {
+          ...oldData,
+          currentUserFollowing: false,
+        };
+      });
 
       // Invalidate queries to refresh counts
       queryClient.invalidateQueries(["currentUser"]);
@@ -349,7 +367,7 @@ export default function TripDetails() {
   const likeMutation = useMutation({
     mutationFn: async () => {
       if (!currentUser || !tripId) throw new Error("Not authenticated");
-      if (tripData.created_by === currentUser.id)
+      if (tripData.author?.id === currentUser.id)
         throw new Error("Cannot like your own trip.");
 
       // TripLike.create expects a single `tripId` string
@@ -1467,11 +1485,11 @@ export default function TripDetails() {
                     src={tripData.author?.photo_url}
                     name={tripData.author?.preferred_name || tripData.author?.full_name || "Traveler"}
                     size="md"
-                    email={tripData.created_by}
+                    email={tripData.author?.id}
                   />
                   <Link
                     to={`${createPageUrl("Profile")}?email=${encodeURIComponent(
-                      tripData.created_by
+                      tripData.author?.id
                     )}`}
                     className="font-semibold text-white text-sm truncate hover:text-blue-400 transition-colors"
                     title={tripData.author?.preferred_name || tripData.author?.full_name || "Traveler"}

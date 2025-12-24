@@ -6,6 +6,9 @@ const {
   TripItineraryActivity,
   TripSteal,
   User,
+  TripImage,
+  PlacePhoto,
+  CityPhoto,
 } = require("../models/sequelize");
 const {
   paginate,
@@ -30,12 +33,56 @@ const getDerivations = async (req, res, next) => {
           {
             model: Trip,
             as: "originalTrip",
-            attributes: ["id", "title", "cover_image"],
+            attributes: ["id", "title"],
+            include: [
+              {
+                model: TripImage,
+                as: "images",
+                attributes: ["id", "place_photo_id", "city_photo_id", "is_cover"],
+                include: [
+                  {
+                    model: PlacePhoto,
+                    as: "placePhoto",
+                    attributes: ["url_small", "url_medium", "url_large"],
+                  },
+                  {
+                    model: CityPhoto,
+                    as: "cityPhoto",
+                    attributes: ["url_small", "url_medium", "url_large"],
+                  },
+                ],
+                where: { is_cover: true },
+                required: false,
+                limit: 1,
+              },
+            ],
           },
           {
             model: Trip,
             as: "newTrip",
-            attributes: ["id", "title", "cover_image"],
+            attributes: ["id", "title"],
+            include: [
+              {
+                model: TripImage,
+                as: "images",
+                attributes: ["id", "place_photo_id", "city_photo_id", "is_cover"],
+                include: [
+                  {
+                    model: PlacePhoto,
+                    as: "placePhoto",
+                    attributes: ["url_small", "url_medium", "url_large"],
+                  },
+                  {
+                    model: CityPhoto,
+                    as: "cityPhoto",
+                    attributes: ["url_small", "url_medium", "url_large"],
+                  },
+                ],
+                where: { is_cover: true },
+                required: false,
+                limit: 1,
+              },
+            ],
           },
           {
             model: User,
@@ -103,6 +150,11 @@ const createDerivation = async (req, res, next) => {
           as: "itineraryDays",
           include: [{ model: TripItineraryActivity, as: "activities" }],
         },
+        {
+          model: TripImage,
+          as: "images",
+          attributes: ["place_photo_id", "city_photo_id", "is_cover", "image_order"],
+        },
       ],
     });
 
@@ -125,7 +177,6 @@ const createDerivation = async (req, res, next) => {
       best_time_to_visit: originalTripFull.best_time_to_visit,
       difficulty_level: originalTripFull.difficulty_level,
       trip_type: originalTripFull.trip_type,
-      cover_image: originalTripFull.cover_image,
       destination_lat: originalTripFull.destination_lat,
       destination_lng: originalTripFull.destination_lng,
       is_public: false, // New trip is private by default
@@ -196,6 +247,19 @@ const createDerivation = async (req, res, next) => {
           );
         }
       }
+    }
+
+    // Clone trip images
+    if (originalTripFull.images && originalTripFull.images.length > 0) {
+      await TripImage.bulkCreate(
+        originalTripFull.images.map((img) => ({
+          trip_id: clonedTripId,
+          place_photo_id: img.place_photo_id,
+          city_photo_id: img.city_photo_id,
+          is_cover: img.is_cover,
+          image_order: img.image_order,
+        }))
+      );
     }
 
     // Create trip steal record

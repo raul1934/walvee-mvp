@@ -124,7 +124,7 @@ async function findOrCreateCityFromPlace(placeDetails) {
  */
 const searchPlaces = async (req, res, next) => {
   try {
-    const { query, city_id, destination } = req.query;
+    const { query, city_id, destination, city, type, limit } = req.query;
 
     if (!query) {
       return res
@@ -134,16 +134,33 @@ const searchPlaces = async (req, res, next) => {
         );
     }
 
-    // STEP 1: Search existing place in database
-    const whereClause = {
-      name: { [Op.like]: `%${query}%` },
-    };
-
-    if (city_id) {
-      whereClause.city_id = city_id;
+    // If caller passed a city name (param `city`) but not city_id, attempt to resolve it
+    let resolvedCityId = city_id;
+    let destinationBias = destination || city;
+    if (!resolvedCityId && city) {
+      try {
+        const foundCity = await City.findOne({ where: { name: city } });
+        if (foundCity) {
+          resolvedCityId = foundCity.id;
+        }
+      } catch (err) {
+        console.error("[Place Search] Error resolving city name:", err.message);
+      }
     }
 
-    let existingPlace = await Place.findOne({
+    // STEP 1: Search existing place in database (return multiple results)
+    const whereClause = {
+      name: { [Op.like]: `%${query}%` },
+      visible: true,
+    };
+
+    if (resolvedCityId) {
+      whereClause.city_id = resolvedCityId;
+    }
+
+    const maxResults = Math.min(parseInt(limit || 10, 10), 50);
+
+    const dbResults = await Place.findAll({
       where: whereClause,
       include: [
         {
@@ -153,32 +170,82 @@ const searchPlaces = async (req, res, next) => {
           order: [["photo_order", "ASC"]],
         },
       ],
+      limit: maxResults,
     });
 
-    // STEP 2: If found with photos, return cached data
-    if (
-      existingPlace &&
-      existingPlace.photos &&
-      existingPlace.photos.length > 0
-    ) {
-      return res.json(buildSuccessResponse(existingPlace));
+    // If type filter provided, filter results that include the type
+    let filteredDbResults = dbResults;
+    if (type) {
+      filteredDbResults = dbResults.filter((p) => {
+        if (!p.types) return false;
+        try {
+          return Array.isArray(p.types)
+            ? p.types.includes(type)
+            : JSON.stringify(p.types)
+                .toLowerCase()
+                .includes(type.toLowerCase());
+        } catch (e) {
+          return false;
+        }
+      });
     }
 
-    // STEP 3: Fetch from Google Maps API
+    if (filteredDbResults && filteredDbResults.length > 0) {
+      console.log(
+        `[Place Search] Returning ${
+          filteredDbResults.length
+        } cached DB results for query="${query}" type=${type || ""} city=${
+          city || ""
+        }`
+      );
+      return res.json(buildSuccessResponse(filteredDbResults));
+    }
 
-    const googleResult = await searchPlace(query, destination);
+    // STEP 2: Fallback - search Google Places Text Search for multiple results
+    const googleResults = await searchPlacesText(
+      query,
+      destinationBias,
+      type,
+      maxResults
+    );
 
-    if (!googleResult) {
+    if (!googleResults || googleResults.length === 0) {
+      console.log(
+        `[Place Search] No Google results for query="${query}" type=${
+          type || ""
+        } city=${city || ""}`
+      );
       return res
         .status(404)
         .json(buildErrorResponse("NOT_FOUND", "Place not found"));
     }
 
+    // Convert Google results into a lightweight response shape
+    const results = googleResults.map((r) => ({
+      id: null,
+      google_place_id: r.place_id,
+      name: r.name,
+      address: r.formatted_address || r.vicinity || "",
+      types: r.types || [],
+      rating: r.rating || null,
+      user_ratings_total: r.user_ratings_total || null,
+      photos: [],
+    }));
+
+    console.log(
+      `[Place Search] Returning ${
+        results.length
+      } Google results for query="${query}" type=${type || ""} city=${
+        city || ""
+      }`
+    );
+
+    return res.json(buildSuccessResponse(results));
+
     // STEP 4: Get detailed place information with photos
     const placeDetails = await getPlaceDetailsWithPhotos(googleResult.place_id);
 
     // Find or create city if we have city information
-    let resolvedCityId = city_id;
     if (!resolvedCityId && placeDetails.city_name) {
       resolvedCityId = await findOrCreateCityFromPlace(placeDetails);
     }

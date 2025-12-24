@@ -13,8 +13,10 @@ const {
   City,
   Country,
   CityPhoto,
+  TripImage,
 } = require("../models/sequelize");
 const { Op } = require("sequelize");
+const { v4: uuidv4 } = require("uuid");
 const {
   paginate,
   buildPaginationMeta,
@@ -120,7 +122,7 @@ const getTrips = async (req, res, next) => {
       {
         model: TripItineraryDay,
         as: "itineraryDays",
-        attributes: ["id", "day_number", "title"],
+        attributes: ["id", "day_number", "title", "description"],
         include: [
           {
             model: TripItineraryActivity,
@@ -327,7 +329,7 @@ const getTripById = async (req, res, next) => {
         {
           model: TripItineraryDay,
           as: "itineraryDays",
-          attributes: ["id", "day_number", "title"],
+          attributes: ["id", "day_number", "title", "description"],
           include: [
             {
               model: TripItineraryActivity,
@@ -382,6 +384,24 @@ const getTripById = async (req, res, next) => {
           limit: 10,
           order: [["created_at", "DESC"]],
         },
+        {
+          model: TripImage,
+          as: "images",
+          attributes: ["id", "place_photo_id", "city_photo_id", "is_cover", "image_order"],
+          include: [
+            {
+              model: PlacePhoto,
+              as: "placePhoto",
+              attributes: ["id", "url_small", "url_medium", "url_large"],
+            },
+            {
+              model: CityPhoto,
+              as: "cityPhoto",
+              attributes: ["id", "url_small", "url_medium", "url_large"],
+            },
+          ],
+          order: [["image_order", "ASC"]],
+        },
       ],
       attributes: {
         include: [
@@ -404,8 +424,15 @@ const getTripById = async (req, res, next) => {
     // Increment views
     await trip.increment("views_count");
 
+    // Add user context (likes/follows)
+    const userId = req.user?.id;
+    const [tripWithContext] = await addUserContext([trip], userId, {
+      includeLikes: true,
+      includeFollows: true,
+    });
+
     // formatTripResponse is async — await its result before sending
-    const formatted = await formatTripResponse(trip);
+    const formatted = await formatTripResponse(tripWithContext || trip);
     res.json(buildSuccessResponse(formatted));
   } catch (error) {
     next(error);
@@ -415,7 +442,7 @@ const getTripById = async (req, res, next) => {
 const createTrip = async (req, res, next) => {
   try {
     const userId = req.user.id;
-    const { tags, places, itinerary, cities, ...tripData } = req.body;
+    const { tags, places, itinerary, cities, trip_images, ...tripData } = req.body;
 
     const user = await User.findByPk(userId);
 
@@ -479,6 +506,19 @@ const createTrip = async (req, res, next) => {
           );
         }
       }
+    }
+
+    // Create trip images
+    if (trip_images && Array.isArray(trip_images) && trip_images.length > 0) {
+      await TripImage.bulkCreate(
+        trip_images.map((img, index) => ({
+          trip_id: trip.id,
+          place_photo_id: img.place_photo_id || null,
+          city_photo_id: img.city_photo_id || null,
+          is_cover: img.is_cover || false,
+          image_order: img.image_order !== undefined ? img.image_order : index,
+        }))
+      );
     }
 
     // Fetch the complete trip with associations
@@ -559,7 +599,7 @@ const updateTrip = async (req, res, next) => {
   try {
     const { id } = req.params;
     const userId = req.user.id;
-    const { tags, places, itinerary, cities, ...tripData } = req.body;
+    const { tags, places, itinerary, cities, trip_images, ...tripData } = req.body;
 
     const trip = await Trip.findByPk(id);
 
@@ -636,6 +676,22 @@ const updateTrip = async (req, res, next) => {
             }))
           );
         }
+      }
+    }
+
+    // Update trip images
+    if (trip_images !== undefined) {
+      await TripImage.destroy({ where: { trip_id: id } });
+      if (Array.isArray(trip_images) && trip_images.length > 0) {
+        await TripImage.bulkCreate(
+          trip_images.map((img, index) => ({
+            trip_id: id,
+            place_photo_id: img.place_photo_id || null,
+            city_photo_id: img.city_photo_id || null,
+            is_cover: img.is_cover || false,
+            image_order: img.image_order !== undefined ? img.image_order : index,
+          }))
+        );
       }
     }
 
@@ -752,12 +808,18 @@ async function formatTripResponse(trip) {
     where: { original_trip_id: tripData.id },
   });
 
-  // Collect all images: cover + city photos + place photos
+  // Collect all images: trip_images + city photos + place photos
   const images = [];
 
-  // Add cover image first
-  if (tripData.cover_image) {
-    images.push(getFullImageUrl(tripData.cover_image));
+  // Add trip images first (ordered by image_order)
+  if (tripData.images && tripData.images.length > 0) {
+    tripData.images.forEach((tripImage) => {
+      if (tripImage.placePhoto?.url_medium) {
+        images.push(getFullImageUrl(tripImage.placePhoto.url_medium));
+      } else if (tripImage.cityPhoto?.url_medium) {
+        images.push(getFullImageUrl(tripImage.cityPhoto.url_medium));
+      }
+    });
   }
 
   // Add photos from cities (if present)
@@ -897,6 +959,29 @@ async function formatTripResponse(trip) {
     difficulty_level: tripData.difficulty_level,
     trip_type: tripData.trip_type,
     images: images,
+    trip_images: tripData.images
+      ? tripData.images.map((img) => ({
+          id: img.id,
+          place_photo_id: img.place_photo_id,
+          city_photo_id: img.city_photo_id,
+          is_cover: img.is_cover,
+          image_order: img.image_order,
+          placePhoto: img.placePhoto
+            ? {
+                url_small: getFullImageUrl(img.placePhoto.url_small),
+                url_medium: getFullImageUrl(img.placePhoto.url_medium),
+                url_large: getFullImageUrl(img.placePhoto.url_large),
+              }
+            : null,
+          cityPhoto: img.cityPhoto
+            ? {
+                url_small: getFullImageUrl(img.cityPhoto.url_small),
+                url_medium: getFullImageUrl(img.cityPhoto.url_medium),
+                url_large: getFullImageUrl(img.cityPhoto.url_large),
+              }
+            : null,
+        }))
+      : [],
     destination_lat: tripData.destination_lat,
     destination_lng: tripData.destination_lng,
     is_public: tripData.is_public,
@@ -923,6 +1008,7 @@ async function formatTripResponse(trip) {
       ? tripData.itineraryDays.map((day) => ({
           day: day.day_number,
           title: day.title,
+          description: day.description,
           places: day.activities
             ? day.activities
                 .filter((a) => a.place)
@@ -1059,7 +1145,29 @@ const getTripDerivations = async (req, res, next) => {
         {
           model: Trip,
           as: "newTrip",
-          attributes: ["id", "title", "cover_image"],
+          attributes: ["id", "title"],
+          include: [
+            {
+              model: TripImage,
+              as: "images",
+              attributes: ["id", "place_photo_id", "city_photo_id", "is_cover"],
+              include: [
+                {
+                  model: PlacePhoto,
+                  as: "placePhoto",
+                  attributes: ["url_small", "url_medium", "url_large"],
+                },
+                {
+                  model: CityPhoto,
+                  as: "cityPhoto",
+                  attributes: ["url_small", "url_medium", "url_large"],
+                },
+              ],
+              where: { is_cover: true },
+              required: false,
+              limit: 1,
+            },
+          ],
         },
         {
           model: User,
@@ -1072,17 +1180,29 @@ const getTripDerivations = async (req, res, next) => {
       order: [["created_at", "DESC"]],
     });
 
-    const formattedSteals = steals.map((steal) => ({
-      id: steal.id,
-      original_trip_id: steal.original_trip_id,
-      new_trip_id: steal.new_trip_id,
-      new_trip_title: steal.newTrip?.title,
-      new_trip_cover: steal.newTrip?.cover_image,
-      stolen_by: steal.newUser?.id,
-      stolen_by_name: steal.newUser?.preferred_name || steal.newUser?.full_name,
-      stolen_by_photo: steal.newUser?.photo_url,
-      created_at: steal.created_at,
-    }));
+    const formattedSteals = steals.map((steal) => {
+      let coverImageUrl = null;
+      if (steal.newTrip?.images && steal.newTrip.images.length > 0) {
+        const coverImage = steal.newTrip.images[0];
+        if (coverImage.placePhoto?.url_medium) {
+          coverImageUrl = getFullImageUrl(coverImage.placePhoto.url_medium);
+        } else if (coverImage.cityPhoto?.url_medium) {
+          coverImageUrl = getFullImageUrl(coverImage.cityPhoto.url_medium);
+        }
+      }
+
+      return {
+        id: steal.id,
+        original_trip_id: steal.original_trip_id,
+        new_trip_id: steal.new_trip_id,
+        new_trip_title: steal.newTrip?.title,
+        new_trip_cover: coverImageUrl,
+        stolen_by: steal.newUser?.id,
+        stolen_by_name: steal.newUser?.preferred_name || steal.newUser?.full_name,
+        stolen_by_photo: steal.newUser?.photo_url,
+        created_at: steal.created_at,
+      };
+    });
 
     const pagination = buildPaginationMeta(pageNum, limitNum, count);
     res.json(buildSuccessResponse(formattedSteals, pagination));

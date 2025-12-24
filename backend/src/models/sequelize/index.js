@@ -19,6 +19,7 @@ const Place = require("./Place");
 const PlacePhoto = require("./PlacePhoto");
 const CityPhoto = require("./CityPhoto");
 const PlaceFavorite = require("./PlaceFavorite");
+const TripImage = require("./TripImage");
 
 let modelsInitialized = false;
 
@@ -165,6 +166,14 @@ function initModels() {
   Place.hasMany(PlaceFavorite, { foreignKey: "place_id", as: "favorites" });
   PlaceFavorite.belongsTo(Place, { foreignKey: "place_id", as: "place" });
 
+  // Trip Image associations
+  Trip.hasMany(TripImage, { foreignKey: "trip_id", as: "images" });
+  TripImage.belongsTo(Trip, { foreignKey: "trip_id", as: "trip" });
+  PlacePhoto.hasMany(TripImage, { foreignKey: "place_photo_id", as: "tripImages" });
+  TripImage.belongsTo(PlacePhoto, { foreignKey: "place_photo_id", as: "placePhoto" });
+  CityPhoto.hasMany(TripImage, { foreignKey: "city_photo_id", as: "tripImages" });
+  TripImage.belongsTo(CityPhoto, { foreignKey: "city_photo_id", as: "cityPhoto" });
+
   modelsInitialized = true;
 }
 
@@ -190,5 +199,6 @@ module.exports = {
   PlacePhoto,
   CityPhoto,
   PlaceFavorite,
+  TripImage,
   initModels,
 };

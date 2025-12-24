@@ -1,4 +1,12 @@
-const { TripLike, Trip, User, sequelize } = require("../models/sequelize");
+const {
+  TripLike,
+  Trip,
+  User,
+  TripImage,
+  PlacePhoto,
+  CityPhoto,
+  sequelize,
+} = require("../models/sequelize");
 const {
   paginate,
   buildPaginationMeta,
@@ -17,7 +25,34 @@ const getUserFavorites = async (req, res, next) => {
       include: [
         {
           model: Trip,
-          attributes: ["id", "title", "cover_image"],
+          attributes: ["id", "title"],
+          include: [
+            {
+              model: TripImage,
+              as: "images",
+              attributes: [
+                "id",
+                "place_photo_id",
+                "city_photo_id",
+                "is_cover",
+                "image_order",
+              ],
+              include: [
+                {
+                  model: PlacePhoto,
+                  as: "placePhoto",
+                  attributes: ["url_small", "url_medium", "url_large"],
+                },
+                {
+                  model: CityPhoto,
+                  as: "cityPhoto",
+                  attributes: ["url_small", "url_medium", "url_large"],
+                },
+              ],
+              order: [["image_order", "ASC"]],
+              limit: 1,
+            },
+          ],
         },
       ],
       offset,
