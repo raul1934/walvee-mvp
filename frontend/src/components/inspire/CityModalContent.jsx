@@ -18,6 +18,8 @@ const tabs = [
   { id: "favorites", label: "Favorites", icon: Heart },
 ];
 
+const LIMIT = 6; // Moved outside component to prevent recreation on every render
+
 export default function CityModalContent({ cityName, user, onAddToTrip }) {
   const [activeTab, setActiveTab] = useState("all");
   const [placeCategory, setPlaceCategory] = useState("all");
@@ -30,8 +32,6 @@ export default function CityModalContent({ cityName, user, onAddToTrip }) {
 
   const observerRef = useRef();
   const loadingRef = useRef(false);
-
-  const LIMIT = 6;
 
   // Fetch trips for this city
   const { data: trips = [], isLoading } = useQuery({

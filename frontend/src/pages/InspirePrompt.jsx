@@ -1,7 +1,12 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import { apiClient, endpoints } from "@/api/apiClient";
-import { invokeInspire, modifyTrip, applyChanges } from "@/api/inspireService";
+import {
+  getRecommendations,
+  organizeItinerary,
+  modifyTrip,
+  applyChanges,
+} from "@/api/inspireService";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ChevronRight,
@@ -175,8 +180,8 @@ const isCityInTabs = (cityName, existingTabs) => {
  *    - type === 'city' OR 'cidade' → TRUE (it's a city)
  *    - type === 'place'/'activity'/'business'/'lugar'/'atividade'/'negócio' → FALSE (it's a place)
  *
- * 2. PRIORITY 2: Check for place_id
- *    - Has place_id → FALSE (cities don't have place_ids, only specific places do)
+ * 2. PRIORITY 2: Check for google_place_id
+ *    - Has google_place_id (and not "MANUAL_ENTRY_REQUIRED") → FALSE (cities don't have google_place_id, only specific places do)
  *
  * 3. PRIORITY 3: Check name for place keywords
  *    - Contains: park, museum, beach, restaurant, avenue, etc. → FALSE
@@ -186,8 +191,8 @@ const isCityInTabs = (cityName, existingTabs) => {
  * EXAMPLES:
  * ✓ "Paris, France" (type: city) → TRUE → Opens City Modal
  * ✓ "Silicon Valley" (type: cidade) → TRUE → Opens City Modal
- * ✓ "Ibirapuera Park" (type: place) → FALSE → Opens Place Modal
- * ✓ "Avenida Paulista" (type: place) → FALSE → Opens Place Modal
+ * ✓ "Ibirapuera Park" (type: place, google_place_id: ChIJ...) → FALSE → Opens Place Modal
+ * ✓ "Avenida Paulista" (type: place, google_place_id: ChIJ...) → FALSE → Opens Place Modal
  */
 const isCityRecommendation = (rec) => {
   // ==========================================
@@ -215,11 +220,15 @@ const isCityRecommendation = (rec) => {
   }
 
   // ==========================================
-  // PRIORITY 2: Check for place_id
-  // Cities usually don't have place_id. Specific places do.
+  // PRIORITY 2: Check for google_place_id
+  // Cities don't have google_place_id. Specific places do.
+  // Ignore "MANUAL_ENTRY_REQUIRED" as it's not a valid Place ID
   // ==========================================
-  const hasPlaceId = rec.place_id && rec.place_id.length > 0;
-  if (hasPlaceId) {
+  const hasValidGooglePlaceId =
+    rec.google_place_id &&
+    rec.google_place_id.length > 0 &&
+    rec.google_place_id !== "MANUAL_ENTRY_REQUIRED";
+  if (hasValidGooglePlaceId) {
     return false;
   }
 
@@ -863,48 +872,20 @@ export default function InspirePrompt({ user }) {
     setIsOrganizingTrip(true);
 
     try {
-      const placesList = (places || [])
-        .map(
-          (p, idx) =>
-            `${idx + 1}. ${p.name}${p.address ? ` - ${p.address}` : ""}${
-              p.rating ? ` (rating: ${p.rating})` : ""
-            }`
-        )
-        .join("\n");
-
-      const prompt = `You are an expert travel planner. Create a ${days}-day itinerary for ${cityName} based on these places:\n\n${placesList}\n\nReturn JSON with a top-level key "itinerary" which is an array of days. Each day should be an object with: day (number), title (short), description (1-2 sentences), places: [{ name, estimated_duration, notes }]. Keep durations short (e.g., "2h" or "30m").`;
-
-      // Use Inspire service (backend wrapper) to request structured itinerary
-      const response = await invokeInspire({
-        prompt,
-        schema_type: "organize_trip",
+      // Call new organize endpoint
+      const response = await organizeItinerary({
+        city_name: cityName,
+        places: places || [],
+        days: days,
+        user_query: "", // Optional custom instructions
       });
 
-      // Response might be an object or JSON string
-      let parsed = null;
-      if (response && typeof response === "object") {
-        parsed = response.itinerary || response;
-      } else if (typeof response === "string") {
-        try {
-          const obj = JSON.parse(response);
-          parsed = obj.itinerary || obj;
-        } catch (e) {
-          // try to extract JSON block from string
-          const jsonMatch = response.match(/\{[\s\S]*\}/);
-          if (jsonMatch) {
-            parsed = JSON.parse(jsonMatch[0]).itinerary;
-          }
-        }
-      }
-
-      if (!parsed) {
-        console.warn("Organizer returned unexpected format", response);
-        parsed = [];
-      }
+      // Response already has .itinerary
+      const itinerary = response.itinerary || [];
 
       setCityTabs((prev) =>
         prev.map((tab) =>
-          tab.name === cityName ? { ...tab, organizedItinerary: parsed } : tab
+          tab.name === cityName ? { ...tab, organizedItinerary: itinerary } : tab
         )
       );
 
@@ -1079,104 +1060,21 @@ export default function InspirePrompt({ user }) {
     setIsLoadingResponse(true);
 
     try {
-      // Build context from filters
-      let filterContext = "";
-      if (selectedFilters.interests.length > 0) {
-        filterContext += `\nInterests: ${selectedFilters.interests.join(", ")}`;
-      }
-      if (selectedFilters.budget) {
-        filterContext += `\nBudget: ${selectedFilters.budget}`;
-      }
-      if (selectedFilters.pace) {
-        filterContext += `\nTravel pace: ${selectedFilters.pace}`;
-      }
-      if (selectedFilters.companions) {
-        filterContext += `\nTraveling with: ${selectedFilters.companions}`;
-      }
-      if (selectedFilters.season) {
-        filterContext += `\nPreferred season: ${selectedFilters.season}`;
-      }
+      // Build simple conversation history array
+      const conversationHistory = filteredMessages.map((m) => ({
+        role: m.role,
+        content: m.content,
+      }));
 
-      // Build conversation history
-      const conversationHistory = filteredMessages
-        .map((m) => `${m.role === "user" ? "User" : "Assistant"}: ${m.content}`)
-        .join("\n");
-
-      // Determine user's language for AI's response
-      const detectLanguage = (text) => {
-        const portuguesePatterns =
-          /\b(roteiro|viagem|praia|mergulho|hotel|cidade|país|dia|semana|mês|ano|quero|gostaria|preciso|ajuda|brasil|portugal)\b/i;
-        return portuguesePatterns.test(text) ? "pt" : "en";
-      };
-
-      const userLanguageForAI = detectLanguage(currentInput);
-
-      let systemPrompt = `You are a travel planning assistant for Walvee, helping users create personalized trip itineraries.
-
-IMPORTANT: Always check grammar and spelling in your responses. Ensure all text is grammatically correct in ${
-        userLanguageForAI === "pt" ? "Portuguese" : "English"
-      }.`;
-
-      // Add city context if active
-      if (activeCity) {
-        systemPrompt += `\n\nCURRENT CITY CONTEXT: The user is currently planning their trip to ${activeCity}. Focus recommendations ONLY on places, activities, and experiences IN ${activeCity}. Do NOT suggest other cities.`;
-      }
-
-      const response = await invokeInspire({
-        prompt: `${systemPrompt}
-
-CONVERSATION HISTORY:
-${conversationHistory}
-
-USER FILTERS:${filterContext || " None specified yet"}
-
-CURRENT USER MESSAGE: "${currentInput}"
-
-INSTRUCTIONS:
-1. **Check grammar and spelling** in all your responses
-2. **Always provide recommendations** - ${
-          activeCity
-            ? "places, beaches, activities, or businesses IN " + activeCity
-            : "cities, places, activities, or businesses"
-        }
-3. **Return structured data** with a conversational message AND recommendations
-4. ${
-          activeCity
-            ? "**IMPORTANT: Only recommend places WITHIN " + activeCity + "**"
-            : "**City Detection**: Identify if user mentioned a specific city"
-        }
-5. ${
-          !activeCity
-            ? "**If NO city mentioned AND no active city**: Suggest 3-4 destination cities"
-            : ""
-        }
-
-**Response Format:**
-{
-  "message": "Warm, friendly response (2-3 sentences, use 1-2 emojis). ENSURE PERFECT GRAMMAR.",
-  "recommendations": [
-    {
-      "name": "${
-        activeCity ? "Place/Activity/Business Name" : "Place/City Name"
-      }",
-      "type": "${
-        activeCity
-          ? '"place" | "activity" | "business"'
-          : '"city" | "place" | "activity" | "business" | "cidade" | "lugar" | "atividade" | "negócio"'
-      }",
-      "description": "Brief description",
-      "city": "${activeCity || "City name (if applicable)"}",
-      "country": "Country",
-      "why": "Why it matches"
-    }
-  ]
-}
-
-Provide 9-15 recommendations. Respond in ${
-          userLanguageForAI === "pt" ? "Portuguese" : "English"
-        }.`,
-        schema_type: "recommendations",
+      // Call new recommendations endpoint
+      const response = await getRecommendations({
+        user_query: currentInput,
+        conversation_history: conversationHistory,
+        filters: selectedFilters,
+        city_context: activeCity,
       });
+
+      console.log("[InspirePrompt] Response received:", response);
 
       // Add AI message with recommendations
       const aiMessage = {
@@ -1191,6 +1089,11 @@ Provide 9-15 recommendations. Respond in ${
       setShowAllRecommendations(false);
     } catch (error) {
       console.error("[InspirePrompt] Error:", error);
+      console.error("[InspirePrompt] Error details:", {
+        message: error.message,
+        response: error.response,
+        stack: error.stack,
+      });
       const errorMessage = {
         role: "assistant",
         content:
@@ -2162,10 +2065,18 @@ Provide 9-15 recommendations. Respond in ${
 
           {/* City Tabs */}
           {cityTabs.map((tab) => (
-            <button
+            <div
               key={tab.name}
               className={`city-tab ${activeCity === tab.name ? "active" : ""}`}
               onClick={() => setActiveCity(tab.name)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  setActiveCity(tab.name);
+                }
+              }}
             >
               <MapPin className="w-4 h-4" />
               <span>{tab.name}</span>
@@ -2176,7 +2087,7 @@ Provide 9-15 recommendations. Respond in ${
               >
                 <X className="w-3 h-3 text-red-400" />
               </button>
-            </button>
+            </div>
           ))}
         </div>
       )}

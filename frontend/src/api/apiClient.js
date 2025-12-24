@@ -300,7 +300,9 @@ export const endpoints = {
 
   // Inspire prompts (LLM wrapper for Inspire flows)
   inspire: {
-    call: "/inspire/call", // Accepts optional trip_id for trip modification
+    call: "/inspire/call", // DEPRECATED - Use recommendations or organize
+    recommendations: "/inspire/recommendations", // NEW - Get AI recommendations
+    organize: "/inspire/organize", // NEW - Create itinerary
     applyChanges: "/inspire/apply-changes",
   },
 

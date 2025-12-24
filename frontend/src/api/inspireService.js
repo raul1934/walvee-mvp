@@ -54,8 +54,43 @@ export async function applyChanges(tripId, changes) {
   }
 }
 
+/**
+ * Get AI recommendations for places/cities
+ * @param {Object} options - { user_query, conversation_history, filters, city_context }
+ * @returns {Promise<Object>} AI recommendations response
+ */
+export async function getRecommendations(options) {
+  try {
+    const response = await apiClient.post(
+      endpoints.inspire.recommendations,
+      options
+    );
+    return response.data; // Extract data from success response
+  } catch (error) {
+    console.error("[InspireService] getRecommendations error:", error);
+    throw error;
+  }
+}
+
+/**
+ * Organize itinerary from places
+ * @param {Object} options - { user_query, city_name, places, days }
+ * @returns {Promise<Object>} Organized itinerary response
+ */
+export async function organizeItinerary(options) {
+  try {
+    const response = await apiClient.post(endpoints.inspire.organize, options);
+    return response.data; // Extract data from success response
+  } catch (error) {
+    console.error("[InspireService] organizeItinerary error:", error);
+    throw error;
+  }
+}
+
 export const Inspire = {
-  invoke: invokeInspire,
+  invoke: invokeInspire, // Keep for backward compatibility (deprecated)
+  getRecommendations, // NEW
+  organizeItinerary, // NEW
   modifyTrip,
   applyChanges,
 };

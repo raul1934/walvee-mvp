@@ -4,9 +4,28 @@ const { authenticate } = require("../middleware/auth");
 const inspireController = require("../controllers/inspirePromptController");
 
 /**
- * @route POST /inspire/call
- * @desc Handle inspire prompts via LLM
+ * @route POST /inspire/recommendations
+ * @desc Get AI-powered place/city recommendations
  * @access Private
+ */
+router.post(
+  "/recommendations",
+  authenticate,
+  inspireController.getRecommendations
+);
+
+/**
+ * @route POST /inspire/organize
+ * @desc Create structured itinerary from places
+ * @access Private
+ */
+router.post("/organize", authenticate, inspireController.organizeItinerary);
+
+/**
+ * @route POST /inspire/call
+ * @desc DEPRECATED - Handle inspire prompts via LLM (legacy endpoint)
+ * @access Private
+ * @deprecated Use /inspire/recommendations or /inspire/organize instead
  */
 router.post("/call", authenticate, inspireController.call);
 

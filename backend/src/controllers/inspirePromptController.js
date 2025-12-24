@@ -14,6 +14,17 @@ const {
   User,
 } = require("../models/sequelize");
 const tripModificationService = require("../services/tripModificationService");
+const InspirePromptService = require("../services/inspirePromptService");
+const googleMapsService = require("../services/googleMapsService");
+
+// Type definitions for JSDoc - see types/inspireTypes.js for full documentation
+/**
+ * @typedef {import('../types/inspireTypes').Recommendation} Recommendation
+ * @typedef {import('../types/inspireTypes').RecommendationsResponse} RecommendationsResponse
+ * @typedef {import('../types/inspireTypes').OrganizeItineraryResponse} OrganizeItineraryResponse
+ * @typedef {import('../types/inspireTypes').InspireSuccessResponse} InspireSuccessResponse
+ * @typedef {import('../types/inspireTypes').InspireErrorResponse} InspireErrorResponse
+ */
 
 // Initialize Gemini client (duplicate of llmController init to avoid cross-file coupling)
 const initGemini = () => {
@@ -25,6 +36,216 @@ const initGemini = () => {
     return null;
   }
   return new GoogleGenerativeAI(apiKey);
+};
+
+/**
+ * @route   POST /inspire/recommendations
+ * @desc    Get AI-powered place/city recommendations
+ * @access  Private
+ * @param   {Object} req.body.user_query - User's search query
+ * @param   {Array} [req.body.conversation_history] - Previous conversation messages
+ * @param   {Object} [req.body.filters] - User filters (interests, budget, pace, etc.)
+ * @param   {string} [req.body.city_context] - Active city name to restrict recommendations
+ * @returns {InspireSuccessResponse} Success response with recommendations
+ * @returns {InspireErrorResponse} Error response
+ */
+exports.getRecommendations = async (req, res) => {
+  try {
+    const {
+      user_query,
+      conversation_history = [],
+      filters = {},
+      city_context = null,
+    } = req.body;
+
+    // Validation
+    if (!user_query) {
+      return res
+        .status(400)
+        .json(buildErrorResponse("VALIDATION_ERROR", "user_query is required"));
+    }
+
+    // Initialize Gemini
+    const genAI = initGemini();
+    if (!genAI) {
+      return res
+        .status(500)
+        .json(
+          buildErrorResponse(
+            "SERVICE_UNAVAILABLE",
+            "LLM service not configured. Please add GEMINI_API_KEY to environment variables."
+          )
+        );
+    }
+
+    // Build prompt using service
+    const promptService = new InspirePromptService();
+    const language = promptService.detectLanguage(user_query);
+    const systemPrompt = promptService.buildRecommendationsPrompt(
+      user_query,
+      filters,
+      conversation_history,
+      city_context,
+      language
+    );
+
+    // Get schema with google_maps_id
+    const responseSchema = promptService.getRecommendationsSchema();
+
+    // Call Gemini
+    const modelConfig = {
+      model: "gemini-2.5-flash",
+      generationConfig: {
+        responseMimeType: "application/json",
+        responseSchema,
+      },
+    };
+
+    const geminiModel = genAI.getGenerativeModel(modelConfig);
+    const result = await geminiModel.generateContent(systemPrompt);
+    const text = result.response.text();
+
+    let parsedResponse = JSON.parse(text);
+
+    console.log("[Inspire] Raw recommendations response:", parsedResponse);
+
+    // Validate and enrich Place IDs and City IDs (check DB first, then Google Maps API)
+    parsedResponse.recommendations =
+      await promptService.validateAndEnrichPlaceIds(
+        parsedResponse.recommendations,
+        Place,
+        googleMapsService,
+        City,
+        Country
+      );
+
+    return res.json(buildSuccessResponse(parsedResponse));
+  } catch (error) {
+    console.error("[Inspire] getRecommendations error:", error);
+    return res
+      .status(500)
+      .json(
+        buildErrorResponse(
+          "LLM_ERROR",
+          error.message || "Failed to get recommendations"
+        )
+      );
+  }
+};
+
+/**
+ * @route   POST /inspire/organize
+ * @desc    Create structured itinerary from places
+ * @access  Private
+ * @param   {string} [req.body.user_query] - Optional custom instructions
+ * @param   {string} req.body.city_name - City name for the itinerary
+ * @param   {Array} req.body.places - Array of places to organize
+ * @param   {number} req.body.days - Number of days for the itinerary
+ * @returns {InspireSuccessResponse} Success response with organized itinerary
+ * @returns {InspireErrorResponse} Error response
+ */
+exports.organizeItinerary = async (req, res) => {
+  try {
+    const { user_query = "", city_name, places, days } = req.body;
+
+    // Validation
+    if (!city_name || !places || !days) {
+      return res
+        .status(400)
+        .json(
+          buildErrorResponse(
+            "VALIDATION_ERROR",
+            "city_name, places, and days are required"
+          )
+        );
+    }
+
+    if (!Array.isArray(places) || places.length === 0) {
+      return res
+        .status(400)
+        .json(
+          buildErrorResponse(
+            "VALIDATION_ERROR",
+            "places must be a non-empty array"
+          )
+        );
+    }
+
+    // Initialize Gemini
+    const genAI = initGemini();
+    if (!genAI) {
+      return res
+        .status(500)
+        .json(
+          buildErrorResponse(
+            "SERVICE_UNAVAILABLE",
+            "LLM service not configured. Please add GEMINI_API_KEY to environment variables."
+          )
+        );
+    }
+
+    // Build prompt using service
+    const promptService = new InspirePromptService();
+    const language = promptService.detectLanguage(user_query || city_name);
+    const systemPrompt = promptService.buildOrganizeItineraryPrompt(
+      user_query,
+      city_name,
+      places,
+      days,
+      language
+    );
+
+    // Get schema with google_maps_id
+    const responseSchema = promptService.getOrganizeItinerarySchema();
+
+    // Call Gemini
+    const modelConfig = {
+      model: "gemini-2.5-flash",
+      generationConfig: {
+        responseMimeType: "application/json",
+        responseSchema,
+      },
+    };
+
+    const geminiModel = genAI.getGenerativeModel(modelConfig);
+    const result = await geminiModel.generateContent(systemPrompt);
+    const text = result.response.text();
+
+    let parsedResponse = JSON.parse(text);
+
+    // Validate and enrich Place IDs - flatten all places from all days
+    const allPlaces = parsedResponse.itinerary.flatMap(
+      (day) => day.places || []
+    );
+
+    const validatedPlaces = await promptService.validateAndEnrichPlaceIds(
+      allPlaces,
+      Place,
+      googleMapsService,
+      City,
+      Country
+    );
+
+    // Map validated places back to itinerary structure
+    let placeIndex = 0;
+    parsedResponse.itinerary.forEach((day) => {
+      if (day.places) {
+        day.places = day.places.map(() => validatedPlaces[placeIndex++]);
+      }
+    });
+
+    return res.json(buildSuccessResponse(parsedResponse));
+  } catch (error) {
+    console.error("[Inspire] organizeItinerary error:", error);
+    return res
+      .status(500)
+      .json(
+        buildErrorResponse(
+          "LLM_ERROR",
+          error.message || "Failed to organize itinerary"
+        )
+      );
+  }
 };
 
 /**
@@ -426,7 +647,11 @@ exports.applyChanges = async (req, res) => {
 /**
  * Build system prompt for trip modification
  */
-function buildTripModificationPrompt(tripContext, userQuery, conversationHistory) {
+function buildTripModificationPrompt(
+  tripContext,
+  userQuery,
+  conversationHistory
+) {
   const tripContextStr = JSON.stringify(tripContext, null, 2);
   const conversationStr = conversationHistory
     .map((m) => `${m.role}: ${m.content}`)
