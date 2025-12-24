@@ -662,16 +662,26 @@ const getPlaceReviews = async (req, res, next) => {
             aiGeneratedReview.rating &&
             aiGeneratedReview.text
           ) {
-            // Save the generated review with AI system user
-            const systemUserId = "00000000-0000-0000-0000-000000000000";
-            aiReview = await PlaceReview.create({
-              place_id: placeId,
-              reviewer_id: systemUserId,
-              created_by: "ai-system",
-              rating: aiGeneratedReview.rating,
-              comment: aiGeneratedReview.text,
-              is_ai_generated: true,
+            // Find Walvee user to attribute AI-generated review
+            const walveeUser = await User.findOne({
+              where: { email: "walvee@walvee.com" },
             });
+
+            if (!walveeUser) {
+              console.error(
+                "[Get Place Reviews] Walvee user not found - cannot create AI review"
+              );
+            } else {
+              // Save the generated review with Walvee user as reviewer
+              aiReview = await PlaceReview.create({
+                place_id: placeId,
+                reviewer_id: walveeUser.id,
+                created_by: walveeUser.preferred_name || walveeUser.full_name || "Walvee",
+                rating: aiGeneratedReview.rating,
+                comment: aiGeneratedReview.text,
+                is_ai_generated: true,
+              });
+            }
           }
         } catch (genError) {
           console.error(
