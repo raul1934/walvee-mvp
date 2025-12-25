@@ -47,7 +47,8 @@ const ProposedChanges = ({ changes, onApprove, onReject, isApplying }) => {
   const formatOperationTitle = (operation, data) => {
     switch (operation) {
       case "ADD_CITY":
-        return `Add ${data.city_name}${data.country ? `, ${data.country}` : ""}`;
+        const addCityCountry = typeof data.country === "object" ? data.country.name : data.country;
+        return `Add ${data.city_name}${addCityCountry ? `, ${addCityCountry}` : ""}`;
       case "REMOVE_CITY":
         return `Remove ${data.city_name}`;
       case "ADD_PLACE":
@@ -69,7 +70,10 @@ const ProposedChanges = ({ changes, onApprove, onReject, isApplying }) => {
         return (
           <div className="text-xs text-gray-500">
             Destination: {data.city_name}
-            {data.country && `, ${data.country}`}
+            {(() => {
+              const countryName = typeof data.country === "object" ? data.country.name : data.country;
+              return countryName ? `, ${countryName}` : null;
+            })()}
           </div>
         );
 

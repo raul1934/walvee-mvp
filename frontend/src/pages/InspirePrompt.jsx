@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiClient, endpoints } from "@/api/apiClient";
 import {
@@ -7,7 +7,12 @@ import {
   organizeItinerary,
   modifyTrip,
   applyChanges,
+  createDraftTrip,
+  getCurrentDraftTrip,
+  finalizeTrip,
+  loadMessages,
 } from "@/api/inspireService";
+import { Trip } from "@/api/backendService";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ChevronRight,
@@ -286,8 +291,15 @@ const isCityRecommendation = (rec) => {
 
 export default function InspirePrompt() {
   const { user } = useAuth();
+  const { tripId: urlTripId } = useParams();
+  const navigate = useNavigate();
   const [inputValue, setInputValue] = useState("");
   const [isFocused, setIsFocused] = useState(false);
+
+  // Trip persistence state
+  const [tripId, setTripId] = useState(urlTripId || null);
+  const [tripData, setTripData] = useState(null);
+  const [isLoadingTrip, setIsLoadingTrip] = useState(true);
 
   // Conversation & Recommendations
   const [messages, setMessages] = useState([]);
@@ -326,8 +338,7 @@ export default function InspirePrompt() {
   // Loading phrases
   const [loadingPhrase, setLoadingPhrase] = useState(0);
 
-  // Trip modification state (NEW)
-  const [tripId, setTripId] = useState(null); // Can be set from URL params or manually
+  // Trip modification state
   const [proposedChanges, setProposedChanges] = useState(null);
   const [clarificationQuestions, setClarificationQuestions] = useState(null);
   const [isApplyingChanges, setIsApplyingChanges] = useState(false);
@@ -338,6 +349,111 @@ export default function InspirePrompt() {
   const inputRef = useRef(null);
   const messagesEndRef = useRef(null);
   const exampleIntervalRef = useRef(null);
+
+  // Initialize trip on mount - load existing trip or check for draft
+  useEffect(() => {
+    const initializeTrip = async () => {
+      setIsLoadingTrip(true);
+
+      try {
+        if (urlTripId) {
+          // Load existing trip from URL
+          const tripResponse = await Trip.get(urlTripId);
+          setTripData(tripResponse);
+
+          // Load chat messages
+          const messagesData = await loadMessages(urlTripId);
+          setMessages(messagesData);
+
+          // Reconstruct city tabs from trip data
+          reconstructCityTabs(tripResponse);
+
+          setTripId(urlTripId);
+        } else {
+          // Check for existing draft trip
+          try {
+            const draftData = await getCurrentDraftTrip();
+            console.log(
+              "[InspirePrompt] getCurrentDraftTrip returned:",
+              draftData
+            );
+
+            // Robust extraction similar to create flow
+            let existingTrip = null;
+            if (draftData?.trip) existingTrip = draftData.trip;
+            else if (draftData?.data?.trip) existingTrip = draftData.data.trip;
+            else if (draftData?.data && draftData.data.id)
+              existingTrip = draftData.data;
+            else if (draftData?.id) existingTrip = draftData;
+
+            if (existingTrip && existingTrip.id) {
+              // Redirect to existing draft
+              navigate(`/InspirePrompt/${existingTrip.id}`, { replace: true });
+              return; // Let the redirect handle loading
+            }
+          } catch (error) {
+            // No draft found or error - that's fine, start fresh
+            console.log("[InspirePrompt] No existing draft trip");
+          }
+        }
+      } catch (error) {
+        console.error("[InspirePrompt] Error initializing trip:", error);
+      } finally {
+        setIsLoadingTrip(false);
+      }
+    };
+
+    if (user) {
+      initializeTrip();
+    } else {
+      setIsLoadingTrip(false);
+    }
+  }, [urlTripId, user]);
+
+  // Reconstruct city tabs from loaded trip data
+  const reconstructCityTabs = (tripData) => {
+    if (!tripData) return;
+
+    const cities = tripData.cities || [];
+    const tabs = cities.map((city) => {
+      // Include country name if available for display (e.g., "Vancouver, Canada")
+      const displayName = city.country?.name
+        ? `${city.name}, ${city.country.name}`
+        : city.name;
+
+      return {
+        id: city.id,
+        name: displayName,
+        city_id: city.id,
+        places: (tripData.places || [])
+          .filter((place) => {
+            // Match places to city by address or city relationship
+            return (
+              place.address?.toLowerCase().includes(city.name.toLowerCase()) ||
+              place.place?.city_id === city.id
+            );
+          })
+          .map((p) => ({
+            id: p.id,
+            name: p.name,
+            address: p.address,
+            rating: p.rating,
+            price_level: p.price_level,
+            place_id: p.place?.google_place_id,
+            photos: p.photos || [],
+            types: p.types || [],
+            addedAt: p.created_at,
+          })),
+        organizedItinerary:
+          tripData.itineraryDays && tripData.itineraryDays.length > 0
+            ? tripData.itineraryDays
+            : null,
+        createdAt: city.created_at || Date.now(),
+      };
+    });
+
+    setCityTabs(tabs);
+  };
 
   // Read URL prefill for city or cityId and add to cityTabs once
   const [searchParams] = useSearchParams();
@@ -384,7 +500,10 @@ export default function InspirePrompt() {
     const tripIdParam = searchParams.get("tripId");
     if (tripIdParam) {
       setTripId(tripIdParam);
-      console.log("[InspirePrompt] Trip modification mode enabled:", tripIdParam);
+      console.log(
+        "[InspirePrompt] Trip modification mode enabled:",
+        tripIdParam
+      );
     }
   }, [searchParams]);
 
@@ -629,10 +748,12 @@ export default function InspirePrompt() {
   };
 
   // Handle adding place to trip
-  const handleAddPlaceToTrip = (place) => {
+  const handleAddPlaceToTrip = async (place) => {
     let cityName;
     if (place.city && place.country) {
-      cityName = `${place.city}, ${place.country}`;
+      const countryName =
+        typeof place.country === "object" ? place.country.name : place.country;
+      cityName = `${place.city}, ${countryName}`;
     } else if (place.city) {
       cityName = place.city;
     } else if (place.address) {
@@ -648,6 +769,33 @@ export default function InspirePrompt() {
       }
     } else {
       cityName = "Unknown City";
+    }
+
+    // Persist to backend if tripId exists
+    if (tripId) {
+      try {
+        // Check if city tab exists, if not create it first
+        const cityExists = cityTabs.some(
+          (tab) => normalizeCityName(tab.name) === normalizeCityName(cityName)
+        );
+
+        if (!cityExists) {
+          await Trip.addCity(tripId, { city_name: cityName });
+        }
+
+        // Add place to backend
+        await Trip.addPlace(tripId, {
+          name: place.name,
+          address: place.address,
+          rating: place.rating,
+          price_level: place.price_level,
+          types: place.types,
+          place_id: place.place_id,
+        });
+      } catch (error) {
+        console.error("[InspirePrompt] Error persisting place:", error);
+        // Continue with local state update even if backend fails
+      }
     }
 
     const normalizedNewCityName = normalizeCityName(cityName);
@@ -885,9 +1033,21 @@ export default function InspirePrompt() {
       // Response already has .itinerary
       const itinerary = response.itinerary || [];
 
+      // Persist itinerary to backend if tripId exists
+      if (tripId) {
+        try {
+          await Trip.saveItinerary(tripId, { itinerary });
+        } catch (error) {
+          console.error("[InspirePrompt] Error persisting itinerary:", error);
+          // Continue with local state update even if backend fails
+        }
+      }
+
       setCityTabs((prev) =>
         prev.map((tab) =>
-          tab.name === cityName ? { ...tab, organizedItinerary: itinerary } : tab
+          tab.name === cityName
+            ? { ...tab, organizedItinerary: itinerary }
+            : tab
         )
       );
 
@@ -972,7 +1132,9 @@ export default function InspirePrompt() {
       // Show success message
       const successMessage = {
         role: "assistant",
-        content: `✅ Successfully applied ${response.applied_changes.length} changes to your trip!${
+        content: `✅ Successfully applied ${
+          response.applied_changes.length
+        } changes to your trip!${
           response.failed_changes.length > 0
             ? ` (${response.failed_changes.length} changes failed)`
             : ""
@@ -1008,7 +1170,8 @@ export default function InspirePrompt() {
     setProposedChanges(null);
     const rejectionMessage = {
       role: "assistant",
-      content: "No problem! Let me know if you'd like to make any other changes.",
+      content:
+        "No problem! Let me know if you'd like to make any other changes.",
       timestamp: Date.now(),
     };
     setMessages((prev) => [...prev, rejectionMessage]);
@@ -1051,29 +1214,52 @@ export default function InspirePrompt() {
     const currentInput = inputValue;
     setInputValue("");
 
-    // ===== TRIP MODIFICATION MODE =====
-    // If tripId is set, use trip modification flow instead of normal inspire
-    if (tripId) {
-      await handleModifyTrip(currentInput);
-      return;
-    }
-    // ===== END TRIP MODIFICATION MODE =====
-
     setIsLoadingResponse(true);
 
     try {
+      // Create draft trip if doesn't exist
+      let currentTripId = tripId;
+      if (!currentTripId) {
+        const draftData = await createDraftTrip({ title: "Untitled Trip" });
+        // Debug log to capture unexpected shapes
+        console.log("[InspirePrompt] createDraftTrip returned:", draftData);
+
+        // Robustly extract trip object from multiple possible shapes
+        let trip = null;
+        if (draftData?.trip) trip = draftData.trip;
+        else if (draftData?.data?.trip) trip = draftData.data.trip;
+        else if (draftData?.data && draftData.data.id) trip = draftData.data;
+        else if (draftData?.id) trip = draftData;
+
+        if (!trip || !trip.id) {
+          console.error("[InspirePrompt] Invalid draft payload:", draftData);
+          // Don't crash the app; fallback to starting without a tripId
+          // and let the recommendations call proceed without trip persistence
+          // but log the issue so we can debug server/client mismatch.
+          trip = null;
+        }
+
+        if (trip) {
+          currentTripId = trip.id;
+          setTripId(currentTripId);
+          setTripData(trip);
+          navigate(`/InspirePrompt/${currentTripId}`, { replace: true });
+        }
+      }
+
       // Build simple conversation history array
       const conversationHistory = filteredMessages.map((m) => ({
         role: m.role,
         content: m.content,
       }));
 
-      // Call new recommendations endpoint
+      // Call new recommendations endpoint with trip_id for auto-save
       const response = await getRecommendations({
         user_query: currentInput,
         conversation_history: conversationHistory,
         filters: selectedFilters,
         city_context: activeCity,
+        trip_id: currentTripId,
       });
 
       console.log("[InspirePrompt] Response received:", response);
@@ -1135,6 +1321,34 @@ export default function InspirePrompt() {
 
   // Placeholder function for opening login modal
   const openLoginModal = () => {};
+
+  // Handle publishing trip
+  const handlePublishTrip = async () => {
+    if (!tripId) return;
+
+    try {
+      const title = prompt("Enter trip title:");
+      if (!title || !title.trim()) return;
+
+      const description = prompt("Enter trip description (optional):");
+
+      await finalizeTrip(tripId, {
+        title: title.trim(),
+        description: description?.trim() || "",
+        is_public: true,
+      });
+
+      // Redirect to trip details
+      navigate(`/TripDetails/${tripId}`);
+    } catch (error) {
+      console.error("[InspirePrompt] Error publishing trip:", error);
+      alert(
+        error.response?.data?.error?.message ||
+          error.message ||
+          "Failed to publish trip"
+      );
+    }
+  };
 
   return (
     <div className="inspire-container">
@@ -2026,8 +2240,8 @@ export default function InspirePrompt() {
           }
 
           .inspire-main-layout {
-            margin-top: calc(64px + 40px);
-            height: calc(100vh - 64px - 40px - 96px);
+            margin-top: calc(64px + 60px);
+            height: calc(100vh - 64px - 60px - 96px);
           }
 
           .content-scroll-area {
@@ -2063,7 +2277,7 @@ export default function InspirePrompt() {
               role="button"
               tabIndex={0}
               onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
+                if (e.key === "Enter" || e.key === " ") {
                   e.preventDefault();
                   setActiveCity(tab.name);
                 }
@@ -2080,6 +2294,23 @@ export default function InspirePrompt() {
               </button>
             </div>
           ))}
+
+          {/* Publish Trip Button */}
+          {tripId && cityTabs.length > 0 && (
+            <button
+              className="city-tab publish-trip-btn"
+              onClick={handlePublishTrip}
+              style={{
+                marginLeft: "auto",
+                background: "linear-gradient(135deg, #10B981 0%, #059669 100%)",
+                borderColor: "rgba(16, 185, 129, 0.4)",
+                color: "#FFFFFF",
+              }}
+            >
+              <Sparkles className="w-4 h-4" />
+              <span>Publish Trip</span>
+            </button>
+          )}
         </div>
       )}
 
@@ -2216,8 +2447,9 @@ export default function InspirePrompt() {
                           <span className="message-user-name">
                             {msg.role === "assistant"
                               ? "Walvee"
-                              : (user?.preferred_name || user?.full_name || "You")
-                            }
+                              : user?.preferred_name ||
+                                user?.full_name ||
+                                "You"}
                           </span>
                         </div>
 
@@ -2384,9 +2616,15 @@ export default function InspirePrompt() {
               user={user}
               onAddToTrip={() =>
                 handleAddCityToTrip(
-                  selectedRecommendation.country
-                    ? `${selectedRecommendation.name}, ${selectedRecommendation.country}`
-                    : selectedRecommendation.name
+                  (() => {
+                    const countryName =
+                      typeof selectedRecommendation.country === "object"
+                        ? selectedRecommendation.country.name
+                        : selectedRecommendation.country;
+                    return countryName
+                      ? `${selectedRecommendation.name}, ${countryName}`
+                      : selectedRecommendation.name;
+                  })()
                 )
               }
             />

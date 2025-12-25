@@ -183,12 +183,14 @@ export default function TripEditor() {
 
     formData.cities.forEach((city) => {
       if (city.latitude && city.longitude) {
+        const countryName =
+          typeof city.country === "object" ? city.country.name : city.country;
         cities.push({
           id: `city-${city.id}`,
           lat: city.latitude,
           lng: city.longitude,
           title: city.name,
-          subtitle: city.country || "",
+          subtitle: countryName || "",
         });
       }
     });

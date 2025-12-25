@@ -64,6 +64,11 @@ const Trip = sequelize.define(
       type: DataTypes.INTEGER,
       defaultValue: 0,
     },
+    is_draft: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: true,
+      allowNull: false,
+    },
   },
   {
     tableName: "trips",
@@ -73,6 +78,7 @@ const Trip = sequelize.define(
       { fields: ["is_public"] },
       { fields: ["is_featured"] },
       { fields: ["created_at"] },
+      { fields: ["author_id", "is_draft", "updated_at"] },
     ],
   }
 );

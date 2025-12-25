@@ -20,6 +20,7 @@ const PlacePhoto = require("./PlacePhoto");
 const CityPhoto = require("./CityPhoto");
 const PlaceFavorite = require("./PlaceFavorite");
 const TripImage = require("./TripImage");
+const ChatMessage = require("./ChatMessage");
 
 let modelsInitialized = false;
 
@@ -174,6 +175,10 @@ function initModels() {
   CityPhoto.hasMany(TripImage, { foreignKey: "city_photo_id", as: "tripImages" });
   TripImage.belongsTo(CityPhoto, { foreignKey: "city_photo_id", as: "cityPhoto" });
 
+  // Chat Message associations
+  Trip.hasMany(ChatMessage, { foreignKey: "trip_id", as: "chatMessages" });
+  ChatMessage.belongsTo(Trip, { foreignKey: "trip_id", as: "trip" });
+
   modelsInitialized = true;
 }
 
@@ -200,5 +205,6 @@ module.exports = {
   CityPhoto,
   PlaceFavorite,
   TripImage,
+  ChatMessage,
   initModels,
 };

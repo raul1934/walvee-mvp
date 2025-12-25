@@ -14,6 +14,7 @@ const llmRoutes = require("./llm");
 const inspireRoutes = require("./inspire");
 const searchRoutes = require("./search");
 const homeRoutes = require("./home");
+const chatMessageRoutes = require("./chatMessages");
 
 const router = express.Router();
 
@@ -33,5 +34,6 @@ router.use("/llm", llmRoutes);
 router.use("/inspire", inspireRoutes);
 router.use("/search", searchRoutes);
 router.use("/home", homeRoutes);
+router.use("/chat-messages", chatMessageRoutes);
 
 module.exports = router;

@@ -87,10 +87,84 @@ export async function organizeItinerary(options) {
   }
 }
 
+/**
+ * Create draft trip
+ * @param {Object} options - Optional options (title, etc.)
+ * @returns {Promise<Object>} Created draft trip
+ */
+export async function createDraftTrip(options = {}) {
+  try {
+    const response = await apiClient.post(endpoints.trips.createDraft, options);
+    // Return the API payload (response.data contains { trip })
+    // Fallback to the whole response if data is missing for robustness in different environments
+    return response.data ?? response;
+  } catch (error) {
+    console.error("[InspireService] createDraftTrip error:", error);
+    throw error;
+  }
+}
+
+/**
+ * Get current draft trip for user
+ * @returns {Promise<Object>} Current draft trip or null
+ */
+export async function getCurrentDraftTrip() {
+  try {
+    const response = await apiClient.get(endpoints.trips.getCurrentDraft);
+    // Return the API payload (response.data contains { trip })
+    // Fallback to the whole response if data is missing for robustness in different environments
+    return response.data ?? response;
+  } catch (error) {
+    console.error("[InspireService] getCurrentDraftTrip error:", error);
+    throw error;
+  }
+}
+
+/**
+ * Finalize draft trip (publish)
+ * @param {string} tripId - Trip ID
+ * @param {Object} data - Trip data (title, description, is_public)
+ * @returns {Promise<Object>} Published trip
+ */
+export async function finalizeTrip(tripId, data) {
+  try {
+    const response = await apiClient.request(endpoints.trips.finalize(tripId), {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    });
+    return response.data;
+  } catch (error) {
+    console.error("[InspireService] finalizeTrip error:", error);
+    throw error;
+  }
+}
+
+/**
+ * Load messages for trip
+ * @param {string} tripId - Trip ID
+ * @param {string|null} cityContext - Optional city context filter
+ * @returns {Promise<Array>} Array of messages
+ */
+export async function loadMessages(tripId, cityContext = null) {
+  try {
+    const url = endpoints.chatMessages.getByTrip(tripId);
+    const params = cityContext !== null ? { city_context: cityContext } : {};
+    const response = await apiClient.get(url, params);
+    return response.data?.messages || [];
+  } catch (error) {
+    console.error("[InspireService] loadMessages error:", error);
+    throw error;
+  }
+}
+
 export const Inspire = {
   invoke: invokeInspire, // Keep for backward compatibility (deprecated)
   getRecommendations, // NEW
   organizeItinerary, // NEW
   modifyTrip,
   applyChanges,
+  createDraftTrip,
+  getCurrentDraftTrip,
+  finalizeTrip,
+  loadMessages,
 };

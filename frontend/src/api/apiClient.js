@@ -223,6 +223,12 @@ export const endpoints = {
     getComments: (id) => `/trips/${id}/comments`,
     postComment: (id) => `/trips/${id}/comments`,
     getPlacesEnriched: (id) => `/trips/${id}/places-enriched`,
+    createDraft: "/trips/draft",
+    getCurrentDraft: "/trips/draft/current",
+    finalize: (id) => `/trips/${id}/finalize`,
+    addPlace: (id) => `/trips/${id}/places`,
+    addCity: (id) => `/trips/${id}/cities`,
+    saveItinerary: (id) => `/trips/${id}/itinerary`,
   },
 
   // Trip Likes
@@ -314,6 +320,14 @@ export const endpoints = {
     search: "/cities/search",
     byCountry: "/cities/country",
     suggestedByCountry: (countryId) => `/cities/suggested/country/${countryId}`,
+  },
+
+  // Chat Messages
+  chatMessages: {
+    create: "/chat-messages",
+    bulkCreate: "/chat-messages/bulk",
+    getByTrip: (tripId) => `/chat-messages/${tripId}`,
+    deleteByTrip: (tripId) => `/chat-messages/${tripId}`,
   },
 };
 

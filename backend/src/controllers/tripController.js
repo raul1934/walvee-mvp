@@ -282,10 +282,11 @@ const getTripById = async (req, res, next) => {
           attributes: ["id", "name"],
           through: { attributes: ["city_order"], timestamps: false },
           include: [
-            {
+              {
               model: require("../models/sequelize").Country,
               as: "country",
-              attributes: ["name"],
+              // Include id and code so clients can receive a nested country object
+              attributes: ["id", "name", "code"],
             },
             {
               model: require("../models/sequelize").CityPhoto,
@@ -872,7 +873,10 @@ async function formatTripResponse(trip) {
       .map((c) => ({
         id: c.id,
         name: c.name,
-        country: c.country?.name || null,
+        // Return a nested country object when available to keep responses consistent
+        country: c.country
+          ? { id: c.country.id, name: c.country.name, code: c.country.code }
+          : null,
         order:
           c.trip_cities?.city_order ||
           c.Cities?.city_order ||
@@ -923,13 +927,20 @@ async function formatTripResponse(trip) {
           },
         },
         attributes: ["id", "name"],
-        include: [{ model: Country, as: "country", attributes: ["name"] }],
+        // Include country id/name/code so we can build a nested object in the response
+        include: [{ model: Country, as: "country", attributes: ["id", "name", "code"] }],
       });
       cities.forEach((cityObj) => {
         const key = cityObj.name.toLowerCase();
         if (fallbackCityMap.has(key)) {
           const fullName = `${cityObj.name}, ${cityObj.country?.name || ""}`;
-          fallbackCityMap.set(key, { name: fullName, id: cityObj.id });
+          fallbackCityMap.set(key, {
+            name: fullName,
+            id: cityObj.id,
+            country: cityObj.country
+              ? { id: cityObj.country.id, name: cityObj.country.name, code: cityObj.country.code }
+              : null,
+          });
         }
       });
     }
@@ -1242,20 +1253,410 @@ const getTripAiReview = async (req, res, next) => {
         );
     }
 
+    // Return AI review inside `data` so clients can access `response.data.aiReview`
     return res.json(
-      buildSuccessResponse(
-        {
+      buildSuccessResponse({
+        aiReview: {
           id: aiReview.id,
           trip_id: aiReview.trip_id,
           rating: aiReview.rating,
           text: aiReview.comment,
           created_at: aiReview.created_at,
         },
-        "AI review retrieved successfully"
-      )
+      })
     );
   } catch (error) {
     console.error("[Get Trip AI Review] Error:", error);
+    next(error);
+  }
+};
+
+// POST /trips/:id/places - Add place to trip
+const addPlaceToTrip = async (req, res, next) => {
+  try {
+    const { id: tripId } = req.params;
+    const userId = req.user.id;
+    const { name, address, rating, price_level, types, place_id } = req.body;
+
+    // Verify trip ownership
+    const trip = await Trip.findOne({
+      where: { id: tripId, author_id: userId },
+    });
+
+    if (!trip) {
+      return res
+        .status(404)
+        .json(
+          buildErrorResponse("NOT_FOUND", "Trip not found or unauthorized")
+        );
+    }
+
+    // Check if place already exists in Places table by google_place_id
+    let placeRecord = null;
+    if (place_id && place_id !== "MANUAL_ENTRY_REQUIRED") {
+      placeRecord = await Place.findOne({
+        where: { google_place_id: place_id },
+      });
+    }
+
+    // Create TripPlace entry
+    const tripPlace = await TripPlace.create({
+      trip_id: tripId,
+      name,
+      address,
+      rating,
+      price_level,
+      types: types ? JSON.stringify(types) : null,
+      place_id: placeRecord?.id || null,
+    });
+
+    // Return created place inside `data` for consistent client consumption
+    return res.status(201).json(buildSuccessResponse({ place: tripPlace }));
+  } catch (error) {
+    next(error);
+  }
+};
+
+// POST /trips/:id/cities - Add city to trip
+const addCityToTrip = async (req, res, next) => {
+  try {
+    const { id: tripId } = req.params;
+    const userId = req.user.id;
+    const { city_name, city_id } = req.body;
+
+    // Verify trip ownership
+    const trip = await Trip.findOne({
+      where: { id: tripId, author_id: userId },
+    });
+
+    if (!trip) {
+      return res
+        .status(404)
+        .json(
+          buildErrorResponse("NOT_FOUND", "Trip not found or unauthorized")
+        );
+    }
+
+    let cityRecord = null;
+
+    if (city_id) {
+      cityRecord = await City.findByPk(city_id);
+    } else if (city_name) {
+      // Support flexible city name formats like "City" or "City, Country".
+      const normalized = String(city_name).trim();
+      const parts = normalized
+        .split(",")
+        .map((p) => p.trim())
+        .filter((p) => p.length > 0);
+
+      const cityPart = parts[0];
+      const countryPart = parts.length > 1 ? parts[parts.length - 1] : null;
+
+      // Try several strategies to find the city in the DB in order of precision
+      // 1) Exact match on name + country
+      // 2) Case-insensitive contains match on name + country
+      // 3) Exact match on name only
+      // 4) Contains match on name only
+      const Op = require("sequelize").Op;
+
+      const buildCountryWhere = (country) =>
+        country ? { name: { [Op.like]: `%${country}%` } } : null;
+
+      // Helper to attempt find with optional country filter
+      const tryFind = async (nameMatch, countryMatch) => {
+        const include = [];
+        if (countryMatch) {
+          include.push({ model: Country, as: "country", where: buildCountryWhere(countryMatch) });
+        } else {
+          include.push({ model: Country, as: "country" });
+        }
+
+        return City.findOne({
+          where: nameMatch,
+          include,
+        });
+      };
+
+      // 1. Exact name + country (if country provided)
+      if (countryPart) {
+        cityRecord = await tryFind({ name: cityPart }, countryPart);
+      }
+
+      // 2. Case-insensitive contains match on name + country
+      if (!cityRecord && countryPart) {
+        cityRecord = await tryFind({ name: { [Op.like]: `%${cityPart}%` } }, countryPart);
+      }
+
+      // 3. Exact name only
+      if (!cityRecord) {
+        cityRecord = await City.findOne({ where: { name: cityPart }, include: [{ model: Country, as: "country" }] });
+      }
+
+      // 4. Contains name only
+      if (!cityRecord) {
+        cityRecord = await City.findOne({ where: { name: { [Op.like]: `%${cityPart}%` } }, include: [{ model: Country, as: "country" }] });
+      }
+
+      if (!cityRecord) {
+        return res
+          .status(404)
+          .json(
+            buildErrorResponse(
+              "NOT_FOUND",
+              `City "${city_name}" not found in database`
+            )
+          );
+      }
+    }
+
+    if (!cityRecord) {
+      return res
+        .status(400)
+        .json(
+          buildErrorResponse(
+            "VALIDATION_ERROR",
+            "city_id or city_name required"
+          )
+        );
+    }
+
+    // Add city to trip using an explicit INSERT into the junction table to ensure an `id` is provided
+    const { sequelize } = require("../database/sequelize");
+
+    // Check for existing association
+    const existing = await sequelize.query(
+      "SELECT 1 FROM trip_cities WHERE trip_id = :tripId AND city_id = :cityId",
+      {
+        replacements: { tripId: trip.id, cityId: cityRecord.id },
+        type: sequelize.QueryTypes.SELECT,
+      }
+    );
+
+    if (existing.length > 0) {
+      // Already exists - return success (idempotent)
+      return res.status(200).json(buildSuccessResponse({ city: cityRecord }));
+    }
+
+    // Compute next city_order
+    const [maxOrderResult] = await sequelize.query(
+      "SELECT COALESCE(MAX(city_order), -1) as max_order FROM trip_cities WHERE trip_id = :tripId",
+      { replacements: { tripId: trip.id }, type: sequelize.QueryTypes.SELECT }
+    );
+
+    const nextOrder = (maxOrderResult && maxOrderResult.max_order !== undefined) ? maxOrderResult.max_order + 1 : 0;
+
+    // Insert explicit id using UUID() function in the DB
+    await sequelize.query(
+      "INSERT INTO trip_cities (id, trip_id, city_id, city_order, created_at) VALUES (UUID(), :tripId, :cityId, :cityOrder, NOW())",
+      {
+        replacements: { tripId: trip.id, cityId: cityRecord.id, cityOrder: nextOrder },
+        type: sequelize.QueryTypes.INSERT,
+      }
+    );
+
+    // Return created city inside `data` for consistent client consumption
+    return res.status(201).json(buildSuccessResponse({ city: cityRecord }));
+  } catch (error) {
+    next(error);
+  }
+};
+
+// PUT /trips/:id/itinerary - Save organized itinerary
+const saveItinerary = async (req, res, next) => {
+  try {
+    const { id: tripId } = req.params;
+    const userId = req.user.id;
+    const { itinerary } = req.body;
+
+    // Verify trip ownership
+    const trip = await Trip.findOne({
+      where: { id: tripId, author_id: userId },
+    });
+
+    if (!trip) {
+      return res
+        .status(404)
+        .json(
+          buildErrorResponse("NOT_FOUND", "Trip not found or unauthorized")
+        );
+    }
+
+    // Delete existing itinerary
+    await TripItineraryDay.destroy({
+      where: { trip_id: tripId },
+    });
+
+    // Create new itinerary days and activities
+    for (const day of itinerary) {
+      const dayRecord = await TripItineraryDay.create({
+        trip_id: tripId,
+        day_number: day.day_number,
+        title: day.title,
+        description: day.description,
+      });
+
+      // Create activities for this day
+      if (day.activities && day.activities.length > 0) {
+        for (let i = 0; i < day.activities.length; i++) {
+          const activity = day.activities[i];
+
+          // Find place_id if google_place_id provided
+          let placeId = null;
+          if (activity.google_place_id) {
+            const place = await Place.findOne({
+              where: { google_place_id: activity.google_place_id },
+            });
+            placeId = place?.id || null;
+          }
+
+          await TripItineraryActivity.create({
+            itinerary_day_id: dayRecord.id,
+            time: activity.time,
+            name: activity.name,
+            location: activity.location,
+            description: activity.description,
+            activity_order: i,
+            place_id: placeId,
+          });
+        }
+      }
+    }
+
+    // Reload trip with itinerary
+    const updatedTrip = await Trip.findByPk(tripId, {
+      include: [
+        {
+          model: TripItineraryDay,
+          as: "itineraryDays",
+          include: [{ model: TripItineraryActivity, as: "activities" }],
+        },
+      ],
+    });
+
+    // Return updated trip inside `data` so clients can access `response.data.trip`
+    return res.json(buildSuccessResponse({ trip: updatedTrip }));
+  } catch (error) {
+    next(error);
+  }
+};
+
+// POST /trips/draft - Create draft trip
+const createDraftTrip = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const { title = "Untitled Trip" } = req.body;
+
+    const trip = await Trip.create({
+      id: uuidv4(),
+      title,
+      author_id: userId,
+      is_draft: true,
+      is_public: false,
+    });
+
+    // Return the created trip inside `data` so clients get `{ trip }` as expected
+    return res.status(201).json(buildSuccessResponse({ trip }));
+  } catch (error) {
+    next(error);
+  }
+};
+
+// GET /trips/draft/current - Find user's most recent draft
+const getCurrentDraftTrip = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+
+    const trip = await Trip.findOne({
+      where: {
+        author_id: userId,
+        is_draft: true,
+      },
+      order: [["updated_at", "DESC"]],
+      include: [
+        { model: City, as: "cities" },
+        { model: TripPlace, as: "places" },
+        {
+          model: TripItineraryDay,
+          as: "itineraryDays",
+          include: [{ model: TripItineraryActivity, as: "activities" }],
+        },
+      ],
+    });
+
+    // Return the draft trip inside `data` so clients receive `{ trip }` reliably
+    return res.json(buildSuccessResponse({ trip }));
+  } catch (error) {
+    next(error);
+  }
+};
+
+// PATCH /trips/:id/finalize - Publish draft trip
+const finalizeTripDraft = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+    const { title, description, is_public = true } = req.body;
+
+    // Find trip and verify ownership
+    const trip = await Trip.findOne({
+      where: { id, author_id: userId },
+      include: [
+        { model: TripPlace, as: "places" },
+        { model: City, as: "cities" },
+      ],
+    });
+
+    if (!trip) {
+      return res
+        .status(404)
+        .json(buildErrorResponse("NOT_FOUND", "Trip not found"));
+    }
+
+    // Validation
+    if (!title || title.trim().length === 0) {
+      return res
+        .status(400)
+        .json(buildErrorResponse("VALIDATION_ERROR", "Title is required"));
+    }
+
+    if (!trip.places || trip.places.length === 0) {
+      if (!trip.cities || trip.cities.length === 0) {
+        return res
+          .status(400)
+          .json(
+            buildErrorResponse(
+              "VALIDATION_ERROR",
+              "Trip must have at least one place or city before publishing"
+            )
+          );
+      }
+    }
+
+    // Update trip
+    await trip.update({
+      title,
+      description,
+      is_public,
+      is_draft: false,
+    });
+
+    // Reload with full data
+    const updatedTrip = await Trip.findByPk(id, {
+      include: [
+        { model: User, as: "author" },
+        { model: City, as: "cities" },
+        { model: TripPlace, as: "places" },
+        {
+          model: TripItineraryDay,
+          as: "itineraryDays",
+          include: [{ model: TripItineraryActivity, as: "activities" }],
+        },
+      ],
+    });
+
+    // Return updated trip inside `data` so clients can access `response.data.trip`
+    return res.json(buildSuccessResponse({ trip: updatedTrip }));
+  } catch (error) {
     next(error);
   }
 };
@@ -1270,4 +1671,10 @@ module.exports = {
   getTripReviews,
   getTripDerivations,
   getTripAiReview,
+  addPlaceToTrip,
+  addCityToTrip,
+  saveItinerary,
+  createDraftTrip,
+  getCurrentDraftTrip,
+  finalizeTripDraft,
 };

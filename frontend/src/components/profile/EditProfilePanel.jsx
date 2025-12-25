@@ -42,7 +42,7 @@ export default function EditProfilePanel({ user, onClose, onSave }) {
         : user?.city || "",
     country:
       user?.city && typeof user.city === "object"
-        ? user.city.country || user?.country || ""
+        ? (typeof user.city.country === 'object' ? user.city.country.name : user.city.country) || user?.country || ""
         : user?.country || "",
     // canonical city id when available
     city_id:
@@ -58,7 +58,7 @@ export default function EditProfilePanel({ user, onClose, onSave }) {
     // If backend provides nested city object, prefer it
     if (user?.city && typeof user.city === "object") {
       const name = formatCityName(user.city.name) || "";
-      const country = user.city.country || user.country || "";
+      const country = typeof user.city.country === "object" ? user.city.country.name : (user.city.country || user.country || "");
       const state = user.city.state || "";
       const display = country
         ? `${name}${state ? `, ${state}` : ""}, ${country}`

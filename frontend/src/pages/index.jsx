@@ -114,6 +114,7 @@ function PagesContent() {
           <Route path="/EditProfile" element={<EditProfile />} />
 
           <Route path="/InspirePrompt" element={<InspirePrompt />} />
+          <Route path="/InspirePrompt/:tripId" element={<InspirePrompt />} />
 
           <Route path="/auth/callback" element={<AuthCallback />} />
         </Routes>

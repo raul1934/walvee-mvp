@@ -48,7 +48,8 @@ export default function RecommendationCard({ recommendation }) {
 
       setIsLoadingDetails(true);
       try {
-        const searchQuery = `${recommendation.name} ${recommendation.city || ''} ${recommendation.country || ''}`.trim();
+        const countryName = typeof recommendation.country === 'object' ? recommendation.country.name : recommendation.country;
+        const searchQuery = `${recommendation.name} ${recommendation.city || ''} ${countryName || ''}`.trim();
         
         const response = await invokeLLM({
           prompt: `Search Google Places API for: "${searchQuery}"
@@ -139,7 +140,7 @@ Format: {"place_id": "ChIJ..." or null}`,
             <div className="flex items-center gap-1 text-xs text-gray-400">
               <MapPin className="w-3 h-3 flex-shrink-0" />
               <span className="line-clamp-1">
-                {[recommendation.city, recommendation.country].filter(Boolean).join(', ')}
+                {([recommendation.city, (typeof recommendation.country === 'object' ? recommendation.country.name : recommendation.country)]).filter(Boolean).join(', ')}
               </span>
             </div>
           )}

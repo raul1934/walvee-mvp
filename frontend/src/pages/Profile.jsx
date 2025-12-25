@@ -223,7 +223,7 @@ export default function Profile() {
   // Precompute display-friendly city strings to avoid JSX complexity
   const cityDisplayText = userCity
     ? `${formatCityName(userCity.name)}${
-        userCity.country ? `, ${userCity.country}` : ""
+        userCity.country ? `, ${typeof userCity.country === 'object' ? userCity.country.name : userCity.country}` : ""
       }`
     : null;
   const cityHasId = !!(userCity && userCity.id);
@@ -1517,7 +1517,7 @@ export default function Profile() {
         <PlaceModal
           place={selectedPlace}
           trip={{
-            destination: `${selectedPlace.city}, ${selectedPlace.country}`,
+            destination: `${selectedPlace.city}${selectedPlace.country ? `, ${typeof selectedPlace.country === 'object' ? selectedPlace.country.name : selectedPlace.country}` : ''}`,
           }}
           isOpen={isPlaceModalOpen}
           onClose={closePlaceModal}

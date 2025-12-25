@@ -56,6 +56,7 @@ exports.getRecommendations = async (req, res) => {
       conversation_history = [],
       filters = {},
       city_context = null,
+      trip_id = null,
     } = req.body;
 
     // Validation
@@ -118,6 +119,34 @@ exports.getRecommendations = async (req, res) => {
         City,
         Country
       );
+
+    // Auto-save messages to database if trip_id provided
+    if (trip_id) {
+      const { ChatMessage } = require("../models/sequelize");
+      const { v4: uuidv4 } = require("uuid");
+
+      const messagesToSave = [
+        {
+          id: uuidv4(),
+          trip_id,
+          role: "user",
+          content: user_query,
+          city_context,
+          timestamp: new Date(),
+        },
+        {
+          id: uuidv4(),
+          trip_id,
+          role: "assistant",
+          content: parsedResponse.message,
+          recommendations: parsedResponse.recommendations,
+          city_context,
+          timestamp: new Date(),
+        },
+      ];
+
+      await ChatMessage.bulkCreate(messagesToSave);
+    }
 
     return res.json(buildSuccessResponse(parsedResponse));
   } catch (error) {

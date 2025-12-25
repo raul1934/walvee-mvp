@@ -100,6 +100,41 @@ export const Trip = {
     );
     return response.data;
   },
+
+  async addPlace(tripId, placeData) {
+    const response = await apiClient.post(
+      endpoints.trips.addPlace(tripId),
+      placeData
+    );
+    return response.data;
+  },
+
+  async addCity(tripId, cityData) {
+    const response = await apiClient.post(
+      endpoints.trips.addCity(tripId),
+      cityData
+    );
+    return response.data;
+  },
+
+  async saveItinerary(tripId, itineraryData) {
+    const response = await apiClient.put(
+      endpoints.trips.saveItinerary(tripId),
+      itineraryData
+    );
+    return response.data;
+  },
+
+  async patch(tripId, data) {
+    const response = await apiClient.request(
+      endpoints.trips.finalize(tripId),
+      {
+        method: "PATCH",
+        body: JSON.stringify(data),
+      }
+    );
+    return response.data;
+  },
 };
 
 /**

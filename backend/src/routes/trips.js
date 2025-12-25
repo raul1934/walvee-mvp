@@ -105,4 +105,18 @@ router.get("/:id/derivations", tripController.getTripDerivations);
 // Get enriched places for trip (with cached Google Maps data)
 router.get("/:id/places-enriched", placeController.getTripPlacesEnriched);
 
+// Draft trip endpoints
+router.post("/draft", authenticate, tripController.createDraftTrip);
+router.get("/draft/current", authenticate, tripController.getCurrentDraftTrip);
+router.patch("/:id/finalize", authenticate, tripController.finalizeTripDraft);
+
+// Add place to trip
+router.post("/:id/places", authenticate, tripController.addPlaceToTrip);
+
+// Add city to trip
+router.post("/:id/cities", authenticate, tripController.addCityToTrip);
+
+// Save itinerary
+router.put("/:id/itinerary", authenticate, tripController.saveItinerary);
+
 module.exports = router;

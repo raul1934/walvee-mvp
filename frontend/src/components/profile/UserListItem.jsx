@@ -35,11 +35,13 @@ export default function UserListItem({ user, currentUser, onFollowToggle }) {
             <div className="flex items-center gap-1 text-xs text-gray-500">
               <MapPin className="w-3 h-3 shrink-0" />
               <span className="truncate">
-                {user.city && user.country
-                  ? `${user.city}, ${
-                      user.country.split("-")[0]?.trim() || user.country
-                    }`
-                  : user.city || user.country}
+                {(() => {
+                  const countryName = typeof user.country === 'object' ? user.country.name : user.country;
+                  if (user.city && countryName) {
+                    return `${user.city}, ${countryName.split("-")[0]?.trim() || countryName}`;
+                  }
+                  return user.city || countryName || "";
+                })()}
               </span>
             </div>
           )}

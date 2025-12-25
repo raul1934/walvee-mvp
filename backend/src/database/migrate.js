@@ -360,7 +360,9 @@ const migrations = [
   },
   {
     name: "create_trip_cities_table",
-    up: `
+    up: async (connection) => {
+      // Create table
+      await connection.query(`
         CREATE TABLE IF NOT EXISTS trip_cities (
           id CHAR(36) PRIMARY KEY,
           trip_id CHAR(36) NOT NULL,
@@ -372,19 +374,33 @@ const migrations = [
           INDEX idx_trip_id (trip_id),
           INDEX idx_city_id (city_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+      `);
 
-        -- Backfill existing destination_city_id values into trip_cities (city_order = 0)
-        -- Only insert when the trip_id/city_id pair does not already exist
-        INSERT INTO trip_cities (id, trip_id, city_id, city_order)
-        SELECT UUID(), t.id AS trip_id, t.destination_city_id AS city_id, 0
-        FROM trips t
-        WHERE t.destination_city_id IS NOT NULL
-          AND NOT EXISTS (
-            SELECT 1 FROM trip_cities tc WHERE tc.trip_id = t.id AND tc.city_id = t.destination_city_id
-          );
+      // Check if destination_city_id column exists before backfilling
+      const [columns] = await connection.query(`
+        SELECT COLUMN_NAME
+        FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME = 'trips'
+          AND COLUMN_NAME = 'destination_city_id'
+      `);
 
-        -- Note: unique constraint will be added idempotently via JS migration step
-      `,
+      if (columns && columns.length > 0) {
+        // Backfill existing destination_city_id values into trip_cities
+        await connection.query(`
+          INSERT INTO trip_cities (id, trip_id, city_id, city_order)
+          SELECT UUID(), t.id AS trip_id, t.destination_city_id AS city_id, 0
+          FROM trips t
+          WHERE t.destination_city_id IS NOT NULL
+            AND NOT EXISTS (
+              SELECT 1 FROM trip_cities tc WHERE tc.trip_id = t.id AND tc.city_id = t.destination_city_id
+            )
+        `);
+        console.log("  -> Backfilled trip_cities from destination_city_id");
+      } else {
+        console.log("  -> Skipping backfill (destination_city_id column doesn't exist)");
+      }
+    },
   },
   {
     name: "add_trip_cities_unique_constraint",

@@ -1546,7 +1546,7 @@ export default function TripDetails() {
                   <div className="mt-1 ml-0 text-xs text-gray-300 flex flex-wrap gap-2">
                     {cities.map((c, idx) => {
                       const cityOnly = c.name || "";
-                      const country = c.country || "";
+                      const country = typeof c.country === "object" ? c.country.name : c.country || "";
 
                       return c.id ? (
                         <Link

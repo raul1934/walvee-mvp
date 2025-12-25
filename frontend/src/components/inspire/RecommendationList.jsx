@@ -138,7 +138,10 @@ export default function RecommendationList({
                   {rec.city && (
                     <div className="text-sm text-gray-400">
                       {rec.city}
-                      {rec.country ? `, ${rec.country}` : ""}
+                      {(() => {
+                        const countryName = typeof rec.country === "object" ? rec.country.name : rec.country;
+                        return countryName ? `, ${countryName}` : null;
+                      })()}
                     </div>
                   )}
 
