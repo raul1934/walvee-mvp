@@ -131,7 +131,9 @@ export default function Profile() {
               email: targetUserEmail,
               // Use author data from trip, fallback to "Traveler" if not present
               full_name: firstTrip.author?.full_name || "Traveler",
-              preferred_name: firstTrip.author?.preferred_name || firstTrip.author?.full_name?.split(" ")[0],
+              preferred_name:
+                firstTrip.author?.preferred_name ||
+                firstTrip.author?.full_name?.split(" ")[0],
               photo_url: firstTrip.author?.photo_url,
               // Normalize created date fields for frontend compatibility
               created_at: firstTrip.created_at || firstTrip.created_date,
@@ -223,7 +225,13 @@ export default function Profile() {
   // Precompute display-friendly city strings to avoid JSX complexity
   const cityDisplayText = userCity
     ? `${formatCityName(userCity.name)}${
-        userCity.country ? `, ${typeof userCity.country === 'object' ? userCity.country.name : userCity.country}` : ""
+        userCity.country
+          ? `, ${
+              typeof userCity.country === "object"
+                ? userCity.country.name
+                : userCity.country
+            }`
+          : ""
       }`
     : null;
   const cityHasId = !!(userCity && userCity.id);
@@ -232,7 +240,10 @@ export default function Profile() {
     queryKey: ["userTrips", profileUser?.id],
     queryFn: async () => {
       if (!profileUser?.id) return [];
-      return await User.getUserTrips(profileUser.id, { sortBy: "created_at", order: "desc" });
+      return await User.getUserTrips(profileUser.id, {
+        sortBy: "created_at",
+        order: "desc",
+      });
     },
     enabled: !!profileUser?.id,
     initialData: [],
@@ -1517,7 +1528,15 @@ export default function Profile() {
         <PlaceModal
           place={selectedPlace}
           trip={{
-            destination: `${selectedPlace.city}${selectedPlace.country ? `, ${typeof selectedPlace.country === 'object' ? selectedPlace.country.name : selectedPlace.country}` : ''}`,
+            destination: `${selectedPlace.city}${
+              selectedPlace.country
+                ? `, ${
+                    typeof selectedPlace.country === "object"
+                      ? selectedPlace.country.name
+                      : selectedPlace.country
+                  }`
+                : ""
+            }`,
           }}
           isOpen={isPlaceModalOpen}
           onClose={closePlaceModal}

@@ -1,36 +1,36 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import { invokeLLM } from "@/api/llmService";
-import { MapPin, Star, Building2, Compass, DollarSign } from 'lucide-react';
-import { motion } from 'framer-motion';
-import ImagePlaceholder from '../common/ImagePlaceholder';
-import { getCompactPriceDisplay } from '../utils/priceFormatter';
+import { MapPin, Star, Building2, Compass, DollarSign } from "lucide-react";
+import { motion } from "framer-motion";
+import ImagePlaceholder from "../common/ImagePlaceholder";
+import { getCompactPriceDisplay } from "../utils/priceFormatter";
 
 // Category icons and colors
 const CATEGORY_CONFIG = {
   city: {
     icon: MapPin,
-    color: 'text-blue-400',
-    bgColor: 'bg-blue-500/10',
-    borderColor: 'border-blue-500/30'
+    color: "text-blue-400",
+    bgColor: "bg-blue-500/10",
+    borderColor: "border-blue-500/30",
   },
   place: {
     icon: Compass,
-    color: 'text-purple-400',
-    bgColor: 'bg-purple-500/10',
-    borderColor: 'border-purple-500/30'
+    color: "text-purple-400",
+    bgColor: "bg-purple-500/10",
+    borderColor: "border-purple-500/30",
   },
   activity: {
     icon: Compass,
-    color: 'text-green-400',
-    bgColor: 'bg-green-500/10',
-    borderColor: 'border-green-500/30'
+    color: "text-green-400",
+    bgColor: "bg-green-500/10",
+    borderColor: "border-green-500/30",
   },
   business: {
     icon: Building2,
-    color: 'text-orange-400',
-    bgColor: 'bg-orange-500/10',
-    borderColor: 'border-orange-500/30'
-  }
+    color: "text-orange-400",
+    bgColor: "bg-orange-500/10",
+    borderColor: "border-orange-500/30",
+  },
 };
 
 export default function RecommendationCard({ recommendation }) {
@@ -38,19 +38,25 @@ export default function RecommendationCard({ recommendation }) {
   const [imageError, setImageError] = useState(false);
   const [isLoadingDetails, setIsLoadingDetails] = useState(false);
 
-  const category = CATEGORY_CONFIG[recommendation.type] || CATEGORY_CONFIG.place;
+  const category =
+    CATEGORY_CONFIG[recommendation.type] || CATEGORY_CONFIG.place;
   const Icon = category.icon;
 
   // Fetch place details from Google Places if not a city
   useEffect(() => {
     const fetchPlaceDetails = async () => {
-      if (recommendation.type === 'city' || !recommendation.name) return;
+      if (recommendation.type === "city" || !recommendation.name) return;
 
       setIsLoadingDetails(true);
       try {
-        const countryName = typeof recommendation.country === 'object' ? recommendation.country.name : recommendation.country;
-        const searchQuery = `${recommendation.name} ${recommendation.city || ''} ${countryName || ''}`.trim();
-        
+        const countryName =
+          typeof recommendation.country === "object"
+            ? recommendation.country.name
+            : recommendation.country;
+        const searchQuery = `${recommendation.name} ${
+          recommendation.city || ""
+        } ${countryName || ""}`.trim();
+
         const response = await invokeLLM({
           prompt: `Search Google Places API for: "${searchQuery}"
           
@@ -60,9 +66,9 @@ Format: {"place_id": "ChIJ..." or null}`,
           response_json_schema: {
             type: "object",
             properties: {
-              place_id: { type: ["string", "null"] }
-            }
-          }
+              place_id: { type: ["string", "null"] },
+            },
+          },
         });
 
         if (response.place_id) {
@@ -72,22 +78,29 @@ Format: {"place_id": "ChIJ..." or null}`,
             rating: 4.5 + Math.random() * 0.5, // Mock rating
             user_ratings_total: Math.floor(Math.random() * 1000) + 50,
             price_level: Math.floor(Math.random() * 4) + 1,
-            photo: null // Will be loaded from Google Places
+            photo: null, // Will be loaded from Google Places
           });
         }
       } catch (error) {
-        console.error('[RecommendationCard] Error fetching details:', error);
+        console.error("[RecommendationCard] Error fetching details:", error);
       } finally {
         setIsLoadingDetails(false);
       }
     };
 
     fetchPlaceDetails();
-  }, [recommendation.name, recommendation.city, recommendation.country, recommendation.type]);
+  }, [
+    recommendation.name,
+    recommendation.city,
+    recommendation.country,
+    recommendation.type,
+  ]);
 
   const rating = placeDetails?.rating;
   const reviewsCount = placeDetails?.user_ratings_total;
-  const priceDisplay = placeDetails?.price_level ? getCompactPriceDisplay(placeDetails.price_level) : null;
+  const priceDisplay = placeDetails?.price_level
+    ? getCompactPriceDisplay(placeDetails.price_level)
+    : null;
 
   return (
     <motion.div
@@ -95,7 +108,9 @@ Format: {"place_id": "ChIJ..." or null}`,
       animate={{ opacity: 1, y: 0 }}
       className="group cursor-pointer"
     >
-      <div className={`bg-[#1A1B23] rounded-2xl overflow-hidden border ${category.borderColor} hover:border-opacity-60 transition-all duration-300 hover:transform hover:scale-[1.02]`}>
+      <div
+        className={`bg-[#1A1B23] rounded-2xl overflow-hidden border ${category.borderColor} hover:border-opacity-60 transition-all duration-300 hover:transform hover:scale-[1.02]`}
+      >
         {/* Image */}
         <div className="relative aspect-[16/10] overflow-hidden bg-gradient-to-br from-gray-800 to-gray-900">
           {imageError || !placeDetails?.photo ? (
@@ -112,8 +127,12 @@ Format: {"place_id": "ChIJ..." or null}`,
           )}
 
           {/* Category Badge */}
-          <div className={`absolute top-2 left-2 px-2 py-1 rounded-md ${category.bgColor} backdrop-blur-md border ${category.borderColor}`}>
-            <span className={`text-xs font-semibold ${category.color} uppercase`}>
+          <div
+            className={`absolute top-2 left-2 px-2 py-1 rounded-md ${category.bgColor} backdrop-blur-md border ${category.borderColor}`}
+          >
+            <span
+              className={`text-xs font-semibold ${category.color} uppercase`}
+            >
               {recommendation.type}
             </span>
           </div>
@@ -140,7 +159,14 @@ Format: {"place_id": "ChIJ..." or null}`,
             <div className="flex items-center gap-1 text-xs text-gray-400">
               <MapPin className="w-3 h-3 flex-shrink-0" />
               <span className="line-clamp-1">
-                {([recommendation.city, (typeof recommendation.country === 'object' ? recommendation.country.name : recommendation.country)]).filter(Boolean).join(', ')}
+                {[
+                  recommendation.city,
+                  typeof recommendation.country === "object"
+                    ? recommendation.country.name
+                    : recommendation.country,
+                ]
+                  .filter(Boolean)
+                  .join(", ")}
               </span>
             </div>
           )}
@@ -150,10 +176,14 @@ Format: {"place_id": "ChIJ..." or null}`,
             <div className="flex items-center gap-2 text-xs">
               <div className="flex items-center gap-1">
                 <Star className="w-3 h-3 text-yellow-400 fill-yellow-400" />
-                <span className="font-semibold text-white">{rating.toFixed(1)}</span>
+                <span className="font-semibold text-white">
+                  {rating.toFixed(1)}
+                </span>
               </div>
               {reviewsCount && (
-                <span className="text-gray-500">({reviewsCount.toLocaleString()})</span>
+                <span className="text-gray-500">
+                  ({reviewsCount.toLocaleString()})
+                </span>
               )}
             </div>
           )}

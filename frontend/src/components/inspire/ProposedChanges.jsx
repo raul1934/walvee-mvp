@@ -47,16 +47,23 @@ const ProposedChanges = ({ changes, onApprove, onReject, isApplying }) => {
   const formatOperationTitle = (operation, data) => {
     switch (operation) {
       case "ADD_CITY":
-        const addCityCountry = typeof data.country === "object" ? data.country.name : data.country;
-        return `Add ${data.city_name}${addCityCountry ? `, ${addCityCountry}` : ""}`;
+        const addCityCountry =
+          typeof data.country === "object" ? data.country.name : data.country;
+        return `Add ${data.city_name}${
+          addCityCountry ? `, ${addCityCountry}` : ""
+        }`;
       case "REMOVE_CITY":
         return `Remove ${data.city_name}`;
       case "ADD_PLACE":
-        return `Add ${data.place_name}${data.city_name ? ` in ${data.city_name}` : ""}`;
+        return `Add ${data.place_name}${
+          data.city_name ? ` in ${data.city_name}` : ""
+        }`;
       case "REMOVE_PLACE":
         return `Remove ${data.place_name}`;
       case "ADD_ITINERARY":
-        return `Add ${data.days?.length || 0}-day itinerary${data.city_name ? ` for ${data.city_name}` : ""}`;
+        return `Add ${data.days?.length || 0}-day itinerary${
+          data.city_name ? ` for ${data.city_name}` : ""
+        }`;
       default:
         return operation;
     }
@@ -71,7 +78,10 @@ const ProposedChanges = ({ changes, onApprove, onReject, isApplying }) => {
           <div className="text-xs text-gray-500">
             Destination: {data.city_name}
             {(() => {
-              const countryName = typeof data.country === "object" ? data.country.name : data.country;
+              const countryName =
+                typeof data.country === "object"
+                  ? data.country.name
+                  : data.country;
               return countryName ? `, ${countryName}` : null;
             })()}
           </div>
@@ -80,7 +90,8 @@ const ProposedChanges = ({ changes, onApprove, onReject, isApplying }) => {
       case "REMOVE_CITY":
         return (
           <div className="text-xs text-amber-600">
-            Warning: This will remove all places and itinerary items for this city
+            Warning: This will remove all places and itinerary items for this
+            city
           </div>
         );
 
@@ -233,7 +244,9 @@ const ProposedChanges = ({ changes, onApprove, onReject, isApplying }) => {
               Applying...
             </>
           ) : (
-            `Apply ${approvedCount} ${approvedCount === 1 ? "Change" : "Changes"}`
+            `Apply ${approvedCount} ${
+              approvedCount === 1 ? "Change" : "Changes"
+            }`
           )}
         </Button>
 

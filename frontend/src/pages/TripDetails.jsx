@@ -723,10 +723,7 @@ export default function TripDetails() {
     // First, add markers from activities with placeDetails
     if (currentDay.activities && currentDay.activities.length > 0) {
       currentDay.activities.forEach((activity, idx) => {
-        if (
-          activity.place?.latitude &&
-          activity.place?.longitude
-        ) {
+        if (activity.place?.latitude && activity.place?.longitude) {
           markers.push({
             id: `activity-${selectedDay}-${idx}`,
             lat: activity.place.latitude,
@@ -1169,7 +1166,8 @@ export default function TripDetails() {
   }, [tripData]);
 
   const authorFirstName = React.useMemo(() => {
-    const name = tripData?.author?.preferred_name || tripData?.author?.full_name;
+    const name =
+      tripData?.author?.preferred_name || tripData?.author?.full_name;
     return name?.split(" ")[0] || "Traveler";
   }, [tripData?.author]);
 
@@ -1211,8 +1209,7 @@ export default function TripDetails() {
         // Find matching place in places array to get photo
         const matchingPlace = currentDay.places?.find(
           (p) =>
-            p.name === activity.name ||
-            p.address === activity.place?.address
+            p.name === activity.name || p.address === activity.place?.address
         );
 
         return {
@@ -1483,7 +1480,11 @@ export default function TripDetails() {
                 <div className="trip-author-info">
                   <UserAvatar
                     src={tripData.author?.photo_url}
-                    name={tripData.author?.preferred_name || tripData.author?.full_name || "Traveler"}
+                    name={
+                      tripData.author?.preferred_name ||
+                      tripData.author?.full_name ||
+                      "Traveler"
+                    }
                     size="md"
                     email={tripData.author?.id}
                   />
@@ -1492,9 +1493,15 @@ export default function TripDetails() {
                       tripData.author?.id
                     )}`}
                     className="font-semibold text-white text-sm truncate hover:text-blue-400 transition-colors"
-                    title={tripData.author?.preferred_name || tripData.author?.full_name || "Traveler"}
+                    title={
+                      tripData.author?.preferred_name ||
+                      tripData.author?.full_name ||
+                      "Traveler"
+                    }
                   >
-                    {tripData.author?.preferred_name || tripData.author?.full_name || "Traveler"}
+                    {tripData.author?.preferred_name ||
+                      tripData.author?.full_name ||
+                      "Traveler"}
                   </Link>
                 </div>
 
@@ -1546,7 +1553,10 @@ export default function TripDetails() {
                   <div className="mt-1 ml-0 text-xs text-gray-300 flex flex-wrap gap-2">
                     {cities.map((c, idx) => {
                       const cityOnly = c.name || "";
-                      const country = typeof c.country === "object" ? c.country.name : c.country || "";
+                      const country =
+                        typeof c.country === "object"
+                          ? c.country.name
+                          : c.country || "";
 
                       return c.id ? (
                         <Link
