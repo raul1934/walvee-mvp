@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   MapPin,
   Globe,
@@ -9,7 +9,8 @@ import {
   Utensils,
   Building,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  CircleCheck
 } from "lucide-react";
 
 export default function RecommendationList({
@@ -18,6 +19,8 @@ export default function RecommendationList({
 }) {
   // Track which descriptions are expanded
   const [expandedDescriptions, setExpandedDescriptions] = useState(new Set());
+  const [hasOverflow, setHasOverflow] = useState(new Set());
+  const descriptionRefs = useRef({});
 
   const toggleDescription = (index, e) => {
     e.stopPropagation(); // Prevent card click
@@ -31,6 +34,33 @@ export default function RecommendationList({
       return next;
     });
   };
+
+  // Check if description actually overflows 2 lines
+  useEffect(() => {
+    const checkOverflow = () => {
+      const overflowSet = new Set();
+
+      recommendations.forEach((_, idx) => {
+        const element = descriptionRefs.current[idx];
+        if (element) {
+          // Check if scrollHeight is greater than clientHeight (indicates overflow)
+          if (element.scrollHeight > element.clientHeight) {
+            overflowSet.add(idx);
+          }
+        }
+      });
+
+      setHasOverflow(overflowSet);
+    };
+
+    // Check on mount and when recommendations change
+    checkOverflow();
+
+    // Also check after a short delay to ensure layout is complete
+    const timeoutId = setTimeout(checkOverflow, 100);
+
+    return () => clearTimeout(timeoutId);
+  }, [recommendations]);
 
   const getCategoryConfig = (type) => {
     const typeNormalized = type?.toLowerCase().trim();
@@ -65,85 +95,105 @@ export default function RecommendationList({
   };
 
   return (
-    <div className="grid grid-cols-1 gap-4 mt-4">
-      {recommendations.map((rec, idx) => {
-        const category = getCategoryConfig(rec.type);
-        const CategoryIcon = category.icon;
-        const isExpanded = expandedDescriptions.has(idx);
-        const hasLongDescription = rec.description && rec.description.length > 150;
+    <>
+      <div className="grid grid-cols-1 gap-4 mt-4">
+        {recommendations.map((rec, idx) => {
+          const category = getCategoryConfig(rec.type);
+          const CategoryIcon = category.icon;
+          const isExpanded = expandedDescriptions.has(idx);
+          const showReadMore = hasOverflow.has(idx);
 
-        return (
-          <div
-            key={`${rec.name}-${idx}`}
-            className="bg-gray-800/60 p-4 rounded-xl text-left w-full hover:bg-gray-700 cursor-pointer transition-colors"
-            onClick={() => onCardClick(rec)}
-            role="button"
-            tabIndex={0}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                onCardClick(rec);
-              }
-            }}
-          >
-            <div className="flex items-start gap-3">
-              {/* Category Icon */}
-              <div className={`w-10 h-10 rounded-md ${category.bg} ${category.border} border flex items-center justify-center`}>
-                <CategoryIcon className={`w-4 h-4 ${category.text}`} />
-              </div>
-
-              <div className="flex-1">
-                {/* Category Badge */}
-                <div className="mb-2">
-                  <span className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold ${category.bg} ${category.text} ${category.border} border`}>
-                    {category.label}
-                  </span>
+          return (
+            <div
+              key={`${rec.name}-${idx}`}
+              className="bg-gray-800/60 p-4 rounded-xl text-left w-full hover:bg-gray-700 cursor-pointer transition-colors"
+              onClick={() => onCardClick(rec)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  onCardClick(rec);
+                }
+              }}
+            >
+              <div className="flex items-start gap-3">
+                {/* Category Icon */}
+                <div className={`w-10 h-10 rounded-md ${category.bg} ${category.border} border flex items-center justify-center`}>
+                  <CategoryIcon className={`w-4 h-4 ${category.text}`} />
                 </div>
 
-                {/* Place Name */}
-                <div className="font-semibold text-white">{rec.name}</div>
-
-                {/* Location */}
-                {rec.city && (
-                  <div className="text-sm text-gray-400">
-                    {rec.city}
-                    {rec.country ? `, ${rec.country}` : ""}
+                <div className="flex-1">
+                  {/* Category Badge */}
+                  <div className="mb-2">
+                    <span className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold ${category.bg} ${category.text} ${category.border} border`}>
+                      {category.label}
+                    </span>
                   </div>
-                )}
 
-                {/* Description with Read More */}
-                {rec.description && (
-                  <div className="mt-2">
-                    <div className={`text-sm text-gray-300 ${isExpanded ? '' : 'line-clamp-2'}`}>
-                      {rec.description}
+                  {/* Place Name */}
+                  <div className="font-semibold text-white">{rec.name}</div>
+
+                  {/* Location */}
+                  {rec.city && (
+                    <div className="text-sm text-gray-400">
+                      {rec.city}
+                      {rec.country ? `, ${rec.country}` : ""}
                     </div>
+                  )}
 
-                    {/* Read More Button (only show if description is long) */}
-                    {hasLongDescription && (
-                      <button
-                        onClick={(e) => toggleDescription(idx, e)}
-                        className="mt-1 text-xs font-semibold text-blue-400 hover:text-blue-300 flex items-center gap-1 transition-colors"
+                  {/* Description with Read More */}
+                  {rec.description && (
+                    <div className="mt-2">
+                      <div
+                        ref={(el) => (descriptionRefs.current[idx] = el)}
+                        className={`text-sm text-gray-300 ${isExpanded ? '' : 'line-clamp-2'}`}
                       >
-                        {isExpanded ? (
-                          <>
-                            Read less
-                            <ChevronUp className="w-3 h-3" />
-                          </>
-                        ) : (
-                          <>
-                            Read more
-                            <ChevronDown className="w-3 h-3" />
-                          </>
-                        )}
-                      </button>
-                    )}
-                  </div>
-                )}
+                        {rec.description}
+                      </div>
+
+                      {/* Read More Button (only show if description overflows) */}
+                      {showReadMore && (
+                        <button
+                          onClick={(e) => toggleDescription(idx, e)}
+                          className="mt-1 text-xs font-semibold text-blue-400 hover:text-blue-300 flex items-center gap-1 transition-colors"
+                        >
+                          {isExpanded ? (
+                            <>
+                              Read less
+                              <ChevronUp className="w-3 h-3" />
+                            </>
+                          ) : (
+                            <>
+                              Read more
+                              <ChevronDown className="w-3 h-3" />
+                            </>
+                          )}
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
+          );
+        })}
+      </div>
+
+      {/* End Message */}
+      {recommendations.length > 0 && (
+        <div className="mt-6 text-center space-y-2 opacity-100 transition-opacity duration-300">
+          <div className="flex justify-center">
+            <CircleCheck className="w-6 h-6 text-blue-400" />
           </div>
-        );
-      })}
-    </div>
+          <div className="text-white font-medium">
+            These are all the suggestions for you! 🎉
+          </div>
+          <div className="text-sm text-gray-400">
+            Keep chatting to receive more personalized recommendations
+          </div>
+        </div>
+      )}
+    </>
   );
 }

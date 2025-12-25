@@ -209,20 +209,22 @@ export default function PlaceDetails({
   const priceInfo = getPriceRangeInfo(enrichedPlace.price_level);
 
   const { data: userReviews = [] } = useQuery({
-    queryKey: ["reviews", "place", enrichedPlace.place_id],
+    queryKey: ["reviews", "place", placeId],
     queryFn: async () => {
-      if (!enrichedPlace.place_id) {
+      if (!placeId) {
         console.warn("[PlaceDetails] No place_id found, returning empty array");
         return [];
       }
 
       const response = await apiClient.get(
-        `/places/${enrichedPlace.place_id}/reviews`
+        `/places/${placeId}/reviews`
       );
 
       return response.data || [];
     },
-    enabled: !!enrichedPlace.place_id && activeTab === "reviews",
+    enabled: !!placeId && activeTab === "reviews",
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+    gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes
   });
 
   const addReviewMutation = useMutation({

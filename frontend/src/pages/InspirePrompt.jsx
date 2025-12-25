@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
 import { apiClient, endpoints } from "@/api/apiClient";
 import {
   getRecommendations,
@@ -283,7 +284,8 @@ const isCityRecommendation = (rec) => {
   return false;
 };
 
-export default function InspirePrompt({ user }) {
+export default function InspirePrompt() {
+  const { user } = useAuth();
   const [inputValue, setInputValue] = useState("");
   const [isFocused, setIsFocused] = useState(false);
 
@@ -1349,34 +1351,23 @@ export default function InspirePrompt({ user }) {
 
         .message.user {
           flex-direction: row-reverse;
+          justify-content: flex-start;
+        }
+
+        .message.user .message-content-wrapper {
+          align-items: flex-end;
+        }
+
+        .message.user .message-header {
+          justify-content: flex-end;
+        }
+
+        .message.user .message-content {
+          text-align: right;
         }
 
         .message-avatar {
-          width: 56px;
-          height: 56px;
-          border-radius: 50%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
           flex-shrink: 0;
-          overflow: hidden;
-        }
-
-        .message-avatar.ai {
-          background: linear-gradient(135deg, #2563EB 0%, #1E40AF 100%);
-          padding: 10px;
-        }
-
-        .message-avatar.ai img {
-          width: 55%;
-          height: 55%;
-          object-fit: contain;
-          filter: brightness(0) invert(1);
-        }
-
-        .message-avatar.user {
-          background: rgba(255, 255, 255, 0.08);
-          border: 2px solid rgba(255, 255, 255, 0.15);
         }
 
         .message-header {
@@ -2200,15 +2191,13 @@ export default function InspirePrompt({ user }) {
                 >
                   {filteredMessages.map((msg, idx) => (
                     <div key={idx} className={`message ${msg.role}`}>
-                      <div
-                        className={`message-avatar ${
-                          msg.role === "assistant" ? "ai" : "user"
-                        }`}
-                      >
+                      <div className="message-avatar">
                         {msg.role === "assistant" ? (
-                          <img
+                          <UserAvatar
                             src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/68e82e0380ac6e4a26051c6f/dda6b4bec_LogoWalvee.png"
-                            alt="Walvee"
+                            name="Walvee"
+                            size="lg"
+                            ring={true}
                           />
                         ) : (
                           <UserAvatar
@@ -2216,19 +2205,21 @@ export default function InspirePrompt({ user }) {
                             name={
                               user?.preferred_name || user?.full_name || "You"
                             }
-                            size="md"
+                            size="lg"
+                            ring={true}
                           />
                         )}
                       </div>
 
                       <div className="message-content-wrapper">
-                        {msg.role === "user" && (
-                          <div className="message-header">
-                            <span className="message-user-name">
-                              {user?.preferred_name || user?.full_name || "You"}
-                            </span>
-                          </div>
-                        )}
+                        <div className="message-header">
+                          <span className="message-user-name">
+                            {msg.role === "assistant"
+                              ? "Walvee"
+                              : (user?.preferred_name || user?.full_name || "You")
+                            }
+                          </span>
+                        </div>
 
                         <div className="message-content">{msg.content}</div>
 
