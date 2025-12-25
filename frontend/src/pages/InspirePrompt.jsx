@@ -1519,7 +1519,7 @@ export default function InspirePrompt() {
         /* Main layout */
         .inspire-main-layout {
           display: flex;
-          height: calc(100vh - 64px - 56px - 96px);
+          height: calc(100vh - 96px);
           margin-top: 64px;
           position: relative;
           width: 100%;
@@ -1534,6 +1534,7 @@ export default function InspirePrompt() {
           display: flex;
           flex-direction: column;
           overflow: hidden;
+          margin-top: 36px;
         }
 
         .places-sidebar-header {
@@ -2312,8 +2313,8 @@ export default function InspirePrompt() {
           }
 
           .inspire-main-layout {
-            margin-top: calc(64px + 60px);
-            height: calc(100vh - 64px - 60px - 96px);
+            margin-top: 64px;
+            height: calc(100vh - 96px);
           }
 
           .content-scroll-area {
