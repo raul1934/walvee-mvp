@@ -421,15 +421,20 @@ export default function InspirePrompt() {
         ? `${city.name}, ${city.country.name}`
         : city.name;
 
+      // Use a simplified city name for address matching (first part before comma)
+      const searchName = String(city.name).split(",")[0].trim().toLowerCase();
+
       return {
         id: city.id,
         name: displayName,
         city_id: city.id,
         places: (tripData.places || [])
           .filter((place) => {
-            // Match places to city by address or city relationship
+            // Match places to city by address (using searchName) or by explicit city relationship
             return (
-              place.address?.toLowerCase().includes(city.name.toLowerCase()) ||
+              (place.address &&
+                searchName &&
+                place.address.toLowerCase().includes(searchName)) ||
               place.place?.city_id === city.id
             );
           })
@@ -576,6 +581,56 @@ export default function InspirePrompt() {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }
   }, [messages]);
+
+  // Track which message contexts we've already loaded from the server to avoid refetching
+  const loadedMessageContextsRef = useRef(new Set());
+
+  // Load messages when the active city (context) changes — only the first time per context
+  useEffect(() => {
+    if (!tripId) return;
+
+    const contextKey =
+      activeCity === null
+        ? null
+        : (() => {
+            // Try to resolve to a city id when available for more reliable server filtering
+            const tab = cityTabs.find((t) => t.name === activeCity);
+            return tab && tab.id ? tab.id : activeCity;
+          })();
+
+    if (loadedMessageContextsRef.current.has(contextKey)) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const msgs = await loadMessages(
+          tripId,
+          contextKey === null ? null : contextKey
+        );
+        if (cancelled) return;
+        // Merge messages without duplicates, keep chronological order
+        setMessages((prev) => {
+          const existing = new Set(prev.map((m) => m.id));
+          const newMsgs = msgs.filter((m) => !existing.has(m.id));
+          const merged = [...prev, ...newMsgs].sort(
+            (a, b) => a.timestamp - b.timestamp
+          );
+          return merged;
+        });
+        loadedMessageContextsRef.current.add(contextKey);
+      } catch (err) {
+        console.error(
+          "[InspirePrompt] loadMessages error for context:",
+          contextKey,
+          err
+        );
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [tripId, activeCity, cityTabs]);
 
   // Initial focus on input
   useEffect(() => {
@@ -1366,7 +1421,7 @@ export default function InspirePrompt() {
           content: '';
           position: absolute;
           inset: 0;
-          background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+          background: rgba(0,0,0,0.03);
           pointer-events: none;
         }
 
@@ -2314,386 +2369,390 @@ export default function InspirePrompt() {
         </div>
       )}
 
-      {/* Main Layout with Sidebar */}
+      {/* Main Layout with Sidebar (sidebar moved inside content area for proper stacking) */}
       <div className="inspire-main-layout">
-        {/* Places Sidebar - Only show when city is active */}
-        {activeCity && (
-          <PlacesSidebar
-            activeCity={activeCity}
-            places={activeCityPlaces}
-            organizedItinerary={
-              cityTabs.find((t) => t.name === activeCity)?.organizedItinerary
-            }
-            onOrganizeClick={() => handleOrganizeClick()}
-            onPlaceClick={(place) => handleSelectSidebarPlace(place)}
-            onRemovePlace={(placeName) =>
-              handleRemovePlace(activeCity, placeName)
-            }
-            onClearItinerary={() => handleClearItinerary(activeCity)}
-            getPriceRangeInfo={getPriceRangeInfo}
-            onOpenPlaceDetails={(place) => {
-              setSelectedRecommendation(place);
-              setIsModalOpen(true);
+        {/* Scrollable Content Area - Chat */}
+        <div className="content-scroll-area">
+          <div
+            className="content-inner"
+            style={{ display: "flex", gap: "24px", alignItems: "flex-start" }}
+          >
+            {/* Stage Area */}
+            <div className="stage-area">
+              <AnimatePresence mode="wait">
+                {/* Welcome Section - Apple Intelligence Style */}
+                {messages.length === 0 && (
+                  <motion.div
+                    key="welcome-section"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.6 }}
+                    className="inspire-welcome"
+                  >
+                    {/* Hero */}
+                    <motion.div
+                      className="welcome-hero"
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.6, delay: 0.1 }}
+                    >
+                      <h1 className="welcome-hero-title">{content.hero}</h1>
+                    </motion.div>
+
+                    {/* Feature cards - Horizontal Grid */}
+                    <div className="welcome-features">
+                      {content.features.map((feature, index) => (
+                        <motion.div
+                          key={feature.number}
+                          className={`welcome-feature-card color-${feature.color}`}
+                          initial={{ opacity: 0, y: 40 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{
+                            duration: 0.6,
+                            delay: 0.3 + index * 0.15,
+                            ease: [0.4, 0, 0.2, 1],
+                          }}
+                        >
+                          <div className="feature-number">{feature.number}</div>
+                          <h3 className="feature-title">{feature.title}</h3>
+                          <p className="feature-description">
+                            {feature.description}
+                          </p>
+                        </motion.div>
+                      ))}
+                    </div>
+
+                    {/* Quick action buttons */}
+                    <motion.div
+                      className="welcome-actions"
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.6, delay: 0.9 }}
+                    >
+                      <button
+                        onClick={() => setShowFilters(true)}
+                        className="welcome-button"
+                      >
+                        <Filter className="w-5 h-5" />
+                        Set Preferences
+                      </button>
+                      <button
+                        onClick={() => setShowCitiesModal(true)}
+                        className="welcome-button"
+                      >
+                        <Globe className="w-5 h-5" />
+                        Explore Cities
+                      </button>
+                    </motion.div>
+                  </motion.div>
+                )}
+
+                {/* State: Conversation */}
+                {messages.length > 0 && (
+                  <motion.div
+                    key="conversation"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="conversation-container"
+                  >
+                    {filteredMessages.map((msg, idx) => (
+                      <div key={idx} className={`message ${msg.role}`}>
+                        <div className="message-avatar">
+                          {msg.role === "assistant" ? (
+                            <UserAvatar
+                              src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/68e82e0380ac6e4a26051c6f/dda6b4bec_LogoWalvee.png"
+                              name="Walvee"
+                              size="lg"
+                              ring={true}
+                            />
+                          ) : (
+                            <UserAvatar
+                              src={user?.photo_url || user?.picture}
+                              name={
+                                user?.preferred_name || user?.full_name || "You"
+                              }
+                              size="lg"
+                              ring={true}
+                            />
+                          )}
+                        </div>
+
+                        <div className="message-content-wrapper">
+                          <div className="message-header">
+                            <span className="message-user-name">
+                              {msg.role === "assistant"
+                                ? "Walvee"
+                                : user?.preferred_name ||
+                                  user?.full_name ||
+                                  "You"}
+                            </span>
+                          </div>
+
+                          <div className="message-content">{msg.content}</div>
+
+                          {msg.role === "assistant" && msg.recommendations && (
+                            <>
+                              <RecommendationList
+                                recommendations={msg.recommendations}
+                                onCardClick={handleRecommendationClick}
+                              />
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+
+                    {isLoadingResponse && (
+                      <div className="message assistant">
+                        <div className="message-avatar ai">
+                          <Loader2 className="w-6 h-6 animate-spin text-white" />
+                        </div>
+                        <div className="message-content">
+                          <AnimatePresence mode="wait">
+                            <motion.span
+                              key={loadingPhrase}
+                              initial={{ opacity: 0, y: 10 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              exit={{ opacity: 0, y: -10 }}
+                              transition={{ duration: 0.5 }}
+                              className="loading-phrase"
+                            >
+                              {loadingPhrases[loadingPhrase]}
+                            </motion.span>
+                          </AnimatePresence>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Trip Modification: Proposed Changes */}
+                    {proposedChanges && (
+                      <ProposedChanges
+                        changes={proposedChanges}
+                        onApprove={handleApproveChanges}
+                        onReject={handleRejectChanges}
+                        isApplying={isApplyingChanges}
+                      />
+                    )}
+
+                    {/* Trip Modification: Clarification Questions */}
+                    {clarificationQuestions && (
+                      <ClarificationQuestions
+                        questions={clarificationQuestions}
+                        onSubmitAnswers={handleSubmitClarificationAnswers}
+                      />
+                    )}
+
+                    <div ref={messagesEndRef} />
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {/* Places Sidebar - inside content-inner as sibling of stage-area */}
+            {activeCity && (
+              <PlacesSidebar
+                activeCity={activeCity}
+                places={activeCityPlaces}
+                organizedItinerary={
+                  cityTabs.find((t) => t.name === activeCity)
+                    ?.organizedItinerary
+                }
+                onOrganizeClick={() => handleOrganizeClick()}
+                onPlaceClick={(place) => handleSelectSidebarPlace(place)}
+                onRemovePlace={(placeName) =>
+                  handleRemovePlace(activeCity, placeName)
+                }
+                onClearItinerary={() => handleClearItinerary(activeCity)}
+                getPriceRangeInfo={getPriceRangeInfo}
+                onOpenPlaceDetails={(place) => {
+                  setSelectedRecommendation(place);
+                  setIsModalOpen(true);
+                }}
+              />
+            )}
+          </div>
+        </div>
+
+        {/* Fixed Prompt Block */}
+        <div className="prompt-block-container">
+          <div className="prompt-block-inner">
+            <p className="prompt-microcopy">
+              Every great trip begins with a few words. Start yours below.
+            </p>
+
+            <form onSubmit={handleSubmit} className="prompt-wrapper">
+              <div className="prompt-input-container">
+                <textarea
+                  ref={inputRef}
+                  className="prompt-textarea"
+                  placeholder={
+                    messages.length > 0
+                      ? "Continue your conversation..."
+                      : EXAMPLE_PROMPTS[currentExampleIndex]
+                  }
+                  value={inputValue}
+                  onChange={(e) => setInputValue(e.target.value)}
+                  onFocus={() => setIsFocused(true)}
+                  onBlur={() => setIsFocused(false)}
+                  disabled={isLoadingResponse}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSubmit();
+                    }
+                  }}
+                />
+              </div>
+
+              <div className="prompt-actions">
+                <button
+                  type="button"
+                  className="prompt-action-btn"
+                  onClick={() => setShowFilters(true)}
+                  disabled={isLoadingResponse}
+                  style={{ position: "relative" }}
+                >
+                  Filters
+                  {(selectedFilters.interests.length > 0 ||
+                    selectedFilters.budget ||
+                    selectedFilters.pace ||
+                    selectedFilters.companions ||
+                    selectedFilters.season) && (
+                    <span className="filter-active-dot" />
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  className="prompt-action-btn"
+                  onClick={() => setShowCitiesModal(true)}
+                  disabled={isLoadingResponse}
+                >
+                  Cities
+                </button>
+              </div>
+
+              {inputValue.trim() && (
+                <button
+                  type="submit"
+                  className="prompt-submit-btn"
+                  disabled={isLoadingResponse}
+                >
+                  <ChevronRight className="w-7 h-7" />
+                </button>
+              )}
+            </form>
+          </div>
+        </div>
+
+        {/* Filters Modal */}
+        <FiltersModal
+          isOpen={showFilters}
+          onClose={() => setShowFilters(false)}
+          selectedFilters={selectedFilters}
+          onApply={handleApplyFilters}
+        />
+
+        {/* Cities Modal */}
+        <CitiesModal
+          isOpen={showCitiesModal}
+          onClose={() => setShowCitiesModal(false)}
+          onSelectCity={handleCitySelect}
+        />
+
+        {/* Modals - Conditional rendering based on recommendation type */}
+        {isModalOpen && selectedRecommendation && (
+          <>
+            {isCityRecommendation(selectedRecommendation) ? (
+              <RecommendationModal
+                isOpen={isModalOpen}
+                onClose={() => {
+                  setIsModalOpen(false);
+                  setSelectedRecommendation(null);
+                }}
+                recommendation={selectedRecommendation}
+                user={user}
+                onAddToTrip={() => {
+                  const countryName =
+                    typeof selectedRecommendation.country === "object"
+                      ? selectedRecommendation.country.name
+                      : selectedRecommendation.country;
+                  const cityName = countryName
+                    ? `${selectedRecommendation.name}, ${countryName}`
+                    : selectedRecommendation.name;
+                  handleAddCityToTrip(cityName);
+                }}
+              />
+            ) : (
+              <div className="place-modal-container">
+                <div
+                  className="place-modal-backdrop"
+                  onClick={() => {
+                    setIsModalOpen(false);
+                    setSelectedRecommendation(null);
+                  }}
+                />
+                <div className="place-modal-content">
+                  <PlaceDetails
+                    place={selectedRecommendation}
+                    trip={{
+                      destination:
+                        selectedRecommendation.city ||
+                        selectedRecommendation.address,
+                    }}
+                    onClose={() => {
+                      setIsModalOpen(false);
+                      setSelectedRecommendation(null);
+                    }}
+                    user={user}
+                    onAddToTrip={handleAddPlaceFromModal}
+                  />
+                </div>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Sidebar Place Modal */}
+        {isSidebarPlaceModalOpen && selectedSidebarPlace && (
+          <SidebarPlaceModal
+            isOpen={isSidebarPlaceModalOpen}
+            onClose={handleCloseSidebarPlaceModal}
+            place={selectedSidebarPlace}
+            user={user}
+            onAddToTrip={() => {
+              handleAddPlaceToTrip(selectedSidebarPlace);
+              handleCloseSidebarPlaceModal();
+            }}
+            onRemove={() => {
+              handleRemovePlace(activeCity, selectedSidebarPlace.name);
+              handleCloseSidebarPlaceModal();
             }}
           />
         )}
 
-        {/* Scrollable Content Area - Chat */}
-        <div className="content-scroll-area">
-          <div className="stage-area">
-            <AnimatePresence mode="wait">
-              {/* Welcome Section - Apple Intelligence Style */}
-              {messages.length === 0 && (
-                <motion.div
-                  key="welcome-section"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.6 }}
-                  className="inspire-welcome"
-                >
-                  {/* Hero */}
-                  <motion.div
-                    className="welcome-hero"
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.6, delay: 0.1 }}
-                  >
-                    <h1 className="welcome-hero-title">{content.hero}</h1>
-                  </motion.div>
-
-                  {/* Feature cards - Horizontal Grid */}
-                  <div className="welcome-features">
-                    {content.features.map((feature, index) => (
-                      <motion.div
-                        key={feature.number}
-                        className={`welcome-feature-card color-${feature.color}`}
-                        initial={{ opacity: 0, y: 40 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{
-                          duration: 0.6,
-                          delay: 0.3 + index * 0.15,
-                          ease: [0.4, 0, 0.2, 1],
-                        }}
-                      >
-                        <div className="feature-number">{feature.number}</div>
-                        <h3 className="feature-title">{feature.title}</h3>
-                        <p className="feature-description">
-                          {feature.description}
-                        </p>
-                      </motion.div>
-                    ))}
-                  </div>
-
-                  {/* Quick action buttons */}
-                  <motion.div
-                    className="welcome-actions"
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.6, delay: 0.9 }}
-                  >
-                    <button
-                      onClick={() => setShowFilters(true)}
-                      className="welcome-button"
-                    >
-                      <Filter className="w-5 h-5" />
-                      Set Preferences
-                    </button>
-                    <button
-                      onClick={() => setShowCitiesModal(true)}
-                      className="welcome-button"
-                    >
-                      <Globe className="w-5 h-5" />
-                      Explore Cities
-                    </button>
-                  </motion.div>
-                </motion.div>
-              )}
-
-              {/* State: Conversation */}
-              {messages.length > 0 && (
-                <motion.div
-                  key="conversation"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.2 }}
-                  className="conversation-container"
-                >
-                  {filteredMessages.map((msg, idx) => (
-                    <div key={idx} className={`message ${msg.role}`}>
-                      <div className="message-avatar">
-                        {msg.role === "assistant" ? (
-                          <UserAvatar
-                            src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/68e82e0380ac6e4a26051c6f/dda6b4bec_LogoWalvee.png"
-                            name="Walvee"
-                            size="lg"
-                            ring={true}
-                          />
-                        ) : (
-                          <UserAvatar
-                            src={user?.photo_url || user?.picture}
-                            name={
-                              user?.preferred_name || user?.full_name || "You"
-                            }
-                            size="lg"
-                            ring={true}
-                          />
-                        )}
-                      </div>
-
-                      <div className="message-content-wrapper">
-                        <div className="message-header">
-                          <span className="message-user-name">
-                            {msg.role === "assistant"
-                              ? "Walvee"
-                              : user?.preferred_name ||
-                                user?.full_name ||
-                                "You"}
-                          </span>
-                        </div>
-
-                        <div className="message-content">{msg.content}</div>
-
-                        {msg.role === "assistant" && msg.recommendations && (
-                          <>
-                            <RecommendationList
-                              recommendations={msg.recommendations}
-                              onCardClick={handleRecommendationClick}
-                            />
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-
-                  {isLoadingResponse && (
-                    <div className="message assistant">
-                      <div className="message-avatar ai">
-                        <Loader2 className="w-6 h-6 animate-spin text-white" />
-                      </div>
-                      <div className="message-content">
-                        <AnimatePresence mode="wait">
-                          <motion.span
-                            key={loadingPhrase}
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -10 }}
-                            transition={{ duration: 0.5 }}
-                            className="loading-phrase"
-                          >
-                            {loadingPhrases[loadingPhrase]}
-                          </motion.span>
-                        </AnimatePresence>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Trip Modification: Proposed Changes */}
-                  {proposedChanges && (
-                    <ProposedChanges
-                      changes={proposedChanges}
-                      onApprove={handleApproveChanges}
-                      onReject={handleRejectChanges}
-                      isApplying={isApplyingChanges}
-                    />
-                  )}
-
-                  {/* Trip Modification: Clarification Questions */}
-                  {clarificationQuestions && (
-                    <ClarificationQuestions
-                      questions={clarificationQuestions}
-                      onSubmitAnswers={handleSubmitClarificationAnswers}
-                    />
-                  )}
-
-                  <div ref={messagesEndRef} />
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-        </div>
+        {/* Organize Trip Modal */}
+        {isOrganizeTripModalOpen && (
+          <OrganizeTripModal
+            isOpen={isOrganizeTripModalOpen}
+            onClose={() => setIsOrganizeTripModalOpen(false)}
+            places={activeCityPlaces}
+            tripDays={tripDays}
+            setTripDays={setTripDays}
+            isOrganizing={isOrganizingTrip}
+            onConfirm={() =>
+              handleConfirmOrganize({
+                cityName: activeCity,
+                places: activeCityPlaces,
+                days: tripDays,
+              })
+            }
+          />
+        )}
       </div>
-
-      {/* Fixed Prompt Block */}
-      <div className="prompt-block-container">
-        <div className="prompt-block-inner">
-          <p className="prompt-microcopy">
-            Every great trip begins with a few words. Start yours below.
-          </p>
-
-          <form onSubmit={handleSubmit} className="prompt-wrapper">
-            <div className="prompt-input-container">
-              <textarea
-                ref={inputRef}
-                className="prompt-textarea"
-                placeholder={
-                  messages.length > 0
-                    ? "Continue your conversation..."
-                    : EXAMPLE_PROMPTS[currentExampleIndex]
-                }
-                value={inputValue}
-                onChange={(e) => setInputValue(e.target.value)}
-                onFocus={() => setIsFocused(true)}
-                onBlur={() => setIsFocused(false)}
-                disabled={isLoadingResponse}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    handleSubmit();
-                  }
-                }}
-              />
-            </div>
-
-            <div className="prompt-actions">
-              <button
-                type="button"
-                className="prompt-action-btn"
-                onClick={() => setShowFilters(true)}
-                disabled={isLoadingResponse}
-                style={{ position: "relative" }}
-              >
-                Filters
-                {(selectedFilters.interests.length > 0 ||
-                  selectedFilters.budget ||
-                  selectedFilters.pace ||
-                  selectedFilters.companions ||
-                  selectedFilters.season) && (
-                  <span className="filter-active-dot" />
-                )}
-              </button>
-
-              <button
-                type="button"
-                className="prompt-action-btn"
-                onClick={() => setShowCitiesModal(true)}
-                disabled={isLoadingResponse}
-              >
-                Cities
-              </button>
-            </div>
-
-            {inputValue.trim() && (
-              <button
-                type="submit"
-                className="prompt-submit-btn"
-                disabled={isLoadingResponse}
-              >
-                <ChevronRight className="w-7 h-7" />
-              </button>
-            )}
-          </form>
-        </div>
-      </div>
-
-      {/* Filters Modal */}
-      <FiltersModal
-        isOpen={showFilters}
-        onClose={() => setShowFilters(false)}
-        selectedFilters={selectedFilters}
-        onApply={handleApplyFilters}
-      />
-
-      {/* Cities Modal */}
-      <CitiesModal
-        isOpen={showCitiesModal}
-        onClose={() => setShowCitiesModal(false)}
-        onSelectCity={handleCitySelect}
-      />
-
-      {/* Modals - Conditional rendering based on recommendation type */}
-      {isModalOpen && selectedRecommendation && (
-        <>
-          {isCityRecommendation(selectedRecommendation) ? (
-            <RecommendationModal
-              isOpen={isModalOpen}
-              onClose={() => {
-                setIsModalOpen(false);
-                setSelectedRecommendation(null);
-              }}
-              recommendation={selectedRecommendation}
-              user={user}
-              onAddToTrip={() =>
-                handleAddCityToTrip(
-                  (() => {
-                    const countryName =
-                      typeof selectedRecommendation.country === "object"
-                        ? selectedRecommendation.country.name
-                        : selectedRecommendation.country;
-                    return countryName
-                      ? `${selectedRecommendation.name}, ${countryName}`
-                      : selectedRecommendation.name;
-                  })()
-                )
-              }
-            />
-          ) : (
-            <div className="place-modal-container">
-              <div
-                className="place-modal-backdrop"
-                onClick={() => {
-                  setIsModalOpen(false);
-                  setSelectedRecommendation(null);
-                }}
-              />
-              <div className="place-modal-content">
-                <PlaceDetails
-                  place={selectedRecommendation}
-                  trip={{
-                    destination:
-                      selectedRecommendation.city ||
-                      selectedRecommendation.address,
-                  }}
-                  onClose={() => {
-                    setIsModalOpen(false);
-                    setSelectedRecommendation(null);
-                  }}
-                  user={user}
-                  onAddToTrip={handleAddPlaceFromModal}
-                />
-              </div>
-            </div>
-          )}
-        </>
-      )}
-
-      {/* Sidebar Place Modal */}
-      {isSidebarPlaceModalOpen && selectedSidebarPlace && (
-        <SidebarPlaceModal
-          isOpen={isSidebarPlaceModalOpen}
-          onClose={handleCloseSidebarPlaceModal}
-          place={selectedSidebarPlace}
-          user={user}
-          onAddToTrip={() => {
-            handleAddPlaceToTrip(selectedSidebarPlace);
-            handleCloseSidebarPlaceModal();
-          }}
-          onRemove={() => {
-            handleRemovePlace(activeCity, selectedSidebarPlace.name);
-            handleCloseSidebarPlaceModal();
-          }}
-        />
-      )}
-
-      {/* Organize Trip Modal */}
-      {isOrganizeTripModalOpen && (
-        <OrganizeTripModal
-          isOpen={isOrganizeTripModalOpen}
-          onClose={() => setIsOrganizeTripModalOpen(false)}
-          places={activeCityPlaces}
-          tripDays={tripDays}
-          setTripDays={setTripDays}
-          isOrganizing={isOrganizingTrip}
-          onConfirm={() =>
-            handleConfirmOrganize({
-              cityName: activeCity,
-              places: activeCityPlaces,
-              days: tripDays,
-            })
-          }
-        />
-      )}
     </div>
   );
 }

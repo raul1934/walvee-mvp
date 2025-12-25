@@ -97,7 +97,7 @@ const bulkCreateMessages = async (req, res, next) => {
 const getMessagesByTrip = async (req, res, next) => {
   try {
     const userId = req.user.id;
-    const { tripId } = req.params;
+      const { tripId } = req.params;
     const { city_context } = req.query;
 
     // Verify trip ownership
@@ -115,8 +115,31 @@ const getMessagesByTrip = async (req, res, next) => {
 
     // Build query
     const where = { trip_id: tripId };
+
+    // Support flexible city_context lookup: accept either city name or city id (UUID)
     if (city_context !== undefined) {
-      where.city_context = city_context;
+      const { Op } = require("sequelize");
+      // If the provided context looks like a UUID, also attempt to resolve the city's name
+      const isUuid = typeof city_context === "string" && /^[0-9a-fA-F\-]{36}$/.test(city_context);
+
+      if (isUuid) {
+        const city = await Trip.findOne({
+          // use City model directly
+          where: {},
+        });
+        // Try to find the city by id
+        const City = require("../models/sequelize").City;
+        const cityRecord = await City.findByPk(city_context, { attributes: ["name"] });
+
+        // If found, match messages where city_context equals the id OR equals the city's name
+        if (cityRecord && cityRecord.name) {
+          where[Op.or] = [{ city_context: city_context }, { city_context: cityRecord.name }];
+        } else {
+          where.city_context = city_context;
+        }
+      } else {
+        where.city_context = city_context;
+      }
     }
 
     const messages = await ChatMessage.findAll({

@@ -568,6 +568,45 @@ const migrations = [
       }
     },
   },
+  // Migration to ensure `trip_places.place_id` can store UUIDs and reference `places(id)`
+  {
+    name: "migrate_trip_places_place_id_to_uuid",
+    up: async (connection) => {
+      try {
+        const [rows] = await connection.query(`
+          SELECT COLUMN_NAME, COLUMN_TYPE
+          FROM INFORMATION_SCHEMA.COLUMNS
+          WHERE TABLE_SCHEMA = DATABASE()
+            AND TABLE_NAME = 'trip_places'
+            AND COLUMN_NAME = 'place_id'
+        `);
+
+        if (rows && rows.length > 0 && rows[0].COLUMN_TYPE && rows[0].COLUMN_TYPE.toLowerCase().includes('int')) {
+          await connection.query(`ALTER TABLE trip_places MODIFY COLUMN place_id CHAR(36) NULL`);
+          console.log('  -> Changed trip_places.place_id to CHAR(36)');
+        } else {
+          console.log('  -> trip_places.place_id already non-integer or missing, skipping');
+        }
+
+        // Drop existing FK if present and add proper FK to places.id
+        try {
+          await connection.query(`ALTER TABLE trip_places DROP FOREIGN KEY fk_trip_places_place`);
+        } catch (err) {
+          // ignore
+        }
+
+        try {
+          await connection.query(`ALTER TABLE trip_places ADD CONSTRAINT fk_trip_places_place FOREIGN KEY (place_id) REFERENCES places(id) ON DELETE SET NULL ON UPDATE CASCADE`);
+          console.log('  -> Added fk_trip_places_place -> places(id)');
+        } catch (err) {
+          console.log('  -> Could not add fk_trip_places_place (maybe exists)');
+        }
+      } catch (err) {
+        console.error('Error migrating trip_places.place_id:', err.message);
+        throw err;
+      }
+    },
+  },
 ];
 
 const runMigrations = async () => {

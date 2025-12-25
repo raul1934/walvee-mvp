@@ -1310,12 +1310,37 @@ const addPlaceToTrip = async (req, res, next) => {
         );
     }
 
-    // Check if place already exists in Places table by google_place_id
+    // Resolve place record from provided `place_id` which can be either a Google Place ID (string)
+    // or a Place UUID (existing Place.id). If Google Place ID not present in DB, create a new Place record.
+    const { v4: uuidv4 } = require("uuid");
     let placeRecord = null;
+
     if (place_id && place_id !== "MANUAL_ENTRY_REQUIRED") {
-      placeRecord = await Place.findOne({
-        where: { google_place_id: place_id },
-      });
+      const isUuid = typeof place_id === "string" && /^[0-9a-fA-F\-]{36}$/.test(place_id);
+      if (isUuid) {
+        // Provided a Place.id
+        placeRecord = await Place.findByPk(place_id);
+      } else {
+        // Provided a Google Place ID
+        placeRecord = await Place.findOne({ where: { google_place_id: place_id } });
+        if (!placeRecord) {
+          // If the place isn't cached yet, create a minimal Place record so we can reference it
+          try {
+            placeRecord = await Place.create({
+              google_place_id: place_id,
+              name: name || null,
+              address: address || null,
+              rating: rating || null,
+              price_level: price_level || null,
+              types: types || null,
+              visible: true,
+            });
+          } catch (err) {
+            // If creation fails (unique constraint), attempt to find again
+            placeRecord = await Place.findOne({ where: { google_place_id: place_id } });
+          }
+        }
+      }
     }
 
     // Create TripPlace entry

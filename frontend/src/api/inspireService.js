@@ -150,7 +150,17 @@ export async function loadMessages(tripId, cityContext = null) {
     const url = endpoints.chatMessages.getByTrip(tripId);
     const params = cityContext !== null ? { city_context: cityContext } : {};
     const response = await apiClient.get(url, params);
-    return response.data?.messages || [];
+    const messages = response.data?.messages || [];
+
+    // Normalize server messages to camelCase keys to match client expectations
+    // e.g., `city_context` -> `cityContext`
+    const normalized = messages.map((m) => ({
+      ...m,
+      cityContext: m.cityContext || m.city_context || null,
+      timestamp: m.timestamp ? new Date(m.timestamp).getTime() : Date.now(),
+    }));
+
+    return normalized;
   } catch (error) {
     console.error("[InspireService] loadMessages error:", error);
     throw error;
