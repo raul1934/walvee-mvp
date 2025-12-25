@@ -11,6 +11,12 @@ async function linkPlacesToCities() {
 
   const connection = await getConnection();
 
+  const DRY_RUN = !!process.env.DRY_RUN;
+  if (DRY_RUN)
+    console.log(
+      "\n⚠️  Running in DRY_RUN mode — no DB writes will be performed\n"
+    );
+
   try {
     // Get places without city_id
     const [placesWithoutCity] = await connection.query(`
@@ -83,10 +89,16 @@ async function linkPlacesToCities() {
         );
 
         // Update the place with city_id
-        await connection.query("UPDATE places SET city_id = ? WHERE id = ?", [
-          cityMatch.id,
-          place.id,
-        ]);
+        if (DRY_RUN) {
+          console.log(
+            `  (DRY RUN) Would update place ${place.id} -> city_id = ${cityMatch.id}`
+          );
+        } else {
+          await connection.query("UPDATE places SET city_id = ? WHERE id = ?", [
+            cityMatch.id,
+            place.id,
+          ]);
+        }
 
         place.matched = true; // Mark as matched
         matched++;
@@ -112,36 +124,60 @@ async function linkPlacesToCities() {
 
       for (const place of unmatchedPlaces) {
         try {
+          // Step 1: Free-form AI inference
           const inferredCityName = await inferCityNameWithAI(place, cities);
+
+          let matchedCity = null;
 
           if (inferredCityName) {
             // Try to match with existing cities first
-            const match = cities.find(
+            matchedCity = cities.find(
               (c) =>
                 c.name.toLowerCase() === inferredCityName.toLowerCase() ||
-                inferredCityName.toLowerCase().includes(c.name.toLowerCase())
+                inferredCityName.toLowerCase().includes(c.name.toLowerCase()) ||
+                c.name.toLowerCase().includes(inferredCityName.toLowerCase())
             );
 
-            if (match) {
+            if (matchedCity) {
               console.log(
-                `✓ AI Matched: "${place.name}" → ${match.name}, ${match.country_name}`
+                `✓ AI Matched (free-form): "${place.name}" → ${matchedCity.name}, ${matchedCity.country_name}`
               );
+            } else {
+              console.log(
+                `🔍 AI free-form inferred city "${inferredCityName}" for "${place.name}" but no exact DB match found`
+              );
+            }
+          }
 
+          // Step 2: If free-form didn't match, ask AI to choose from candidate list
+          if (!matchedCity) {
+            const candidateMatch = await inferCityFromCandidates(place, cities);
+            if (candidateMatch) {
+              matchedCity = candidateMatch;
+              console.log(
+                `✓ AI Candidate Picked: "${place.name}" → ${matchedCity.name}, ${matchedCity.country_name}`
+              );
+            }
+          }
+
+          if (matchedCity) {
+            if (DRY_RUN) {
+              console.log(
+                `  (DRY RUN) Would update place ${place.id} -> city_id = ${matchedCity.id}`
+              );
+            } else {
               await connection.query(
                 "UPDATE places SET city_id = ? WHERE id = ?",
-                [match.id, place.id]
+                [matchedCity.id, place.id]
               );
-
-              matched++;
-              unmatched--;
-              place.matched = true;
-            } else {
-              // Store the inferred city name for Google Maps lookup
-              console.log(
-                `🔍 AI inferred city "${inferredCityName}" for "${place.name}" - will fetch from Google Maps`
-              );
-              place.inferredCityName = inferredCityName;
             }
+
+            matched++;
+            unmatched--;
+            place.matched = true;
+          } else if (inferredCityName) {
+            // Keep free-form inferred city for later Google Maps lookup
+            place.inferredCityName = inferredCityName;
           }
         } catch (error) {
           console.error(
@@ -177,6 +213,18 @@ async function linkPlacesToCities() {
             );
             matched++;
             unmatched--;
+            continue; // proceed to next place
+          }
+
+          // Aggressive fallback: perform a text search by place name to find alternate place_id
+          const ag = await aggressiveGoogleTextSearch(place, connection);
+          if (ag && ag.cityId) {
+            console.log(
+              `✓ Aggressive Google text-search linked: "${place.name}" → ${ag.cityName}`
+            );
+            matched++;
+            unmatched--;
+            continue;
           }
         } catch (error) {
           console.error(
@@ -273,6 +321,84 @@ City name:`;
     if (error.code === "ECONNABORTED") {
       console.log(`  ⏱️  Timeout for "${place.name}"`);
     }
+    return null;
+  }
+}
+
+/**
+ * Use AI to choose from a list of candidate cities
+ * Returns the chosen city object from the cities array or null
+ */
+async function inferCityFromCandidates(place, cities) {
+  const axios = require("axios");
+
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    console.log(
+      "⚠️  GEMINI_API_KEY not found, skipping candidate AI inference"
+    );
+    return null;
+  }
+
+  // Limit candidate list to top 50 to keep prompt size reasonable
+  const candidates = cities.slice(0, 50).map((c, i) => ({
+    idx: i + 1,
+    name: c.name,
+    country: c.country_name || "",
+  }));
+
+  const candidateListStr = candidates
+    .map((c) => `${c.idx}. ${c.name}${c.country ? `, ${c.country}` : ""}`)
+    .join("\n");
+
+  const prompt = `You are given a place name and address and a numbered list of candidate cities.
+Return the NUMBER of the best matching city from the list, or the word NONE if no good match.
+
+Place Name: ${place.name}
+Place Address: ${place.address || "N/A"}
+
+Candidates:
+${candidateListStr}
+
+Answer with ONLY the number or NONE.`;
+
+  try {
+    const response = await axios.post(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+      {
+        contents: [
+          {
+            parts: [
+              {
+                text: prompt,
+              },
+            ],
+          },
+        ],
+        generationConfig: {
+          temperature: 0,
+          maxOutputTokens: 10,
+        },
+      },
+      { headers: { "Content-Type": "application/json" }, timeout: 10000 }
+    );
+
+    const raw = response.data.candidates[0].content.parts[0].text.trim();
+    const choice = raw.split(/\s|\n/)[0];
+
+    if (!choice || choice.toUpperCase() === "NONE") return null;
+
+    const idx = parseInt(choice, 10);
+    if (Number.isInteger(idx) && idx >= 1 && idx <= candidates.length) {
+      const chosen = candidates.find((c) => c.idx === idx);
+      return cities[idx - 1] || null;
+    }
+
+    return null;
+  } catch (err) {
+    console.log(
+      `  ⚠️ Candidate AI inference failed for "${place.name}": ${err.message}`
+    );
     return null;
   }
 }
@@ -417,10 +543,16 @@ async function fetchAndCreateCityFromGoogleMaps(
     if (countries.length === 0) {
       console.log(`  ➕ Creating country: ${countryName}`);
       countryId = generateUUID();
-      await connection.query(
-        "INSERT INTO countries (id, name, code, created_at) VALUES (?, ?, ?, NOW())",
-        [countryId, countryName, countryCode]
-      );
+      if (DRY_RUN) {
+        console.log(
+          `  (DRY RUN) Would INSERT country ${countryName} (${countryId})`
+        );
+      } else {
+        await connection.query(
+          "INSERT INTO countries (id, name, code, created_at) VALUES (?, ?, ?, NOW())",
+          [countryId, countryName, countryCode]
+        );
+      }
     } else {
       countryId = countries[0].id;
     }
@@ -435,24 +567,182 @@ async function fetchAndCreateCityFromGoogleMaps(
     if (existingCities.length === 0) {
       console.log(`  ➕ Creating city: ${cityName}`);
       cityId = generateUUID();
-      await connection.query(
-        "INSERT INTO cities (id, name, state, country_id, latitude, longitude, google_maps_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, NOW())",
-        [cityId, cityName, stateName, countryId, cityLat, cityLng, googleMapsId]
-      );
+      if (DRY_RUN) {
+        console.log(`  (DRY RUN) Would INSERT city ${cityName} (${cityId})`);
+      } else {
+        await connection.query(
+          "INSERT INTO cities (id, name, state, country_id, latitude, longitude, google_maps_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, NOW())",
+          [
+            cityId,
+            cityName,
+            stateName,
+            countryId,
+            cityLat,
+            cityLng,
+            googleMapsId,
+          ]
+        );
+      }
     } else {
       cityId = existingCities[0].id;
       console.log(`  ✓ City already exists: ${cityName}`);
     }
 
     // Link place to city
-    await connection.query("UPDATE places SET city_id = ? WHERE id = ?", [
-      cityId,
-      place.id,
-    ]);
+    if (DRY_RUN) {
+      console.log(
+        `  (DRY RUN) Would update place ${place.id} -> city_id = ${cityId}`
+      );
+    } else {
+      await connection.query("UPDATE places SET city_id = ? WHERE id = ?", [
+        cityId,
+        place.id,
+      ]);
+    }
 
     return { cityName, countryName, cityId };
   } catch (error) {
     console.error(`  ✗ Error fetching from Google Maps:`, error.message);
+    return null;
+  }
+}
+
+/**
+ * Aggressive fallback: search Google Places by text (name + address) to find a candidate
+ * and link the place to that candidate's locality
+ */
+async function aggressiveGoogleTextSearch(place, connection) {
+  try {
+    const {
+      searchPlace,
+      getPlaceDetailsWithPhotos,
+    } = require("../src/services/googleMapsService");
+
+    const query = place.address
+      ? `${place.name}, ${place.address}`
+      : place.name;
+    console.log(`  🔎 Aggressive Google search for: "${query}"`);
+
+    const candidate = await searchPlace(query);
+    if (!candidate || !candidate.place_id) {
+      console.log(`    ⚠️ No candidate found for "${place.name}"`);
+      return null;
+    }
+
+    // Fetch full details for candidate
+    const details = await getPlaceDetailsWithPhotos(candidate.place_id);
+    if (!details || !details.address_components) {
+      console.log(
+        `    ⚠️ Candidate has no address components (${candidate.place_id})`
+      );
+      return null;
+    }
+
+    // Extract city and country
+    let cityName = null;
+    let countryName = null;
+    let googleCityPlaceId = null;
+    for (const comp of details.address_components) {
+      if (
+        !cityName &&
+        (comp.types.includes("locality") ||
+          comp.types.includes("postal_town") ||
+          comp.types.includes("administrative_area_level_2"))
+      ) {
+        cityName = comp.long_name;
+      }
+      if (!countryName && comp.types.includes("country")) {
+        countryName = comp.long_name;
+      }
+    }
+    if (
+      details.types &&
+      details.types.includes("locality") &&
+      details.place_id
+    ) {
+      googleCityPlaceId = details.place_id;
+    }
+
+    if (!cityName || !countryName) {
+      console.log(
+        `    ⚠️ Could not extract city/country from candidate for "${place.name}"`
+      );
+      return null;
+    }
+
+    // Upsert country and city and link place (reusing same logic as fetchAndCreateCityFromGoogleMaps)
+    const { generateUUID } = require("../src/utils/helpers");
+
+    // Country
+    let [countries] = await connection.query(
+      "SELECT id FROM countries WHERE code = ? OR name = ?",
+      [details.country_code || null, countryName]
+    );
+
+    let countryId;
+    if (countries.length === 0) {
+      countryId = generateUUID();
+      if (DRY_RUN) {
+        console.log(
+          `    (DRY RUN) Would INSERT country ${countryName} (${countryId})`
+        );
+      } else {
+        await connection.query(
+          "INSERT INTO countries (id, name, code, created_at) VALUES (?, ?, ?, NOW())",
+          [countryId, countryName, details.country_code || null]
+        );
+      }
+    } else {
+      countryId = countries[0].id;
+    }
+
+    // City
+    let [existingCities] = await connection.query(
+      "SELECT id FROM cities WHERE name = ? AND country_id = ?",
+      [cityName, countryId]
+    );
+
+    let cityId;
+    if (existingCities.length === 0) {
+      cityId = generateUUID();
+      if (DRY_RUN) {
+        console.log(`    (DRY RUN) Would INSERT city ${cityName} (${cityId})`);
+      } else {
+        await connection.query(
+          "INSERT INTO cities (id, name, state, country_id, latitude, longitude, google_maps_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, NOW())",
+          [
+            cityId,
+            cityName,
+            details.state || null,
+            countryId,
+            details.geometry?.location?.lat || null,
+            details.geometry?.location?.lng || null,
+            googleCityPlaceId,
+          ]
+        );
+      }
+    } else {
+      cityId = existingCities[0].id;
+    }
+
+    // Link place to city
+    if (DRY_RUN) {
+      console.log(
+        `    (DRY RUN) Would update place ${place.id} -> city_id = ${cityId}`
+      );
+    } else {
+      await connection.query("UPDATE places SET city_id = ? WHERE id = ?", [
+        cityId,
+        place.id,
+      ]);
+    }
+
+    return { cityId, cityName };
+  } catch (err) {
+    console.error(
+      `    ✗ Aggressive search failed for "${place.name}":`,
+      err.message
+    );
     return null;
   }
 }

@@ -414,7 +414,10 @@ Keep durations short and realistic. Respond in ${
       }
 
       // STEP 1B: Not found by Place ID - Try database text search by name + city
-      if (!rec.google_place_id || rec.google_place_id === "MANUAL_ENTRY_REQUIRED") {
+      if (
+        !rec.google_place_id ||
+        rec.google_place_id === "MANUAL_ENTRY_REQUIRED"
+      ) {
         // Skip DB text search if Place ID is already invalid
       } else {
         try {
@@ -473,8 +476,9 @@ Keep durations short and realistic. Respond in ${
 
       // STEP 2: Not in database - validate with Google Maps API
       try {
-        const placeDetails =
-          await googleMapsService.getPlaceDetailsWithPhotos(rec.google_place_id);
+        const placeDetails = await googleMapsService.getPlaceDetailsWithPhotos(
+          rec.google_place_id
+        );
 
         if (!placeDetails || !placeDetails.place_id) {
           // Invalid Place ID
@@ -549,9 +553,10 @@ Keep durations short and realistic. Respond in ${
             `[PlaceID] Text search found: ${searchResult.name} (${searchResult.place_id})`
           );
 
-          const placeDetails = await googleMapsService.getPlaceDetailsWithPhotos(
-            searchResult.place_id
-          );
+          const placeDetails =
+            await googleMapsService.getPlaceDetailsWithPhotos(
+              searchResult.place_id
+            );
 
           if (!placeDetails || !placeDetails.place_id) {
             console.warn(
@@ -619,7 +624,12 @@ Keep durations short and realistic. Respond in ${
 
     // Enrich with city_id if City and Country models are provided
     if (City && Country) {
-      await this.enrichWithCityIds(validatedRecommendations, City, Country);
+      await this.enrichWithCityIds(
+        validatedRecommendations,
+        City,
+        Country,
+        Place
+      );
     }
 
     // Log summary
@@ -637,7 +647,7 @@ Keep durations short and realistic. Respond in ${
    * @param {Object} Country - Country model
    * @returns {Promise<void>}
    */
-  async enrichWithCityIds(recommendations, City, Country) {
+  async enrichWithCityIds(recommendations, City, Country, PlaceModel = null) {
     const cityEnrichmentPromises = recommendations.map(async (rec) => {
       if (!rec.city || !rec.country) {
         console.warn(
@@ -680,9 +690,28 @@ Keep durations short and realistic. Respond in ${
 
         // Step 3: Add city_id to recommendation
         rec.city_id = city.id;
-        console.log(
-          `[CityID] Enriched ${rec.name} with city_id: ${city.id}`
-        );
+        console.log(`[CityID] Enriched ${rec.name} with city_id: ${city.id}`);
+
+        // Step 4: If PlaceModel is provided, persist city_id to the Place DB record
+        if (PlaceModel && rec.google_place_id) {
+          try {
+            const dbPlace = await PlaceModel.findOne({
+              where: { google_place_id: rec.google_place_id },
+            });
+
+            if (dbPlace && dbPlace.city_id !== city.id) {
+              await dbPlace.update({ city_id: city.id });
+              console.log(
+                `[CityID] Updated DB place ${dbPlace.id} with city_id: ${city.id}`
+              );
+            }
+          } catch (err) {
+            console.error(
+              `[CityID] Failed to update place city_id for ${rec.name}:`,
+              err.message
+            );
+          }
+        }
       } catch (error) {
         console.error(
           `[CityID] Failed to enrich city for ${rec.name}:`,
