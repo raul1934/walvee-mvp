@@ -146,7 +146,7 @@ INSTRUCTIONS:
   ]
 }
 
-Provide 9-15 recommendations. Respond in ${
+Provide exactly 6 recommendations (no more, no less). Respond in ${
       language === "pt" ? "Portuguese" : "English"
     }.`;
 
