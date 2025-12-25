@@ -1409,7 +1409,7 @@ export default function InspirePrompt() {
     <div className="inspire-container">
       <style>{`
         .inspire-container {
-          min-height: 100vh;
+          height: 100vh;
           display: flex;
           flex-direction: column;
           background: #121518;
@@ -1427,7 +1427,7 @@ export default function InspirePrompt() {
 
         /* City tabs container */
         .city-tabs-container {
-          position: fixed;
+          position: sticky;
           top: 64px;
           left: 0;
           right: 0;
@@ -1520,7 +1520,7 @@ export default function InspirePrompt() {
         .inspire-main-layout {
           display: flex;
           height: calc(100vh - 64px - 56px - 96px);
-          margin-top: calc(64px + 56px);
+          margin-top: 64px;
           position: relative;
           width: 100%;
         }
@@ -1561,10 +1561,12 @@ export default function InspirePrompt() {
           border-radius: 3px;
         }
 
-        /* Content scroll area */
+        /* Content area - parent is a flex column so the prompt can stick to bottom */
         .content-scroll-area {
           flex: 1;
-          overflow-y: auto;
+          display: flex;
+          flex-direction: column;
+          overflow-y: visible;
           overflow-x: hidden;
           padding: 20px 24px;
           scrollbar-width: thin;
@@ -1584,14 +1586,29 @@ export default function InspirePrompt() {
           border-radius: 3px;
         }
 
+        /* Content inner should flex to fill available vertical space */
+        .content-inner {
+          display: flex;
+          gap: 24px;
+          align-items: flex-start;
+          flex: 1;
+          min-height: 0; /* allow children to shrink/scroll */
+        }
+
         /* Stage Area */
         .stage-area {
           width: 100%;
           max-width: 900px;
           margin: 0 auto;
+          display: flex;
+          flex-direction: column;
+          height: 100%;
+          box-sizing: border-box;
+          align-self: center;
+          flex: 0 1 900px;
         }
 
-        /* Conversation State */
+        /* Conversation State (now scrollable) */
         .conversation-container {
           width: 100%;
           display: flex;
@@ -1599,6 +1616,8 @@ export default function InspirePrompt() {
           gap: 32px;
           padding: 20px 0;
           padding-bottom: 120px;
+          flex: 1;
+          overflow-y: auto;
         }
 
         .message {
@@ -2085,16 +2104,14 @@ export default function InspirePrompt() {
           margin-top: 16px;
         }
 
-        /* Prompt Block */
+        /* Prompt Block (now positioned by flexbox: sticks to bottom of content area) */
         .prompt-block-container {
-          position: fixed;
-          bottom: 0;
-          left: 0;
-          right: 0;
-          z-index: 40;
+          /* previously fixed; now placed as last flex child */
+          flex-shrink: 0;
+          margin-top: auto; /* push to bottom */
+          width: 100%;
           background: linear-gradient(to top, #121518 0%, #121518 80%, transparent 100%);
           padding: 32px 24px 24px;
-          flex-shrink: 0;
         }
 
         .prompt-block-inner {
@@ -2268,7 +2285,7 @@ export default function InspirePrompt() {
           }
         }
 
-        @media (max-width: 1024px) {
+        @media (max-width: 768px) {
           .places-sidebar {
             width: 300px;
             position: absolute;
@@ -2371,12 +2388,30 @@ export default function InspirePrompt() {
 
       {/* Main Layout with Sidebar (sidebar moved inside content area for proper stacking) */}
       <div className="inspire-main-layout">
+        {/* Fixed Places Sidebar (left, non-scrolling on desktop) */}
+        {activeCity && (
+          <PlacesSidebar
+            activeCity={activeCity}
+            places={activeCityPlaces}
+            organizedItinerary={
+              cityTabs.find((t) => t.name === activeCity)?.organizedItinerary
+            }
+            onOrganizeClick={() => handleOrganizeClick()}
+            onPlaceClick={(place) => handleSelectSidebarPlace(place)}
+            onRemovePlace={(placeName) =>
+              handleRemovePlace(activeCity, placeName)
+            }
+            onClearItinerary={() => handleClearItinerary(activeCity)}
+            getPriceRangeInfo={getPriceRangeInfo}
+            onOpenPlaceDetails={(place) => {
+              setSelectedRecommendation(place);
+              setIsModalOpen(true);
+            }}
+          />
+        )}
         {/* Scrollable Content Area - Chat */}
         <div className="content-scroll-area">
-          <div
-            className="content-inner"
-            style={{ display: "flex", gap: "24px", alignItems: "flex-start" }}
-          >
+          <div className="content-inner">
             {/* Stage Area */}
             <div className="stage-area">
               <AnimatePresence mode="wait">
@@ -2550,101 +2585,78 @@ export default function InspirePrompt() {
                 )}
               </AnimatePresence>
             </div>
-
-            {/* Places Sidebar - inside content-inner as sibling of stage-area */}
-            {activeCity && (
-              <PlacesSidebar
-                activeCity={activeCity}
-                places={activeCityPlaces}
-                organizedItinerary={
-                  cityTabs.find((t) => t.name === activeCity)
-                    ?.organizedItinerary
-                }
-                onOrganizeClick={() => handleOrganizeClick()}
-                onPlaceClick={(place) => handleSelectSidebarPlace(place)}
-                onRemovePlace={(placeName) =>
-                  handleRemovePlace(activeCity, placeName)
-                }
-                onClearItinerary={() => handleClearItinerary(activeCity)}
-                getPriceRangeInfo={getPriceRangeInfo}
-                onOpenPlaceDetails={(place) => {
-                  setSelectedRecommendation(place);
-                  setIsModalOpen(true);
-                }}
-              />
-            )}
           </div>
-        </div>
 
-        {/* Fixed Prompt Block */}
-        <div className="prompt-block-container">
-          <div className="prompt-block-inner">
-            <p className="prompt-microcopy">
-              Every great trip begins with a few words. Start yours below.
-            </p>
+          {/* Fixed Prompt Block (moved outside content-inner) */}
+          <div className="prompt-block-container">
+            <div className="prompt-block-inner">
+              <p className="prompt-microcopy">
+                Every great trip begins with a few words. Start yours below.
+              </p>
 
-            <form onSubmit={handleSubmit} className="prompt-wrapper">
-              <div className="prompt-input-container">
-                <textarea
-                  ref={inputRef}
-                  className="prompt-textarea"
-                  placeholder={
-                    messages.length > 0
-                      ? "Continue your conversation..."
-                      : EXAMPLE_PROMPTS[currentExampleIndex]
-                  }
-                  value={inputValue}
-                  onChange={(e) => setInputValue(e.target.value)}
-                  onFocus={() => setIsFocused(true)}
-                  onBlur={() => setIsFocused(false)}
-                  disabled={isLoadingResponse}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      handleSubmit();
+              <form onSubmit={handleSubmit} className="prompt-wrapper">
+                <div className="prompt-input-container">
+                  <textarea
+                    ref={inputRef}
+                    className="prompt-textarea"
+                    placeholder={
+                      messages.length > 0
+                        ? "Continue your conversation..."
+                        : EXAMPLE_PROMPTS[currentExampleIndex]
                     }
-                  }}
-                />
-              </div>
+                    value={inputValue}
+                    onChange={(e) => setInputValue(e.target.value)}
+                    onFocus={() => setIsFocused(true)}
+                    onBlur={() => setIsFocused(false)}
+                    disabled={isLoadingResponse}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        handleSubmit();
+                      }
+                    }}
+                  />
+                </div>
 
-              <div className="prompt-actions">
-                <button
-                  type="button"
-                  className="prompt-action-btn"
-                  onClick={() => setShowFilters(true)}
-                  disabled={isLoadingResponse}
-                  style={{ position: "relative" }}
-                >
-                  Filters
-                  {(selectedFilters.interests.length > 0 ||
-                    selectedFilters.budget ||
-                    selectedFilters.pace ||
-                    selectedFilters.companions ||
-                    selectedFilters.season) && (
-                    <span className="filter-active-dot" />
-                  )}
-                </button>
+                <div className="prompt-actions">
+                  <button
+                    type="button"
+                    className="prompt-action-btn"
+                    onClick={() => setShowFilters(true)}
+                    disabled={isLoadingResponse}
+                    style={{ position: "relative" }}
+                  >
+                    Filters
+                    {(selectedFilters.interests.length > 0 ||
+                      selectedFilters.budget ||
+                      selectedFilters.pace ||
+                      selectedFilters.companions ||
+                      selectedFilters.season) && (
+                      <span className="filter-active-dot" />
+                    )}
+                  </button>
 
-                <button
-                  type="button"
-                  className="prompt-action-btn"
-                  onClick={() => setShowCitiesModal(true)}
-                  disabled={isLoadingResponse}
-                >
-                  Cities
-                </button>
-              </div>
+                  <button
+                    type="button"
+                    className="prompt-action-btn"
+                    onClick={() => setShowCitiesModal(true)}
+                    disabled={isLoadingResponse}
+                  >
+                    Cities
+                  </button>
+                </div>
 
-              {inputValue.trim() && (
-                <button
-                  type="submit"
-                  className="prompt-submit-btn"
-                  disabled={isLoadingResponse}
-                >
-                  <ChevronRight className="w-7 h-7" />
-                </button>
-              )}
-            </form>
+                {inputValue.trim() && (
+                  <button
+                    type="submit"
+                    className="prompt-submit-btn"
+                    disabled={isLoadingResponse}
+                  >
+                    <ChevronRight className="w-7 h-7" />
+                  </button>
+                )}
+              </form>
+            </div>
           </div>
         </div>
 
