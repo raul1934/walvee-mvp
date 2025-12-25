@@ -1551,10 +1551,10 @@ export default function TripDetails() {
                 <div className="flex flex-col gap-1">
                   {/* Render all cities (loop and print) */}
                   <div className="mt-1 ml-0 text-xs text-gray-300 flex flex-wrap gap-2">
-                    {cities.map((c, idx) => {
+                    {cities.filter(c => c).map((c, idx) => {
                       const cityOnly = c.name || "";
                       const country =
-                        typeof c.country === "object"
+                        typeof c.country === "object" && c.country
                           ? c.country.name
                           : c.country || "";
 
@@ -2046,7 +2046,7 @@ export default function TripDetails() {
                 </p>
 
                 <div className="flex flex-wrap gap-2">
-                  {cities.map((city, idx) => {
+                  {cities.filter(city => city).map((city, idx) => {
                     const hashtag = (city.name || "")
                       .toLowerCase()
                       .replace(/\s+/g, "");

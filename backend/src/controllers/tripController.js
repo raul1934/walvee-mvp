@@ -88,13 +88,14 @@ const getTrips = async (req, res, next) => {
         model: TripPlace,
         as: "places",
         attributes: [
+          "id",
           "name",
           "address",
-
           "rating",
           "price_level",
           "types",
           "description",
+          "created_at",
         ],
         include: [
           {
@@ -107,6 +108,15 @@ const getTrips = async (req, res, next) => {
               "rating",
               "user_ratings_total",
               "google_place_id",
+              "city_id",
+            ],
+            include: [
+              {
+                model: PlacePhoto,
+                as: "photos",
+                attributes: ["url_small", "url_medium", "url_large", "photo_order"],
+                order: [["photo_order", "ASC"]],
+              },
             ],
           },
         ],
@@ -308,12 +318,14 @@ const getTripById = async (req, res, next) => {
           model: TripPlace,
           as: "places",
           attributes: [
+            "id",
             "name",
             "address",
             "rating",
             "price_level",
             "types",
             "description",
+            "created_at",
           ],
           include: [
             {
@@ -326,6 +338,15 @@ const getTripById = async (req, res, next) => {
                 "rating",
                 "user_ratings_total",
                 "google_place_id",
+                "city_id",
+              ],
+              include: [
+                {
+                  model: PlacePhoto,
+                  as: "photos",
+                  attributes: ["url_small", "url_medium", "url_large", "photo_order"],
+                  order: [["photo_order", "ASC"]],
+                },
               ],
             },
           ],
@@ -1031,6 +1052,37 @@ async function formatTripResponse(trip) {
     tags: tripData.tags ? tripData.tags.map((t) => t.tag) : [],
     // Return raw cities array; frontend should format names/locations for display
     cities: citiesWithIds,
+    places: tripData.places
+      ? tripData.places.map((p) => ({
+          id: p.id,
+          name: p.name,
+          address: p.address,
+          rating: p.rating ? parseFloat(p.rating) : null,
+          price_level: p.price_level,
+          types: p.types,
+          description: p.description,
+          created_at: p.created_at,
+          place: p.place
+            ? {
+                id: p.place.id,
+                latitude: p.place.latitude,
+                longitude: p.place.longitude,
+                rating: p.place.rating ? parseFloat(p.place.rating) : null,
+                user_ratings_total: p.place.user_ratings_total,
+                google_place_id: p.place.google_place_id,
+                city_id: p.place.city_id,
+                photos: p.place.photos
+                  ? p.place.photos.map((photo) => ({
+                      url_small: getFullImageUrl(photo.url_small),
+                      url_medium: getFullImageUrl(photo.url_medium),
+                      url_large: getFullImageUrl(photo.url_large),
+                      photo_order: photo.photo_order,
+                    }))
+                  : [],
+              }
+            : null,
+        }))
+      : [],
     itinerary: tripData.itineraryDays
       ? tripData.itineraryDays.map((day) => ({
           day: day.day_number,
@@ -1310,6 +1362,25 @@ const addPlaceToTrip = async (req, res, next) => {
         );
     }
 
+    // Check if place already exists in trip
+    const existingPlace = await TripPlace.findOne({
+      where: {
+        trip_id: tripId,
+        name: name,
+      },
+    });
+
+    if (existingPlace) {
+      return res
+        .status(409)
+        .json(
+          buildErrorResponse(
+            "DUPLICATE_PLACE",
+            `"${name}" is already added to this trip`
+          )
+        );
+    }
+
     // Resolve place record from provided `place_id` which can be either a Google Place ID (string)
     // or a Place UUID (existing Place.id). If Google Place ID not present in DB, create a new Place record.
     const { v4: uuidv4 } = require("uuid");
@@ -1490,8 +1561,18 @@ const addCityToTrip = async (req, res, next) => {
     );
 
     if (existing.length > 0) {
-      // Already exists - return success (idempotent)
-      return res.status(200).json(buildSuccessResponse({ city: cityRecord }));
+      // City already exists - return error
+      const cityName = cityRecord.country
+        ? `${cityRecord.name}, ${cityRecord.country.name}`
+        : cityRecord.name;
+      return res
+        .status(409)
+        .json(
+          buildErrorResponse(
+            "DUPLICATE_CITY",
+            `"${cityName}" is already added to this trip`
+          )
+        );
     }
 
     // Compute next city_order
@@ -1625,7 +1706,7 @@ const createDraftTrip = async (req, res, next) => {
   }
 };
 
-// GET /trips/draft/current - Find user's most recent draft
+// GET /trips/draft/current - Find user's first draft (oldest by created_at)
 const getCurrentDraftTrip = async (req, res, next) => {
   try {
     const userId = req.user.id;
@@ -1635,7 +1716,7 @@ const getCurrentDraftTrip = async (req, res, next) => {
         author_id: userId,
         is_draft: true,
       },
-      order: [["updated_at", "DESC"]],
+      order: [["created_at", "ASC"]],
       include: [
         { model: City, as: "cities" },
         { model: TripPlace, as: "places" },
@@ -1725,6 +1806,99 @@ const finalizeTripDraft = async (req, res, next) => {
   }
 };
 
+// DELETE /trips/:id/places/:placeId - Remove place from trip
+const removePlaceFromTrip = async (req, res, next) => {
+  try {
+    const { id: tripId, placeId } = req.params;
+    const userId = req.user.id;
+
+    // Verify trip ownership
+    const trip = await Trip.findOne({
+      where: { id: tripId, author_id: userId },
+    });
+
+    if (!trip) {
+      return res
+        .status(404)
+        .json(
+          buildErrorResponse("NOT_FOUND", "Trip not found or unauthorized")
+        );
+    }
+
+    // Find and delete the place
+    const place = await TripPlace.findOne({
+      where: { id: placeId, trip_id: tripId },
+    });
+
+    if (!place) {
+      return res
+        .status(404)
+        .json(buildErrorResponse("NOT_FOUND", "Place not found in trip"));
+    }
+
+    await place.destroy();
+
+    return res.json(
+      buildSuccessResponse({ message: "Place removed successfully" })
+    );
+  } catch (error) {
+    next(error);
+  }
+};
+
+// DELETE /trips/:id/cities/:cityId - Remove city from trip
+const removeCityFromTrip = async (req, res, next) => {
+  try {
+    const { id: tripId, cityId } = req.params;
+    const userId = req.user.id;
+
+    // Verify trip ownership
+    const trip = await Trip.findOne({
+      where: { id: tripId, author_id: userId },
+    });
+
+    if (!trip) {
+      return res
+        .status(404)
+        .json(
+          buildErrorResponse("NOT_FOUND", "Trip not found or unauthorized")
+        );
+    }
+
+    const { sequelize } = require("../database/sequelize");
+
+    // Check if city association exists
+    const existing = await sequelize.query(
+      "SELECT 1 FROM trip_cities WHERE trip_id = :tripId AND city_id = :cityId",
+      {
+        replacements: { tripId: trip.id, cityId },
+        type: sequelize.QueryTypes.SELECT,
+      }
+    );
+
+    if (existing.length === 0) {
+      return res
+        .status(404)
+        .json(buildErrorResponse("NOT_FOUND", "City not found in trip"));
+    }
+
+    // Remove city association
+    await sequelize.query(
+      "DELETE FROM trip_cities WHERE trip_id = :tripId AND city_id = :cityId",
+      {
+        replacements: { tripId: trip.id, cityId },
+        type: sequelize.QueryTypes.DELETE,
+      }
+    );
+
+    return res.json(
+      buildSuccessResponse({ message: "City removed successfully" })
+    );
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getTrips,
   getTripById,
@@ -1737,6 +1911,8 @@ module.exports = {
   getTripAiReview,
   addPlaceToTrip,
   addCityToTrip,
+  removePlaceFromTrip,
+  removeCityFromTrip,
   saveItinerary,
   createDraftTrip,
   getCurrentDraftTrip,

@@ -117,6 +117,20 @@ export const Trip = {
     return response.data;
   },
 
+  async removePlace(tripId, placeId) {
+    const response = await apiClient.delete(
+      endpoints.trips.removePlace(tripId, placeId)
+    );
+    return response.data;
+  },
+
+  async removeCity(tripId, cityId) {
+    const response = await apiClient.delete(
+      endpoints.trips.removeCity(tripId, cityId)
+    );
+    return response.data;
+  },
+
   async saveItinerary(tripId, itineraryData) {
     const response = await apiClient.put(
       endpoints.trips.saveItinerary(tripId),

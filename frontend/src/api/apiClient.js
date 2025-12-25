@@ -227,7 +227,9 @@ export const endpoints = {
     getCurrentDraft: "/trips/draft/current",
     finalize: (id) => `/trips/${id}/finalize`,
     addPlace: (id) => `/trips/${id}/places`,
+    removePlace: (tripId, placeId) => `/trips/${tripId}/places/${placeId}`,
     addCity: (id) => `/trips/${id}/cities`,
+    removeCity: (tripId, cityId) => `/trips/${tripId}/cities/${cityId}`,
     saveItinerary: (id) => `/trips/${id}/itinerary`,
   },
 

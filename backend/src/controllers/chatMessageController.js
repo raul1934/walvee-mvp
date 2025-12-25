@@ -144,7 +144,7 @@ const getMessagesByTrip = async (req, res, next) => {
 
     const messages = await ChatMessage.findAll({
       where,
-      order: [["timestamp", "ASC"]],
+      order: [["created_at", "DESC"]],
     });
 
     // Return messages inside `data` so clients can access `response.data.messages`

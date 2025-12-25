@@ -32,6 +32,8 @@ import RecommendationModal from "../components/inspire/RecommendationModal";
 import PlacesSidebar from "../components/inspire/PlacesSidebar";
 import OrganizeTripModal from "../components/inspire/OrganizeTripModal";
 import SidebarPlaceModal from "../components/inspire/SidebarPlaceModal";
+import ConfirmationModal from "../components/common/ConfirmationModal";
+import NotificationModal from "../components/common/NotificationModal";
 import UserAvatar from "../components/common/UserAvatar";
 import PlaceDetails from "../components/trip/PlaceDetails";
 import ProposedChanges from "../components/inspire/ProposedChanges";
@@ -331,6 +333,14 @@ export default function InspirePrompt() {
   const [isOrganizeTripModalOpen, setIsOrganizeTripModalOpen] = useState(false);
   const [tripDays, setTripDays] = useState(3);
   const [isOrganizingTrip, setIsOrganizingTrip] = useState(false);
+
+  // Confirmation modal state
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [confirmModalConfig, setConfirmModalConfig] = useState(null);
+
+  // Error notification modal state
+  const [showErrorModal, setShowErrorModal] = useState(false);
+  const [errorModalConfig, setErrorModalConfig] = useState(null);
 
   // Show more recommendations
   const [showAllRecommendations, setShowAllRecommendations] = useState(false);
@@ -694,7 +704,7 @@ export default function InspirePrompt() {
    * Prevents duplicate cities from being added
    * Uses isCityInTabs() for smart duplicate detection
    */
-  const handleAddCityToTrip = (cityName) => {
+  const handleAddCityToTrip = async (cityName) => {
     // Always close modal and clear selection when adding/activating a city tab
     setIsModalOpen(false);
     setSelectedRecommendation(null);
@@ -785,6 +795,37 @@ export default function InspirePrompt() {
     setCityTabs((prev) => [...prev, newTab]);
     setActiveCity(cityName);
 
+    // Persist to backend if tripId exists
+    if (tripId) {
+      try {
+        await Trip.addCity(tripId, { city_name: cityName });
+      } catch (error) {
+        console.error("[InspirePrompt] Error persisting city:", error);
+
+        // Check if it's a duplicate city error
+        if (error.response?.data?.code === "DUPLICATE_CITY") {
+          setErrorModalConfig({
+            title: "City Already Added",
+            message: error.response?.data?.message || "This city is already in your trip.",
+          });
+          setShowErrorModal(true);
+          // Remove the city from local state since backend rejected it
+          setCityTabs((prev) => prev.filter((tab) => tab.name !== cityName));
+          return;
+        }
+
+        // For other errors, show generic error
+        setErrorModalConfig({
+          title: "Error Adding City",
+          message: error.response?.data?.message || "Failed to add city to trip. Please try again.",
+        });
+        setShowErrorModal(true);
+        // Remove the city from local state since backend rejected it
+        setCityTabs((prev) => prev.filter((tab) => tab.name !== cityName));
+        return;
+      }
+    }
+
     // Re-add the city focus message for the new tab
     const cityFocusMessage = {
       role: "assistant",
@@ -835,7 +876,21 @@ export default function InspirePrompt() {
         );
 
         if (!cityExists) {
-          await Trip.addCity(tripId, { city_name: cityName });
+          try {
+            await Trip.addCity(tripId, { city_name: cityName });
+          } catch (cityError) {
+            // Check if it's a duplicate city error
+            if (cityError.response?.data?.code === "DUPLICATE_CITY") {
+              setErrorModalConfig({
+                title: "City Already Added",
+                message: cityError.response?.data?.message || "This city is already in your trip.",
+              });
+              setShowErrorModal(true);
+              return;
+            }
+            // For other city errors, log and continue
+            console.error("[InspirePrompt] Error adding city:", cityError);
+          }
         }
 
         // Add place to backend
@@ -849,7 +904,24 @@ export default function InspirePrompt() {
         });
       } catch (error) {
         console.error("[InspirePrompt] Error persisting place:", error);
-        // Continue with local state update even if backend fails
+
+        // Check if it's a duplicate place error
+        if (error.response?.data?.code === "DUPLICATE_PLACE") {
+          setErrorModalConfig({
+            title: "Place Already Added",
+            message: error.response?.data?.message || "This place is already in your trip.",
+          });
+          setShowErrorModal(true);
+          return;
+        }
+
+        // For other errors, show generic error
+        setErrorModalConfig({
+          title: "Error Adding Place",
+          message: error.response?.data?.message || "Failed to add place to trip. Please try again.",
+        });
+        setShowErrorModal(true);
+        return;
       }
     }
 
@@ -999,28 +1071,105 @@ export default function InspirePrompt() {
 
   // Handle removing place from trip
   const handleRemovePlace = (cityName, placeName) => {
-    setCityTabs((prevTabs) =>
-      prevTabs.map((tab) => {
-        if (tab.name === cityName) {
-          return {
-            ...tab,
-            places: (tab.places || []).filter((p) => p.name !== placeName),
-            organizedItinerary: null, // Invalidate organized itinerary when places change
-          };
+    setConfirmModalConfig({
+      title: "Remove Place",
+      description: `Are you sure you want to remove "${placeName}" from your itinerary?`,
+      confirmLabel: "Remove",
+      onConfirm: async () => {
+        // Find the place to get its ID
+        const cityTab = cityTabs.find((tab) => tab.name === cityName);
+        const place = cityTab?.places?.find((p) => p.name === placeName);
+
+        // If we have a tripId and place ID, remove from backend first
+        if (tripId && place?.id) {
+          try {
+            await Trip.removePlace(tripId, place.id);
+          } catch (error) {
+            console.error("[InspirePrompt] Error removing place from backend:", error);
+            // Show error modal
+            setErrorModalConfig({
+              title: "Error Removing Place",
+              message: error.response?.data?.message || "Failed to remove place. Please try again.",
+            });
+            setShowErrorModal(true);
+            setShowConfirmModal(false);
+            setConfirmModalConfig(null);
+            return;
+          }
         }
-        return tab;
-      })
-    );
+
+        // Update local state
+        setCityTabs((prevTabs) =>
+          prevTabs.map((tab) => {
+            if (tab.name === cityName) {
+              return {
+                ...tab,
+                places: (tab.places || []).filter((p) => p.name !== placeName),
+                organizedItinerary: null, // Invalidate organized itinerary when places change
+              };
+            }
+            return tab;
+          })
+        );
+        setShowConfirmModal(false);
+        setConfirmModalConfig(null);
+      },
+      onCancel: () => {
+        setShowConfirmModal(false);
+        setConfirmModalConfig(null);
+      },
+    });
+    setShowConfirmModal(true);
   };
 
   // Handle removing city tab
   const handleRemoveCityTab = (cityName, e) => {
     e.stopPropagation();
-    setCityTabs((prev) => prev.filter((tab) => tab.name !== cityName));
 
-    if (activeCity === cityName) {
-      setActiveCity(null);
-    }
+    const cityTab = cityTabs.find((tab) => tab.name === cityName);
+    const placesCount = cityTab?.places?.length || 0;
+
+    setConfirmModalConfig({
+      title: "Remove City",
+      description: placesCount > 0
+        ? `Are you sure you want to remove "${cityName}" and all ${placesCount} place${placesCount > 1 ? 's' : ''} from your itinerary?`
+        : `Are you sure you want to remove "${cityName}" from your itinerary?`,
+      confirmLabel: "Remove",
+      onConfirm: async () => {
+        // If we have a tripId and city ID, remove from backend first
+        if (tripId && cityTab?.city_id) {
+          try {
+            await Trip.removeCity(tripId, cityTab.city_id);
+          } catch (error) {
+            console.error("[InspirePrompt] Error removing city from backend:", error);
+            // Show error modal
+            setErrorModalConfig({
+              title: "Error Removing City",
+              message: error.response?.data?.message || "Failed to remove city. Please try again.",
+            });
+            setShowErrorModal(true);
+            setShowConfirmModal(false);
+            setConfirmModalConfig(null);
+            return;
+          }
+        }
+
+        // Update local state
+        setCityTabs((prev) => prev.filter((tab) => tab.name !== cityName));
+
+        if (activeCity === cityName) {
+          setActiveCity(null);
+        }
+
+        setShowConfirmModal(false);
+        setConfirmModalConfig(null);
+      },
+      onCancel: () => {
+        setShowConfirmModal(false);
+        setConfirmModalConfig(null);
+      },
+    });
+    setShowConfirmModal(true);
   };
 
   /**
@@ -1615,7 +1764,7 @@ export default function InspirePrompt() {
           display: flex;
           flex-direction: column;
           gap: 32px;
-          padding: 20px 0;
+          padding: 20px;
           padding-bottom: 120px;
           flex: 1;
           overflow-y: auto;
@@ -2763,6 +2912,33 @@ export default function InspirePrompt() {
                 days: tripDays,
               })
             }
+          />
+        )}
+
+        {/* Confirmation Modal */}
+        {showConfirmModal && confirmModalConfig && (
+          <ConfirmationModal
+            isOpen={showConfirmModal}
+            title={confirmModalConfig.title}
+            description={confirmModalConfig.description}
+            confirmLabel={confirmModalConfig.confirmLabel}
+            cancelLabel={confirmModalConfig.cancelLabel || "Cancel"}
+            onConfirm={confirmModalConfig.onConfirm}
+            onCancel={confirmModalConfig.onCancel}
+          />
+        )}
+
+        {/* Error Notification Modal */}
+        {showErrorModal && errorModalConfig && (
+          <NotificationModal
+            isOpen={showErrorModal}
+            type="error"
+            title={errorModalConfig.title}
+            message={errorModalConfig.message}
+            onClose={() => {
+              setShowErrorModal(false);
+              setErrorModalConfig(null);
+            }}
           />
         )}
       </div>

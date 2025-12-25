@@ -113,8 +113,14 @@ router.patch("/:id/finalize", authenticate, tripController.finalizeTripDraft);
 // Add place to trip
 router.post("/:id/places", authenticate, tripController.addPlaceToTrip);
 
+// Remove place from trip
+router.delete("/:id/places/:placeId", authenticate, tripController.removePlaceFromTrip);
+
 // Add city to trip
 router.post("/:id/cities", authenticate, tripController.addCityToTrip);
+
+// Remove city from trip
+router.delete("/:id/cities/:cityId", authenticate, tripController.removeCityFromTrip);
 
 // Save itinerary
 router.put("/:id/itinerary", authenticate, tripController.saveItinerary);
