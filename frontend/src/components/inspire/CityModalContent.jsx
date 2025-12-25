@@ -20,15 +20,18 @@ const tabs = [
 
 const LIMIT = 6; // Moved outside component to prevent recreation on every render
 
-export default function CityModalContent({ cityName, user, onAddToTrip }) {
+export default function CityModalContent({
+  cityName,
+  user,
+  recommendation,
+  onAddToTrip,
+}) {
   const [activeTab, setActiveTab] = useState("all");
   const [placeCategory, setPlaceCategory] = useState("all");
   const [selectedPlace, setSelectedPlace] = useState(null);
   const [isPlaceModalOpen, setIsPlaceModalOpen] = useState(false);
 
   const [offset, setOffset] = useState(0);
-  const [allTrips, setAllTrips] = useState([]);
-  const [hasMore, setHasMore] = useState(true);
 
   const observerRef = useRef();
   const loadingRef = useRef(false);
@@ -84,17 +87,14 @@ export default function CityModalContent({ cityName, user, onAddToTrip }) {
     cacheTime: 24 * 60 * 60 * 1000,
   });
 
-  useEffect(() => {
-    if (trips.length === 0) {
-      setAllTrips([]);
-      setHasMore(false);
-      return;
-    }
-
-    const newTrips = trips.slice(0, offset + LIMIT);
-    setAllTrips(newTrips);
-    setHasMore(newTrips.length < trips.length);
+  // Calculate paginated trips and hasMore status
+  const allTrips = React.useMemo(() => {
+    return trips.slice(0, offset + LIMIT);
   }, [trips, offset]);
+
+  const hasMore = React.useMemo(() => {
+    return allTrips.length < trips.length;
+  }, [allTrips.length, trips.length]);
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -252,7 +252,15 @@ export default function CityModalContent({ cityName, user, onAddToTrip }) {
             >
               <Button
                 onClick={() => {
-                  onAddToTrip();
+                  try {
+                    if (onAddToTrip) onAddToTrip(recommendation);
+                  } catch (err) {
+                    console.error(
+                      "[CityModalContent] onAddToTrip handler error:",
+                      err
+                    );
+                    if (onAddToTrip) onAddToTrip();
+                  }
                 }}
                 className="bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white px-8 py-3 text-sm font-bold rounded-xl shadow-xl shadow-emerald-500/25 transition-all hover:scale-105 border-0"
               >

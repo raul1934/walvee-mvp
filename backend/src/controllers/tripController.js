@@ -69,16 +69,6 @@ const getTrips = async (req, res, next) => {
       where.is_public = isPublic === "true" || isPublic === true;
     }
 
-    if (minLikes) {
-      // Use derived count from trip_likes via Sequelize.where + literal
-      where[Op.and] = dbSequelize.where(
-        dbSequelize.literal(
-          `(SELECT COUNT(*) FROM trip_likes tl WHERE tl.trip_id = Trip.id)`
-        ),
-        { [Op.gte]: parseInt(minLikes) }
-      );
-    }
-
     if (search) {
       where[Op.or] = [
         { title: { [Op.like]: `%${search}%` } },
@@ -205,21 +195,15 @@ const getTrips = async (req, res, next) => {
         ],
         order: [["day_number", "ASC"]],
       },
+      // Include likes for counting
+      {
+        model: TripLike,
+        as: "likes",
+        attributes: ["id"],
+        required: false,
+      },
     ];
 
-    const orderClause =
-      sortBy === "likes_count"
-        ? [
-            [
-              dbSequelize.literal(
-                `(SELECT COUNT(*) FROM trip_likes tl WHERE tl.trip_id = Trip.id)`
-              ),
-              order.toUpperCase(),
-            ],
-          ]
-        : [[sortBy, order.toUpperCase()]];
-
-    // Count separately (safe) and then fetch rows with derived likes_count attribute
     // If destination filter provided, require a matching city
     if (destination) {
       tripInclude = tripInclude.map((inc) => {
@@ -234,29 +218,42 @@ const getTrips = async (req, res, next) => {
         return inc;
       });
     }
+
     const count = await Trip.count({
       where,
-      include: tripInclude,
+      include: tripInclude.filter(inc => inc.as !== 'likes'),
       distinct: true,
     });
 
-    const trips = await Trip.findAll({
+    // Fetch trips with likes included
+    let trips = await Trip.findAll({
       where,
       include: tripInclude,
       offset,
       limit: limitNum,
-      order: orderClause,
-      attributes: {
-        include: [
-          [
-            seq.literal(
-              `(SELECT COUNT(*) FROM trip_likes tl WHERE tl.trip_id = Trip.id)`
-            ),
-            "likes_count",
-          ],
-        ],
-      },
+      order: sortBy === "likes_count"
+        ? [["created_at", "DESC"]] // Temporary - will sort by likes_count after fetching
+        : [[sortBy, order.toUpperCase()]],
     });
+
+    // Add likes_count to each trip and filter/sort
+    trips = trips.map(trip => {
+      trip.dataValues.likes_count = trip.likes ? trip.likes.length : 0;
+      return trip;
+    });
+
+    // Filter by minLikes if specified
+    if (minLikes) {
+      trips = trips.filter(trip => trip.dataValues.likes_count >= parseInt(minLikes));
+    }
+
+    // Sort by likes_count if requested
+    if (sortBy === "likes_count") {
+      trips.sort((a, b) => {
+        const comparison = b.dataValues.likes_count - a.dataValues.likes_count;
+        return order === "asc" ? -comparison : comparison;
+      });
+    }
 
     // Add user context
     const tripsWithContext = await addUserContext(trips, userId, {
@@ -440,17 +437,13 @@ const getTripById = async (req, res, next) => {
           ],
           order: [["image_order", "ASC"]],
         },
+        {
+          model: TripLike,
+          as: "likes",
+          attributes: ["id"],
+          required: false,
+        },
       ],
-      attributes: {
-        include: [
-          [
-            dbSequelize.literal(
-              `(SELECT COUNT(*) FROM trip_likes tl WHERE tl.trip_id = Trip.id)`
-            ),
-            "likes_count",
-          ],
-        ],
-      },
     });
 
     if (!trip) {
@@ -458,6 +451,9 @@ const getTripById = async (req, res, next) => {
         .status(404)
         .json(buildErrorResponse("RESOURCE_NOT_FOUND", "Trip not found"));
     }
+
+    // Add likes_count as a virtual property
+    trip.dataValues.likes_count = trip.likes ? trip.likes.length : 0;
 
     // Check if trip is draft and user is not the owner
     const userId = req.user?.id;

@@ -649,6 +649,55 @@ Keep durations short and realistic. Respond in ${
    */
   async enrichWithCityIds(recommendations, City, Country, PlaceModel = null) {
     const cityEnrichmentPromises = recommendations.map(async (rec) => {
+      // If city or country missing, try to extract from the recommendation name
+      if (!rec.city || !rec.country) {
+        try {
+          if (typeof rec.name === "string" && rec.name.includes(",")) {
+            const parts = rec.name
+              .split(",")
+              .map((p) => p.trim())
+              .filter(Boolean);
+            if (parts.length >= 2) {
+              // First part is likely city, last is likely country
+              rec.city = rec.city || parts[0];
+              rec.country = rec.country || parts[parts.length - 1];
+              console.log(
+                `[CityID] Parsed city/country from name for: ${rec.name} → ${rec.city}, ${rec.country}`
+              );
+            }
+          }
+
+          // If still missing, try to find a city in DB by name (best-effort)
+          if ((!rec.city || !rec.country) && City) {
+            try {
+              const dbCity = await City.findOne({
+                where: { name: rec.city || rec.name },
+                include: [{ model: Country, as: "country" }],
+              });
+
+              if (dbCity) {
+                rec.city = rec.city || dbCity.name;
+                rec.country = rec.country || dbCity.country?.name;
+                console.log(
+                  `[CityID] Found existing city in DB for: ${rec.name} → ${rec.city}, ${rec.country}`
+                );
+              }
+            } catch (dbLookupErr) {
+              console.warn(
+                `[CityID] DB lookup by name failed for ${rec.name}:`,
+                dbLookupErr.message
+              );
+            }
+          }
+        } catch (parseErr) {
+          console.warn(
+            `[CityID] Failed to parse city/country from name for ${rec.name}:`,
+            parseErr.message
+          );
+        }
+      }
+
+      // If still missing city or country, skip enrichment but keep recommendation
       if (!rec.city || !rec.country) {
         console.warn(
           `[CityID] Missing city or country for: ${rec.name}, skipping city enrichment`

@@ -52,6 +52,7 @@ export default function RecommendationModal({
             <CityModalContent
               cityName={cityName}
               user={user}
+              recommendation={recommendation}
               onAddToTrip={onAddToTrip}
             />
           </div>

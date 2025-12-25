@@ -510,6 +510,44 @@ export default function InspirePrompt() {
     setInitialCityPrefillDone(true);
   }, [searchParams, initialCityPrefillDone]);
 
+  // Resolve city id by querying the server; returns city id (uuid) or null if not found
+  const resolveCityId = async (cityName) => {
+    if (!cityName) return null;
+    try {
+      const resp = await apiClient.get(endpoints.cities.search, {
+        query: cityName,
+      });
+
+      if (
+        resp &&
+        resp.success &&
+        Array.isArray(resp.data) &&
+        resp.data.length > 0
+      ) {
+        const normalizedTarget = normalizeCityName(cityName);
+        // Prefer exact normalized match
+        const exact = resp.data.find(
+          (c) => normalizeCityName(c.name) === normalizedTarget
+        );
+        if (exact) return exact.id;
+
+        // Fallback: match by city-only (before comma)
+        const cityOnly = normalizedTarget.split(",")[0].trim();
+        const byCity = resp.data.find((c) =>
+          normalizeCityName(c.name).startsWith(cityOnly)
+        );
+        if (byCity) return byCity.id;
+
+        // Last resort: return first result
+        return resp.data[0].id;
+      }
+    } catch (err) {
+      console.error("[InspirePrompt] resolveCityId error:", err);
+    }
+
+    return null;
+  };
+
   // Parse tripId from URL for trip modification mode
   useEffect(() => {
     const tripIdParam = searchParams.get("tripId");
@@ -704,7 +742,7 @@ export default function InspirePrompt() {
    * Prevents duplicate cities from being added
    * Uses isCityInTabs() for smart duplicate detection
    */
-  const handleAddCityToTrip = async (cityName) => {
+  const handleAddCityToTrip = async (cityName, providedCityId = null) => {
     // Always close modal and clear selection when adding/activating a city tab
     setIsModalOpen(false);
     setSelectedRecommendation(null);
@@ -798,7 +836,23 @@ export default function InspirePrompt() {
     // Persist to backend if tripId exists
     if (tripId) {
       try {
-        await Trip.addCity(tripId, { city_name: cityName });
+        const resolvedCityId =
+          providedCityId || (await resolveCityId(cityName));
+        const payload = resolvedCityId
+          ? { city_id: resolvedCityId }
+          : { city_name: cityName };
+        await Trip.addCity(tripId, payload);
+
+        // If we have an id, update the optimistic tab to include it
+        if (resolvedCityId) {
+          setCityTabs((prev) =>
+            prev.map((tab) =>
+              tab.name === cityName
+                ? { ...tab, id: resolvedCityId, city_id: resolvedCityId }
+                : tab
+            )
+          );
+        }
       } catch (error) {
         console.error("[InspirePrompt] Error persisting city:", error);
 
@@ -880,8 +934,14 @@ export default function InspirePrompt() {
         );
 
         if (!cityExists) {
+          let createdCityId = null;
           try {
-            await Trip.addCity(tripId, { city_name: cityName });
+            const resolvedCityId = await resolveCityId(cityName);
+            const payload = resolvedCityId
+              ? { city_id: resolvedCityId }
+              : { city_name: cityName };
+            await Trip.addCity(tripId, payload);
+            createdCityId = resolvedCityId;
           } catch (cityError) {
             // Check if it's a duplicate city error
             if (cityError.response?.data?.code === "DUPLICATE_CITY") {
@@ -2886,15 +2946,19 @@ export default function InspirePrompt() {
                 }}
                 recommendation={selectedRecommendation}
                 user={user}
-                onAddToTrip={() => {
+                onAddToTrip={(rec) => {
                   const countryName =
-                    typeof selectedRecommendation.country === "object"
-                      ? selectedRecommendation.country.name
-                      : selectedRecommendation.country;
+                    typeof rec.country === "object"
+                      ? rec.country.name
+                      : rec.country;
                   const cityName = countryName
-                    ? `${selectedRecommendation.name}, ${countryName}`
-                    : selectedRecommendation.name;
-                  handleAddCityToTrip(cityName);
+                    ? `${rec.name}, ${countryName}`
+                    : rec.name;
+                  if (rec?.city_id) {
+                    handleAddCityToTrip(cityName, rec.city_id);
+                  } else {
+                    handleAddCityToTrip(cityName);
+                  }
                 }}
               />
             ) : (
