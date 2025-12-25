@@ -9,7 +9,8 @@
       "Bash(grep:*)",
       "Bash(node:*)",
       "Bash(curl:*)",
-      "Bash(npm run migrate:*)"
+      "Bash(npm run migrate:*)",
+      "Bash(npm run lint)"
     ]
   }
 }

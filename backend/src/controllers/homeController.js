@@ -9,6 +9,7 @@ const {
   TripItineraryDay,
   TripItineraryActivity,
   TripImage,
+  Follow,
 } = require("../models/sequelize");
 const { Op } = require("sequelize");
 const { sequelize } = require("../database/sequelize");
@@ -510,7 +511,6 @@ const getHomeTravelers = async (req, res) => {
     });
 
     // Calculate dynamic counts for each user
-    const { Follow, Trip } = require("../models/sequelize");
     const usersWithCounts = await Promise.all(
       users.map(async (user) => {
         const trips_count = await Trip.count({

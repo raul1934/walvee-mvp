@@ -1,9 +1,10 @@
-const { ChatMessage, Trip } = require("../models/sequelize");
+const { ChatMessage, Trip, City } = require("../models/sequelize");
 const {
   buildSuccessResponse,
   buildErrorResponse,
 } = require("../utils/helpers");
 const { v4: uuidv4 } = require("uuid");
+const { Op } = require("sequelize");
 
 // POST /chat-messages - Create single message
 const createMessage = async (req, res, next) => {
@@ -118,17 +119,11 @@ const getMessagesByTrip = async (req, res, next) => {
 
     // Support flexible city_context lookup: accept either city name or city id (UUID)
     if (city_context !== undefined) {
-      const { Op } = require("sequelize");
       // If the provided context looks like a UUID, also attempt to resolve the city's name
       const isUuid = typeof city_context === "string" && /^[0-9a-fA-F\-]{36}$/.test(city_context);
 
       if (isUuid) {
-        const city = await Trip.findOne({
-          // use City model directly
-          where: {},
-        });
         // Try to find the city by id
-        const City = require("../models/sequelize").City;
         const cityRecord = await City.findByPk(city_context, { attributes: ["name"] });
 
         // If found, match messages where city_context equals the id OR equals the city's name

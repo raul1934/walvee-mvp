@@ -14,8 +14,10 @@ const {
   Country,
   CityPhoto,
   TripImage,
+  TripComment,
 } = require("../models/sequelize");
-const { Op } = require("sequelize");
+const { Op, sequelize } = require("sequelize");
+const { sequelize: dbSequelize } = require("../database/sequelize");
 const { v4: uuidv4 } = require("uuid");
 const {
   paginate,
@@ -69,14 +71,11 @@ const getTrips = async (req, res, next) => {
 
     if (minLikes) {
       // Use derived count from trip_likes via Sequelize.where + literal
-      const { sequelize: seq } = require("../database/sequelize");
-      const { Op: SeqOp } = require("sequelize");
-
-      where[SeqOp.and] = seq.where(
-        seq.literal(
+      where[Op.and] = dbSequelize.where(
+        dbSequelize.literal(
           `(SELECT COUNT(*) FROM trip_likes tl WHERE tl.trip_id = Trip.id)`
         ),
-        { [SeqOp.gte]: parseInt(minLikes) }
+        { [Op.gte]: parseInt(minLikes) }
       );
     }
 
@@ -208,12 +207,11 @@ const getTrips = async (req, res, next) => {
       },
     ];
 
-    const seq = require("../database/sequelize").sequelize;
     const orderClause =
       sortBy === "likes_count"
         ? [
             [
-              seq.literal(
+              dbSequelize.literal(
                 `(SELECT COUNT(*) FROM trip_likes tl WHERE tl.trip_id = Trip.id)`
               ),
               order.toUpperCase(),
@@ -299,19 +297,19 @@ const getTripById = async (req, res, next) => {
           ],
         },
         {
-          model: require("../models/sequelize").City,
+          model: City,
           as: "cities",
           attributes: ["id", "name"],
           through: { attributes: ["city_order"], timestamps: false },
           include: [
             {
-              model: require("../models/sequelize").Country,
+              model: Country,
               as: "country",
               // Include id and code so clients can receive a nested country object
               attributes: ["id", "name", "code"],
             },
             {
-              model: require("../models/sequelize").CityPhoto,
+              model: CityPhoto,
               as: "photos",
               attributes: ["url_small", "url_medium", "url_large"],
               limit: 3,
@@ -393,7 +391,7 @@ const getTripById = async (req, res, next) => {
                   ],
                   include: [
                     {
-                      model: require("../models/sequelize").PlacePhoto,
+                      model: PlacePhoto,
                       as: "photos",
                       attributes: ["url_small", "url_medium", "url_large"],
                       limit: 3,
@@ -406,11 +404,11 @@ const getTripById = async (req, res, next) => {
           order: [["day_number", "ASC"]],
         },
         {
-          model: require("../models/sequelize").TripComment,
+          model: TripComment,
           as: "comments",
           include: [
             {
-              model: require("../models/sequelize").User,
+              model: User,
               as: "commenter",
               attributes: ["id", "preferred_name", "full_name", "photo_url"],
             },
@@ -446,7 +444,7 @@ const getTripById = async (req, res, next) => {
       attributes: {
         include: [
           [
-            require("../database/sequelize").sequelize.literal(
+            dbSequelize.literal(
               `(SELECT COUNT(*) FROM trip_likes tl WHERE tl.trip_id = Trip.id)`
             ),
             "likes_count",
@@ -909,8 +907,6 @@ async function formatTripResponse(trip) {
     : 0;
 
   // Extract cities with IDs
-  const { City, Country } = require("../models/sequelize");
-  const { Op } = require("sequelize");
   const cityMap = new Map();
   // If trip has explicit cities relation (new many-to-many) use it
   let citiesWithIds = [];
@@ -1401,7 +1397,6 @@ const addPlaceToTrip = async (req, res, next) => {
 
     // Resolve place record from provided `place_id` which can be either a Google Place ID (string)
     // or a Place UUID (existing Place.id). If Google Place ID not present in DB, create a new Place record.
-    const { v4: uuidv4 } = require("uuid");
     let placeRecord = null;
 
     if (place_id && place_id !== "MANUAL_ENTRY_REQUIRED") {
@@ -1490,8 +1485,6 @@ const addCityToTrip = async (req, res, next) => {
       // 2) Case-insensitive contains match on name + country
       // 3) Exact match on name only
       // 4) Contains match on name only
-      const Op = require("sequelize").Op;
-
       const buildCountryWhere = (country) =>
         country ? { name: { [Op.like]: `%${country}%` } } : null;
 
@@ -1566,19 +1559,10 @@ const addCityToTrip = async (req, res, next) => {
         );
     }
 
-    // Add city to trip using an explicit INSERT into the junction table to ensure an `id` is provided
-    const { sequelize } = require("../database/sequelize");
+    // Check for existing association using Sequelize association methods
+    const hasCityAlready = await trip.hasCity(cityRecord.id);
 
-    // Check for existing association
-    const existing = await sequelize.query(
-      "SELECT 1 FROM trip_cities WHERE trip_id = :tripId AND city_id = :cityId",
-      {
-        replacements: { tripId: trip.id, cityId: cityRecord.id },
-        type: sequelize.QueryTypes.SELECT,
-      }
-    );
-
-    if (existing.length > 0) {
+    if (hasCityAlready) {
       // City already exists - return error
       const cityName = cityRecord.country
         ? `${cityRecord.name}, ${cityRecord.country.name}`
@@ -1593,29 +1577,20 @@ const addCityToTrip = async (req, res, next) => {
         );
     }
 
-    // Compute next city_order
-    const [maxOrderResult] = await sequelize.query(
-      "SELECT COALESCE(MAX(city_order), -1) as max_order FROM trip_cities WHERE trip_id = :tripId",
-      { replacements: { tripId: trip.id }, type: sequelize.QueryTypes.SELECT }
-    );
+    // Get all existing cities to compute next city_order
+    const existingCities = await trip.getCities({
+      attributes: [],
+      joinTableAttributes: ["city_order"],
+    });
 
-    const nextOrder =
-      maxOrderResult && maxOrderResult.max_order !== undefined
-        ? maxOrderResult.max_order + 1
-        : 0;
+    const nextOrder = existingCities.length > 0
+      ? Math.max(...existingCities.map(c => c.trip_cities?.city_order || 0)) + 1
+      : 0;
 
-    // Insert explicit id using UUID() function in the DB
-    await sequelize.query(
-      "INSERT INTO trip_cities (id, trip_id, city_id, city_order, created_at) VALUES (UUID(), :tripId, :cityId, :cityOrder, NOW())",
-      {
-        replacements: {
-          tripId: trip.id,
-          cityId: cityRecord.id,
-          cityOrder: nextOrder,
-        },
-        type: sequelize.QueryTypes.INSERT,
-      }
-    );
+    // Add city to trip using Sequelize association method
+    await trip.addCity(cityRecord.id, {
+      through: { city_order: nextOrder },
+    });
 
     // Return created city inside `data` for consistent client consumption
     return res.status(201).json(buildSuccessResponse({ city: cityRecord }));
@@ -1883,31 +1858,17 @@ const removeCityFromTrip = async (req, res, next) => {
         );
     }
 
-    const { sequelize } = require("../database/sequelize");
+    // Check if city association exists using Sequelize association methods
+    const hasCityAssociation = await trip.hasCity(cityId);
 
-    // Check if city association exists
-    const existing = await sequelize.query(
-      "SELECT 1 FROM trip_cities WHERE trip_id = :tripId AND city_id = :cityId",
-      {
-        replacements: { tripId: trip.id, cityId },
-        type: sequelize.QueryTypes.SELECT,
-      }
-    );
-
-    if (existing.length === 0) {
+    if (!hasCityAssociation) {
       return res
         .status(404)
         .json(buildErrorResponse("NOT_FOUND", "City not found in trip"));
     }
 
-    // Remove city association
-    await sequelize.query(
-      "DELETE FROM trip_cities WHERE trip_id = :tripId AND city_id = :cityId",
-      {
-        replacements: { tripId: trip.id, cityId },
-        type: sequelize.QueryTypes.DELETE,
-      }
-    );
+    // Remove city association using Sequelize association method
+    await trip.removeCity(cityId);
 
     return res.json(
       buildSuccessResponse({ message: "City removed successfully" })

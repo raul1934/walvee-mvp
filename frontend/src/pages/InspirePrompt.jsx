@@ -2671,13 +2671,13 @@ export default function InspirePrompt() {
                         <Filter className="w-5 h-5" />
                         Set Preferences
                       </button>
-                      <button
+                      {/* <button
                         onClick={() => setShowCitiesModal(true)}
                         className="welcome-button"
                       >
                         <Globe className="w-5 h-5" />
                         Explore Cities
-                      </button>
+                      </button> */}
                     </motion.div>
                   </motion.div>
                 )}
@@ -2835,14 +2835,14 @@ export default function InspirePrompt() {
                     )}
                   </button>
 
-                  <button
+                  {/* <button
                     type="button"
                     className="prompt-action-btn"
                     onClick={() => setShowCitiesModal(true)}
                     disabled={isLoadingResponse}
                   >
                     Cities
-                  </button>
+                  </button> */}
                 </div>
 
                 {inputValue.trim() && (

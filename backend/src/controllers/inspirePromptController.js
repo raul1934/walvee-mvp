@@ -12,7 +12,9 @@ const {
   TripItineraryActivity,
   Place,
   User,
+  ChatMessage,
 } = require("../models/sequelize");
+const { v4: uuidv4 } = require("uuid");
 const tripModificationService = require("../services/tripModificationService");
 const InspirePromptService = require("../services/inspirePromptService");
 const googleMapsService = require("../services/googleMapsService");
@@ -122,9 +124,6 @@ exports.getRecommendations = async (req, res) => {
 
     // Auto-save messages to database if trip_id provided
     if (trip_id) {
-      const { ChatMessage } = require("../models/sequelize");
-      const { v4: uuidv4 } = require("uuid");
-
       const messagesToSave = [
         {
           id: uuidv4(),

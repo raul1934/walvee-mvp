@@ -10,6 +10,7 @@ const {
   TripImage,
 } = require("../models/sequelize");
 const { Op } = require("sequelize");
+const { sequelize } = require("../database/sequelize");
 const {
   buildSuccessResponse,
   buildErrorResponse,
@@ -191,10 +192,8 @@ const searchOverlay = async (req, res, next) => {
         order: [["name", "ASC"]],
       };
 
-      let cities = await City.findAll(citiesQuery);
       // Include trip count from trip_cities
-      const { sequelize } = require("../database/sequelize");
-      cities = await City.findAll({
+      let cities = await City.findAll({
         ...citiesQuery,
         attributes: {
           include: [

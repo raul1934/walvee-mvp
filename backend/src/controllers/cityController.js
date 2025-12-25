@@ -6,12 +6,21 @@ const {
   CityPhoto,
   TripImage,
   PlacePhoto,
+  User,
+  TripTag,
+  TripPlace,
+  TripItineraryDay,
+  TripItineraryActivity,
+  Place,
+  Follow,
 } = require("../models/sequelize");
 const { Op, Sequelize } = require("sequelize");
 const { sequelize } = require("../database/sequelize");
 const {
   buildSuccessResponse,
   buildErrorResponse,
+  paginate,
+  buildPaginationMeta,
 } = require("../utils/helpers");
 const {
   searchCitiesFromGoogle,
@@ -575,19 +584,6 @@ const getCityTrips = async (req, res, next) => {
     const fullCityName = `${cityName}, ${countryName}`.toLowerCase().trim();
     const cityNameOnly = cityName.toLowerCase().trim();
 
-    // Import required models
-    const {
-      Trip,
-      User,
-      TripTag,
-      TripPlace,
-      TripItineraryDay,
-      TripItineraryActivity,
-      Place,
-      PlacePhoto,
-    } = require("../models/sequelize");
-    const { paginate, buildPaginationMeta } = require("../utils/helpers");
-
     const {
       page: pageNum,
       limit: limitNum,
@@ -1100,14 +1096,6 @@ const getCityLocals = async (req, res, next) => {
     const fullCityName = `${cityName}, ${countryName}`;
 
     const {
-      User,
-      Trip,
-      Follow,
-      City: CityModel,
-    } = require("../models/sequelize");
-    const { paginate, buildPaginationMeta } = require("../utils/helpers");
-
-    const {
       page: pageNum,
       limit: limitNum,
       offset,
@@ -1120,7 +1108,7 @@ const getCityLocals = async (req, res, next) => {
       },
       include: [
         {
-          model: CityModel,
+          model: City,
           as: "city",
           attributes: ["id", "name"],
           include: [

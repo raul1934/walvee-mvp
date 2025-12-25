@@ -1,7 +1,7 @@
 const passport = require("passport");
 const GoogleStrategy = require("passport-google-oauth20").Strategy;
 const config = require("../config/config");
-const { User } = require("../models/sequelize");
+const { User, Follow, Trip, City, Country } = require("../models/sequelize");
 const {
   generateToken,
   generateRefreshToken,
@@ -160,7 +160,6 @@ const getCurrentUser = async (req, res, next) => {
     }
 
     // Add follower/following counts from user_follow table for accuracy
-    const { Follow, Trip } = require("../models/sequelize");
     const followers_count = await Follow.count({
       where: { followee_id: user.id },
     });
@@ -179,10 +178,8 @@ const getCurrentUser = async (req, res, next) => {
 
     // Include nested city object when available for frontend convenience
     if (userObj.city_id) {
-      const City = require("../models/sequelize").City;
-      const countryModel = require("../models/sequelize").Country;
       const city = await City.findByPk(userObj.city_id, {
-        include: [{ model: countryModel, as: "country" }],
+        include: [{ model: Country, as: "country" }],
       });
 
       if (city) {
