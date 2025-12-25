@@ -25,7 +25,10 @@ const {
   getFullImageUrl,
 } = require("../utils/helpers");
 const { addUserContext } = require("../utils/userContext");
-const { INCLUDE_CITY_WITH_COUNTRY, INCLUDE_TRIP_CITIES } = require("./includes");
+const {
+  INCLUDE_CITY_WITH_COUNTRY,
+  INCLUDE_TRIP_CITIES,
+} = require("./includes");
 const getTrips = async (req, res, next) => {
   try {
     const {
@@ -282,7 +285,7 @@ const getTripById = async (req, res, next) => {
           attributes: ["id", "name"],
           through: { attributes: ["city_order"], timestamps: false },
           include: [
-              {
+            {
               model: require("../models/sequelize").Country,
               as: "country",
               // Include id and code so clients can receive a nested country object
@@ -388,7 +391,13 @@ const getTripById = async (req, res, next) => {
         {
           model: TripImage,
           as: "images",
-          attributes: ["id", "place_photo_id", "city_photo_id", "is_cover", "image_order"],
+          attributes: [
+            "id",
+            "place_photo_id",
+            "city_photo_id",
+            "is_cover",
+            "image_order",
+          ],
           include: [
             {
               model: PlacePhoto,
@@ -443,7 +452,8 @@ const getTripById = async (req, res, next) => {
 const createTrip = async (req, res, next) => {
   try {
     const userId = req.user.id;
-    const { tags, places, itinerary, cities, trip_images, ...tripData } = req.body;
+    const { tags, places, itinerary, cities, trip_images, ...tripData } =
+      req.body;
 
     const user = await User.findByPk(userId);
 
@@ -600,7 +610,8 @@ const updateTrip = async (req, res, next) => {
   try {
     const { id } = req.params;
     const userId = req.user.id;
-    const { tags, places, itinerary, cities, trip_images, ...tripData } = req.body;
+    const { tags, places, itinerary, cities, trip_images, ...tripData } =
+      req.body;
 
     const trip = await Trip.findByPk(id);
 
@@ -690,7 +701,8 @@ const updateTrip = async (req, res, next) => {
             place_photo_id: img.place_photo_id || null,
             city_photo_id: img.city_photo_id || null,
             is_cover: img.is_cover || false,
-            image_order: img.image_order !== undefined ? img.image_order : index,
+            image_order:
+              img.image_order !== undefined ? img.image_order : index,
           }))
         );
       }
@@ -840,10 +852,7 @@ async function formatTripResponse(trip) {
     tripData.itineraryDays.forEach((day) => {
       if (day.activities) {
         day.activities.forEach((activity) => {
-          if (
-            activity.place?.photos &&
-            !addedPlaceIds.has(activity.place.id)
-          ) {
+          if (activity.place?.photos && !addedPlaceIds.has(activity.place.id)) {
             addedPlaceIds.add(activity.place.id);
             activity.place.photos.forEach((photo) => {
               if (photo.url_medium) {
@@ -900,8 +909,7 @@ async function formatTripResponse(trip) {
       tripData.itineraryDays.forEach((day) => {
         if (day.activities) {
           day.activities.forEach((activity) => {
-            const location =
-              activity.location || activity.place?.address || "";
+            const location = activity.location || activity.place?.address || "";
             const parts = location.split(",");
             if (parts.length > 0) {
               const cityName = parts[0].trim();
@@ -928,7 +936,9 @@ async function formatTripResponse(trip) {
         },
         attributes: ["id", "name"],
         // Include country id/name/code so we can build a nested object in the response
-        include: [{ model: Country, as: "country", attributes: ["id", "name", "code"] }],
+        include: [
+          { model: Country, as: "country", attributes: ["id", "name", "code"] },
+        ],
       });
       cities.forEach((cityObj) => {
         const key = cityObj.name.toLowerCase();
@@ -938,7 +948,11 @@ async function formatTripResponse(trip) {
             name: fullName,
             id: cityObj.id,
             country: cityObj.country
-              ? { id: cityObj.country.id, name: cityObj.country.name, code: cityObj.country.code }
+              ? {
+                  id: cityObj.country.id,
+                  name: cityObj.country.name,
+                  code: cityObj.country.code,
+                }
               : null,
           });
         }
@@ -1004,14 +1018,16 @@ async function formatTripResponse(trip) {
     updated_at: tripData.updated_at,
     currentUserLiked: tripData.currentUserLiked || false,
     currentUserFollowing: tripData.currentUserFollowing || false,
-    author: tripData.author ? {
-      id: tripData.author.id,
-      full_name: tripData.author.full_name,
-      preferred_name: tripData.author.preferred_name,
-      photo_url: getFullImageUrl(tripData.author.photo_url),
-      email: tripData.author.email,
-      bio: tripData.author.bio,
-    } : null,
+    author: tripData.author
+      ? {
+          id: tripData.author.id,
+          full_name: tripData.author.full_name,
+          preferred_name: tripData.author.preferred_name,
+          photo_url: getFullImageUrl(tripData.author.photo_url),
+          email: tripData.author.email,
+          bio: tripData.author.bio,
+        }
+      : null,
     tags: tripData.tags ? tripData.tags.map((t) => t.tag) : [],
     // Return raw cities array; frontend should format names/locations for display
     cities: citiesWithIds,
@@ -1028,9 +1044,7 @@ async function formatTripResponse(trip) {
                   place_id: a.place.google_place_id,
                   name: a.place.name,
                   address: a.place.address,
-                  rating: a.place.rating
-                    ? parseFloat(a.place.rating)
-                    : null,
+                  rating: a.place.rating ? parseFloat(a.place.rating) : null,
                   price_level: a.place.price_level,
                   types: a.place.types || [],
                   description: a.description || "",
@@ -1069,14 +1083,18 @@ async function formatTripResponse(trip) {
                         : null,
                       user_ratings_total: a.place.user_ratings_total,
                       price_level: a.place.price_level,
-                      city: a.place.city ? {
-                        id: a.place.city.id,
-                        name: a.place.city.name,
-                        country: a.place.city.country ? {
-                          id: a.place.city.country.id,
-                          name: a.place.city.country.name,
-                        } : null,
-                      } : null,
+                      city: a.place.city
+                        ? {
+                            id: a.place.city.id,
+                            name: a.place.city.name,
+                            country: a.place.city.country
+                              ? {
+                                  id: a.place.city.country.id,
+                                  name: a.place.city.country.name,
+                                }
+                              : null,
+                          }
+                        : null,
                     }
                   : null,
               }))
@@ -1209,7 +1227,8 @@ const getTripDerivations = async (req, res, next) => {
         new_trip_title: steal.newTrip?.title,
         new_trip_cover: coverImageUrl,
         stolen_by: steal.newUser?.id,
-        stolen_by_name: steal.newUser?.preferred_name || steal.newUser?.full_name,
+        stolen_by_name:
+          steal.newUser?.preferred_name || steal.newUser?.full_name,
         stolen_by_photo: steal.newUser?.photo_url,
         created_at: steal.created_at,
       };
@@ -1366,7 +1385,11 @@ const addCityToTrip = async (req, res, next) => {
       const tryFind = async (nameMatch, countryMatch) => {
         const include = [];
         if (countryMatch) {
-          include.push({ model: Country, as: "country", where: buildCountryWhere(countryMatch) });
+          include.push({
+            model: Country,
+            as: "country",
+            where: buildCountryWhere(countryMatch),
+          });
         } else {
           include.push({ model: Country, as: "country" });
         }
@@ -1384,17 +1407,26 @@ const addCityToTrip = async (req, res, next) => {
 
       // 2. Case-insensitive contains match on name + country
       if (!cityRecord && countryPart) {
-        cityRecord = await tryFind({ name: { [Op.like]: `%${cityPart}%` } }, countryPart);
+        cityRecord = await tryFind(
+          { name: { [Op.like]: `%${cityPart}%` } },
+          countryPart
+        );
       }
 
       // 3. Exact name only
       if (!cityRecord) {
-        cityRecord = await City.findOne({ where: { name: cityPart }, include: [{ model: Country, as: "country" }] });
+        cityRecord = await City.findOne({
+          where: { name: cityPart },
+          include: [{ model: Country, as: "country" }],
+        });
       }
 
       // 4. Contains name only
       if (!cityRecord) {
-        cityRecord = await City.findOne({ where: { name: { [Op.like]: `%${cityPart}%` } }, include: [{ model: Country, as: "country" }] });
+        cityRecord = await City.findOne({
+          where: { name: { [Op.like]: `%${cityPart}%` } },
+          include: [{ model: Country, as: "country" }],
+        });
       }
 
       if (!cityRecord) {
@@ -1443,13 +1475,20 @@ const addCityToTrip = async (req, res, next) => {
       { replacements: { tripId: trip.id }, type: sequelize.QueryTypes.SELECT }
     );
 
-    const nextOrder = (maxOrderResult && maxOrderResult.max_order !== undefined) ? maxOrderResult.max_order + 1 : 0;
+    const nextOrder =
+      maxOrderResult && maxOrderResult.max_order !== undefined
+        ? maxOrderResult.max_order + 1
+        : 0;
 
     // Insert explicit id using UUID() function in the DB
     await sequelize.query(
       "INSERT INTO trip_cities (id, trip_id, city_id, city_order, created_at) VALUES (UUID(), :tripId, :cityId, :cityOrder, NOW())",
       {
-        replacements: { tripId: trip.id, cityId: cityRecord.id, cityOrder: nextOrder },
+        replacements: {
+          tripId: trip.id,
+          cityId: cityRecord.id,
+          cityOrder: nextOrder,
+        },
         type: sequelize.QueryTypes.INSERT,
       }
     );

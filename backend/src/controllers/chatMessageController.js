@@ -80,9 +80,14 @@ const bulkCreateMessages = async (req, res, next) => {
     const createdMessages = await ChatMessage.bulkCreate(messagesWithTripId);
 
     // Return the created messages inside `data` for consistent client consumption
-    return res.status(201).json(
-      buildSuccessResponse({ messages: createdMessages, meta: { count: createdMessages.length } })
-    );
+    return res
+      .status(201)
+      .json(
+        buildSuccessResponse({
+          messages: createdMessages,
+          meta: { count: createdMessages.length },
+        })
+      );
   } catch (error) {
     next(error);
   }
