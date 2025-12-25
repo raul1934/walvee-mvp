@@ -83,7 +83,7 @@ const getUserById = async (req, res, next) => {
     });
 
     const trips_count = await Trip.count({
-      where: { author_id: id },
+      where: { author_id: id, is_draft: false },
     });
 
     const userObj = user.toJSON();
@@ -231,7 +231,7 @@ const getUserStats = async (req, res, next) => {
     });
 
     const trips_count = await Trip.count({
-      where: { author_id: id },
+      where: { author_id: id, is_draft: false },
     });
 
     const likesReceived = await TripLike.count({
@@ -239,7 +239,7 @@ const getUserStats = async (req, res, next) => {
         {
           model: Trip,
           as: "trip",
-          where: { author_id: id },
+          where: { author_id: id, is_draft: false },
           required: true,
         },
       ],

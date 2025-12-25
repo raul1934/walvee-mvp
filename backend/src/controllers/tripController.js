@@ -47,6 +47,16 @@ const getTrips = async (req, res, next) => {
 
     const where = {};
 
+    // Filter out draft trips - only show drafts to the owner
+    const userId = req.user?.id;
+    if (createdBy && userId && createdBy === userId) {
+      // User is viewing their own trips - show both published and drafts
+      // No is_draft filter needed
+    } else {
+      // Public view or viewing other user's trips - hide drafts
+      where.is_draft = false;
+    }
+
     // Note: destination filter will be applied on the cities relation below when tripInclude is constructed
 
     if (createdBy) {
@@ -251,7 +261,6 @@ const getTrips = async (req, res, next) => {
     });
 
     // Add user context
-    const userId = req.user?.id;
     const tripsWithContext = await addUserContext(trips, userId, {
       includeLikes: true,
       includeFollows: true,
@@ -452,11 +461,20 @@ const getTripById = async (req, res, next) => {
         .json(buildErrorResponse("RESOURCE_NOT_FOUND", "Trip not found"));
     }
 
-    // Increment views
-    await trip.increment("views_count");
+    // Check if trip is draft and user is not the owner
+    const userId = req.user?.id;
+    if (trip.is_draft && trip.author_id !== userId) {
+      return res
+        .status(404)
+        .json(buildErrorResponse("RESOURCE_NOT_FOUND", "Trip not found"));
+    }
+
+    // Increment views (only for non-draft or owner viewing their own draft)
+    if (!trip.is_draft || trip.author_id === userId) {
+      await trip.increment("views_count");
+    }
 
     // Add user context (likes/follows)
-    const userId = req.user?.id;
     const [tripWithContext] = await addUserContext([trip], userId, {
       includeLikes: true,
       includeFollows: true,

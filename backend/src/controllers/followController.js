@@ -34,7 +34,7 @@ const getFollowers = async (req, res, next) => {
 
         // Count trips
         const trips_count = await Trip.count({
-          where: { author_id: follower.id },
+          where: { author_id: follower.id, is_draft: false },
         });
 
         // Count followers
@@ -91,7 +91,7 @@ const getFollowing = async (req, res, next) => {
 
         // Count trips
         const trips_count = await Trip.count({
-          where: { author_id: followee.id },
+          where: { author_id: followee.id, is_draft: false },
         });
 
         // Count followers

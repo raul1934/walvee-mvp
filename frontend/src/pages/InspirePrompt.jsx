@@ -806,7 +806,9 @@ export default function InspirePrompt() {
         if (error.response?.data?.code === "DUPLICATE_CITY") {
           setErrorModalConfig({
             title: "City Already Added",
-            message: error.response?.data?.message || "This city is already in your trip.",
+            message:
+              error.response?.data?.message ||
+              "This city is already in your trip.",
           });
           setShowErrorModal(true);
           // Remove the city from local state since backend rejected it
@@ -817,7 +819,9 @@ export default function InspirePrompt() {
         // For other errors, show generic error
         setErrorModalConfig({
           title: "Error Adding City",
-          message: error.response?.data?.message || "Failed to add city to trip. Please try again.",
+          message:
+            error.response?.data?.message ||
+            "Failed to add city to trip. Please try again.",
         });
         setShowErrorModal(true);
         // Remove the city from local state since backend rejected it
@@ -883,7 +887,9 @@ export default function InspirePrompt() {
             if (cityError.response?.data?.code === "DUPLICATE_CITY") {
               setErrorModalConfig({
                 title: "City Already Added",
-                message: cityError.response?.data?.message || "This city is already in your trip.",
+                message:
+                  cityError.response?.data?.message ||
+                  "This city is already in your trip.",
               });
               setShowErrorModal(true);
               return;
@@ -909,7 +915,9 @@ export default function InspirePrompt() {
         if (error.response?.data?.code === "DUPLICATE_PLACE") {
           setErrorModalConfig({
             title: "Place Already Added",
-            message: error.response?.data?.message || "This place is already in your trip.",
+            message:
+              error.response?.data?.message ||
+              "This place is already in your trip.",
           });
           setShowErrorModal(true);
           return;
@@ -918,7 +926,9 @@ export default function InspirePrompt() {
         // For other errors, show generic error
         setErrorModalConfig({
           title: "Error Adding Place",
-          message: error.response?.data?.message || "Failed to add place to trip. Please try again.",
+          message:
+            error.response?.data?.message ||
+            "Failed to add place to trip. Please try again.",
         });
         setShowErrorModal(true);
         return;
@@ -1085,11 +1095,16 @@ export default function InspirePrompt() {
           try {
             await Trip.removePlace(tripId, place.id);
           } catch (error) {
-            console.error("[InspirePrompt] Error removing place from backend:", error);
+            console.error(
+              "[InspirePrompt] Error removing place from backend:",
+              error
+            );
             // Show error modal
             setErrorModalConfig({
               title: "Error Removing Place",
-              message: error.response?.data?.message || "Failed to remove place. Please try again.",
+              message:
+                error.response?.data?.message ||
+                "Failed to remove place. Please try again.",
             });
             setShowErrorModal(true);
             setShowConfirmModal(false);
@@ -1131,9 +1146,12 @@ export default function InspirePrompt() {
 
     setConfirmModalConfig({
       title: "Remove City",
-      description: placesCount > 0
-        ? `Are you sure you want to remove "${cityName}" and all ${placesCount} place${placesCount > 1 ? 's' : ''} from your itinerary?`
-        : `Are you sure you want to remove "${cityName}" from your itinerary?`,
+      description:
+        placesCount > 0
+          ? `Are you sure you want to remove "${cityName}" and all ${placesCount} place${
+              placesCount > 1 ? "s" : ""
+            } from your itinerary?`
+          : `Are you sure you want to remove "${cityName}" from your itinerary?`,
       confirmLabel: "Remove",
       onConfirm: async () => {
         // If we have a tripId and city ID, remove from backend first
@@ -1141,11 +1159,16 @@ export default function InspirePrompt() {
           try {
             await Trip.removeCity(tripId, cityTab.city_id);
           } catch (error) {
-            console.error("[InspirePrompt] Error removing city from backend:", error);
+            console.error(
+              "[InspirePrompt] Error removing city from backend:",
+              error
+            );
             // Show error modal
             setErrorModalConfig({
               title: "Error Removing City",
-              message: error.response?.data?.message || "Failed to remove city. Please try again.",
+              message:
+                error.response?.data?.message ||
+                "Failed to remove city. Please try again.",
             });
             setShowErrorModal(true);
             setShowConfirmModal(false);
@@ -1187,11 +1210,38 @@ export default function InspirePrompt() {
     setIsModalOpen(true);
   };
 
+  // Check if a place is already in the trip
+  const isPlaceInTrip = (place) => {
+    if (!place || !place.name) return false;
+
+    // Check all city tabs for this place
+    return cityTabs.some((tab) =>
+      tab.places?.some((p) => p.name === place.name)
+    );
+  };
+
   // Handle adding place from the PlaceDetails modal to the trip
   const handleAddPlaceFromModal = () => {
     if (!selectedRecommendation) return;
 
     handleAddPlaceToTrip(selectedRecommendation);
+
+    setIsModalOpen(false);
+    setSelectedRecommendation(null);
+  };
+
+  // Handle removing place from the PlaceDetails modal
+  const handleRemovePlaceFromModal = () => {
+    if (!selectedRecommendation) return;
+
+    // Find which city this place belongs to
+    const cityTab = cityTabs.find((tab) =>
+      tab.places?.some((p) => p.name === selectedRecommendation.name)
+    );
+
+    if (cityTab) {
+      handleRemovePlace(cityTab.name, selectedRecommendation.name);
+    }
 
     setIsModalOpen(false);
     setSelectedRecommendation(null);
@@ -1683,7 +1733,6 @@ export default function InspirePrompt() {
           display: flex;
           flex-direction: column;
           overflow: hidden;
-          margin-top: 36px;
         }
 
         .places-sidebar-header {
@@ -2870,7 +2919,9 @@ export default function InspirePrompt() {
                       setSelectedRecommendation(null);
                     }}
                     user={user}
+                    isInTrip={isPlaceInTrip(selectedRecommendation)}
                     onAddToTrip={handleAddPlaceFromModal}
+                    onRemoveFromTrip={handleRemovePlaceFromModal}
                   />
                 </div>
               </div>
@@ -2885,6 +2936,7 @@ export default function InspirePrompt() {
             onClose={handleCloseSidebarPlaceModal}
             place={selectedSidebarPlace}
             user={user}
+            isInTrip={isPlaceInTrip(selectedSidebarPlace)}
             onAddToTrip={() => {
               handleAddPlaceToTrip(selectedSidebarPlace);
               handleCloseSidebarPlaceModal();

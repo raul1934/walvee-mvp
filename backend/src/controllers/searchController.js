@@ -200,7 +200,10 @@ const searchOverlay = async (req, res, next) => {
           include: [
             [
               sequelize.literal(`(
-                SELECT COUNT(*) FROM trip_cities tc WHERE tc.city_id = City.id
+                SELECT COUNT(*)
+                FROM trip_cities tc
+                JOIN trips t ON tc.trip_id = t.id
+                WHERE tc.city_id = City.id AND t.is_draft = false
               )`),
               "trip_count",
             ],
@@ -382,6 +385,7 @@ const searchOverlay = async (req, res, next) => {
         { description: { [Op.like]: `%${searchTerm}%` } },
       ],
       is_public: true,
+      is_draft: false,
     };
 
     // Apply city context filter using trip_cities -> city association when possible

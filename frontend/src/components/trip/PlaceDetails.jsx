@@ -162,6 +162,8 @@ export default function PlaceDetails({
   onPhotoClick,
   user,
   onAddToTrip,
+  onRemoveFromTrip,
+  isInTrip = false,
   openLoginModal,
 }) {
   const [enrichedPlace, setEnrichedPlace] = useState(place);
@@ -198,7 +200,12 @@ export default function PlaceDetails({
   // Favorites hook
   const { isPlaceFavorited, togglePlaceFavorite, isTogglingPlace } =
     useFavorites(user);
-  const placeId = enrichedPlace.id || enrichedPlace.place_id;
+  // For favorites, we need the Place table UUID (not TripPlace UUID or Google Place ID)
+  // Check if place_id is a valid UUID vs a Google Place ID string
+  const isUuid = (id) => id && typeof id === "string" && /^[0-9a-fA-F\-]{36}$/i.test(id);
+  const placeId = isUuid(enrichedPlace.place_id)
+    ? enrichedPlace.place_id
+    : (isUuid(enrichedPlace.id) ? enrichedPlace.id : null);
   const isFavorited = isPlaceFavorited(placeId);
 
   const headerRef = useRef(null);
@@ -230,7 +237,7 @@ export default function PlaceDetails({
   const addReviewMutation = useMutation({
     mutationFn: async (reviewData) => {
       return Review.create({
-        placeId: enrichedPlace.place_id,
+        placeId: placeId,
         rating: reviewData.rating,
         priceOpinion: reviewData.price_opinion || null,
         comment: reviewData.comment,
@@ -238,7 +245,7 @@ export default function PlaceDetails({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: ["reviews", "place", enrichedPlace.place_id],
+        queryKey: ["reviews", "place", placeId],
       });
       setReviewRating(0);
       setReviewPriceOpinion("");
@@ -831,7 +838,16 @@ export default function PlaceDetails({
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
-            {onAddToTrip && (
+            {isInTrip && onRemoveFromTrip ? (
+              <Button
+                onClick={() => {
+                  onRemoveFromTrip();
+                }}
+                className="bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white px-4 py-2 h-10 text-sm font-bold rounded-xl shadow-lg shadow-red-500/25 transition-all hover:scale-105 border-0"
+              >
+                Remove from Trip
+              </Button>
+            ) : onAddToTrip ? (
               <Button
                 onClick={() => {
                   onAddToTrip();
@@ -840,7 +856,7 @@ export default function PlaceDetails({
               >
                 Add to Trip
               </Button>
-            )}
+            ) : null}
 
             <button
               onClick={onClose}

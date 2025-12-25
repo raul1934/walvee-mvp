@@ -454,9 +454,12 @@ const getCityById = async (req, res, next) => {
         .json(buildErrorResponse("RESOURCE_NOT_FOUND", "City not found"));
     }
 
-    // Add trip_count from trip_cities
+    // Add trip_count from trip_cities (exclude draft trips)
     const [[{ trip_count }]] = await City.sequelize.query(
-      "SELECT COUNT(*) AS trip_count FROM trip_cities WHERE city_id = ?",
+      `SELECT COUNT(*) AS trip_count
+       FROM trip_cities tc
+       JOIN trips t ON tc.trip_id = t.id
+       WHERE tc.city_id = ? AND t.is_draft = false`,
       { replacements: [id] }
     );
 
@@ -515,7 +518,10 @@ const getCitiesByCountry = async (req, res, next) => {
         include: [
           [
             require("../database/sequelize").sequelize.literal(`(
-                SELECT COUNT(*) FROM trip_cities tc WHERE tc.city_id = City.id
+                SELECT COUNT(*)
+                FROM trip_cities tc
+                JOIN trips t ON tc.trip_id = t.id
+                WHERE tc.city_id = City.id AND t.is_draft = false
               )`),
             "trip_count",
           ],
@@ -1033,7 +1039,8 @@ const getSuggestedCitiesByCountry = async (req, res, next) => {
             sequelize.literal(`(
               SELECT COUNT(*)
               FROM trip_cities tc
-              WHERE tc.city_id = City.id
+              JOIN trips t ON tc.trip_id = t.id
+              WHERE tc.city_id = City.id AND t.is_draft = false
             )`),
             "trip_count",
           ],

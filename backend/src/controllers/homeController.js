@@ -32,6 +32,7 @@ const getHomeTrips = async (req, res) => {
     let trips;
     try {
       trips = await Trip.findAll({
+        where: { is_draft: false },
         order: sequelize.random(),
         limit: parseInt(limit),
         attributes: [
@@ -144,6 +145,7 @@ const getHomeTrips = async (req, res) => {
       );
 
       trips = await Trip.findAll({
+        where: { is_draft: false },
         order: sequelize.random(),
         limit: parseInt(limit),
         attributes: [
@@ -430,7 +432,8 @@ const getHomeCities = async (req, res) => {
           sequelize.literal(`(
             SELECT COUNT(*)
             FROM trip_cities tc
-            WHERE tc.city_id = City.id
+            JOIN trips t ON tc.trip_id = t.id
+            WHERE tc.city_id = City.id AND t.is_draft = false
           )`),
           "trip_count",
         ],
