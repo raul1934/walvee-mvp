@@ -574,24 +574,32 @@ const generateAiReviewText = async (place) => {
 
 **Your role:** Provide a curated overview and practical insights that complement other reviews.
 
+**USE GOOGLE MAPS:**
+- **Search Google Maps** to understand the current reputation, reviews, and visitor feedback for ${place.name}
+- **Summarize actual user reviews** from Google Maps to capture authentic visitor experiences
+- **Reference real amenities** mentioned in Google Maps reviews (parking, accessibility, facilities)
+- **Include nearby attractions** and landmarks using Google Maps location data
+- **Verify current status** (open/closed, renovations, seasonal closures) via Google Maps
+- **Mention neighborhood context** using Google Maps area information
+
 **Requirements:**
 
 1. **Structure:** Write 3-4 short, scannable paragraphs (max 4 lines each)
 
 2. **Content sections:**
-   - **Overview:** What makes this place special and who it's perfect for
-   - **Atmosphere & Experience:** Vibe, ambiance, what to expect
-   - **Practical Tips:** Best times to visit, how to get there, what to bring
-   - **Insider Info:** Local tips, things first-timers should know
+   - **Overview:** What makes this place special and who it's perfect for (based on Google Maps reviews)
+   - **Atmosphere & Experience:** Vibe, ambiance, what to expect (cite common themes from Google Maps reviews)
+   - **Practical Tips:** Best times to visit, how to get there, what to bring (use Google Maps data)
+   - **Insider Info:** Local tips, things first-timers should know (from Google Maps review insights)
 
 3. **Sources:**
    - If using external info, cite at the end:
-   
+
 Sources:
 - [Source Name](full_url)
 - [Another Source](full_url)
 
-4. **Rating:** Provide a realistic 4-5 star rating based on the place's actual reputation
+4. **Rating:** Provide a realistic 4-5 star rating based on the place's actual Google Maps reputation and review sentiment
 
 **Tone:** Helpful travel curator sharing expert insights — informative, warm, trustworthy.`;
 
@@ -611,7 +619,34 @@ Sources:
     };
 
     const geminiModel = genAI.getGenerativeModel(modelConfig);
-    const result = await geminiModel.generateContent(prompt);
+
+    // Build request config with Maps Grounding if location available
+    const requestConfig = {
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+    };
+
+    // Enable Maps Grounding if place has location data
+    if (place.latitude && place.longitude) {
+      requestConfig.tools = [{ googleMaps: {} }];
+      requestConfig.toolConfig = {
+        retrievalConfig: {
+          latLng: {
+            latitude: place.latitude,
+            longitude: place.longitude,
+          },
+        },
+      };
+      console.log(
+        `[Generate AI Review] Maps Grounding enabled for ${place.name} at location:`,
+        { latitude: place.latitude, longitude: place.longitude }
+      );
+    } else {
+      console.log(
+        `[Generate AI Review] No location data for ${place.name} - grounding disabled`
+      );
+    }
+
+    const result = await geminiModel.generateContent(requestConfig);
     const responseText = result.response.text();
 
     return JSON.parse(responseText);

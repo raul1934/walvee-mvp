@@ -107,26 +107,30 @@ CURRENT USER MESSAGE: "${userQuery}"
 
 INSTRUCTIONS:
 1. **Check grammar and spelling** in all your responses
-2. **Always provide recommendations** - ${
+2. **Use Google Maps** to find accurate, up-to-date places with real-time data
+   - Search Google Maps for places matching the user's query
+   - Verify that places are currently open and accessible
+   - Use actual ratings, reviews, and popularity data from Google Maps
+3. **Always provide recommendations** - ${
       cityName
         ? "places, beaches, activities, or businesses IN " + cityName
         : "cities, places, activities, or businesses"
     }
-3. **Return structured data** with a conversational message AND recommendations
-4. ${
+4. **Return structured data** with a conversational message AND recommendations
+5. ${
       cityName
         ? "**IMPORTANT: Only recommend places WITHIN " + cityName + "**"
         : "**City Detection**: Identify if user mentioned a specific city"
     }
-5. ${
+6. ${
       !cityName
         ? "**If NO city mentioned AND no active city**: Suggest 3-4 destination cities"
         : ""
     }
-6. **CRITICAL: For EVERY recommendation/place, you MUST include the google_place_id field**
-   - This is the Google Place ID that uniquely identifies the location
-   - Example: "ChIJN1t_tDeuEmsRUsoyG83frY4" (valid Place ID format)
-   - Use your knowledge of real, verifiable locations with valid Google Place IDs
+7. **CRITICAL: For EVERY recommendation/place, include the Google Place ID from Google Maps**
+   - Extract the actual Place ID from Google Maps for each recommendation
+   - Example format: "ChIJN1t_tDeuEmsRUsoyG83frY4"
+   - Only recommend places that exist in Google Maps with valid Place IDs
    - If you cannot find a valid Google Place ID for a recommendation, do not include that recommendation
 
 **Response Format:**
@@ -182,9 +186,16 @@ Provide exactly 6 recommendations (no more, no less). Respond in ${
       ? `\n\nADDITIONAL INSTRUCTIONS: ${userQuery}`
       : "";
 
-    const prompt = `You are an expert travel planner. Create a ${days}-day itinerary for ${cityName} based on these places:
+    const prompt = `You are an expert travel planner with access to Google Maps. Create a ${days}-day itinerary for ${cityName} based on these places:
 
 ${placesList}${customInstructions}
+
+INSTRUCTIONS:
+1. **Use Google Maps** to calculate actual walking distances and travel times between places
+2. **Organize activities by proximity** to minimize travel time within each day
+3. **Consider real opening hours** from Google Maps when scheduling activities
+4. **Group nearby places together** within each day for efficient routing
+5. **Verify place details** using Google Maps (current hours, accessibility, ratings)
 
 Return JSON with a top-level key "itinerary" which is an array of days. Each day should be an object with:
 - day (number)
@@ -192,16 +203,17 @@ Return JSON with a top-level key "itinerary" which is an array of days. Each day
 - description (1-2 sentences about the day's theme)
 - places: array of objects with:
   - name (place name)
-  - estimated_duration (e.g., "2h" or "30m")
-  - notes (brief activity notes or tips)
-  - google_place_id (REQUIRED - Google Place ID for this place)
+  - estimated_duration (e.g., "2h" or "30m" - based on typical visit times and Google Maps data)
+  - notes (brief activity notes, tips, or best times to visit based on Google Maps reviews)
+  - google_place_id (REQUIRED - Google Place ID from Google Maps)
 
-CRITICAL: For EVERY place in the itinerary, you MUST include the google_place_id field.
-- Use your knowledge of real places and their valid Google Place IDs
-- Example: "ChIJN1t_tDeuEmsRUsoyG83frY4"
-- If you cannot find a valid Google Place ID for a place, do not include that place in the itinerary
+CRITICAL: For EVERY place in the itinerary, extract the google_place_id from Google Maps.
+- Validate each place exists in Google Maps with accurate location data
+- Example format: "ChIJN1t_tDeuEmsRUsoyG83frY4"
+- Only include places that can be found in Google Maps
+- Organize the daily schedule to minimize walking distance using real Google Maps routes
 
-Keep durations short and realistic. Respond in ${
+Keep durations realistic based on Google Maps data. Respond in ${
       language === "pt" ? "Portuguese" : "English"
     }.`;
 

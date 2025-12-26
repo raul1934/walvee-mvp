@@ -91,16 +91,22 @@ exports.getRecommendations = async (req, res) => {
         );
     }
 
-    // Resolve city_id to city name for AI prompt
+    // Resolve city_id to city name and location for AI prompt
     let cityName = null;
+    let cityLocation = null;
     if (city_id) {
       const cityRecord = await City.findByPk(city_id, {
         include: [{ model: Country, as: "country" }],
       });
       if (cityRecord) {
         cityName = cityRecord.name;
+        cityLocation = {
+          latitude: cityRecord.latitude,
+          longitude: cityRecord.longitude
+        };
         console.log(
-          `[Inspire] Resolved city_id ${city_id} to city name: ${cityName}`
+          `[Inspire] Resolved city_id ${city_id} to city name: ${cityName} with location:`,
+          cityLocation
         );
       } else {
         console.warn(
@@ -124,7 +130,7 @@ exports.getRecommendations = async (req, res) => {
     // Get schema with google_maps_id
     const responseSchema = promptService.getRecommendationsSchema();
 
-    // Call Gemini
+    // Call Gemini with Maps Grounding
     const modelConfig = {
       model: GEMINI_MODEL_RECOMMENDATIONS,
       generationConfig: {
@@ -134,12 +140,72 @@ exports.getRecommendations = async (req, res) => {
     };
 
     const geminiModel = genAI.getGenerativeModel(modelConfig);
-    const result = await geminiModel.generateContent(systemPrompt);
+
+    // Build request with optional Maps Grounding
+    const requestConfig = {
+      contents: [{ role: "user", parts: [{ text: systemPrompt }] }],
+    };
+
+    // Add Google Maps Grounding if city location is available
+    if (cityLocation && cityLocation.latitude && cityLocation.longitude) {
+      requestConfig.tools = [{ googleMaps: { enableWidget: true } }];
+      requestConfig.toolConfig = {
+        retrievalConfig: {
+          latLng: {
+            latitude: cityLocation.latitude,
+            longitude: cityLocation.longitude
+          }
+        }
+      };
+      console.log('[Inspire] Maps Grounding enabled with location:', cityLocation);
+    }
+
+    const result = await geminiModel.generateContent(requestConfig);
     const text = result.response.text();
 
     let parsedResponse = JSON.parse(text);
 
     console.log("[Inspire] Raw recommendations response:", parsedResponse);
+
+    // Extract grounding metadata if available
+    const groundingMetadata = result.response.candidates?.[0]?.groundingMetadata;
+    let googleMapsWidgetToken = null;
+
+    if (groundingMetadata) {
+      console.log('[Inspire] Grounding metadata received:', {
+        chunksCount: groundingMetadata.groundingChunks?.length || 0,
+        hasWidget: !!groundingMetadata.googleMapsWidgetContextToken
+      });
+
+      // Extract validated Place IDs from grounding chunks
+      if (groundingMetadata.groundingChunks) {
+        const groundedPlaces = groundingMetadata.groundingChunks
+          .filter(chunk => chunk.maps)
+          .map(chunk => ({
+            placeId: chunk.maps.placeId?.replace('places/', ''), // Remove 'places/' prefix if present
+            title: chunk.maps.title,
+            uri: chunk.maps.uri
+          }));
+
+        console.log('[Inspire] Grounded places from Maps:', groundedPlaces);
+
+        // Match AI recommendations with grounded data to ensure valid Place IDs
+        parsedResponse.recommendations.forEach(rec => {
+          const groundedPlace = groundedPlaces.find(p =>
+            p.title?.toLowerCase().includes(rec.name?.toLowerCase()) ||
+            rec.name?.toLowerCase().includes(p.title?.toLowerCase())
+          );
+          if (groundedPlace) {
+            rec.google_place_id = groundedPlace.placeId;
+            rec.google_maps_uri = groundedPlace.uri;
+            console.log(`[Inspire] Matched "${rec.name}" with grounded Place ID: ${groundedPlace.placeId}`);
+          }
+        });
+      }
+
+      // Store widget token for frontend
+      googleMapsWidgetToken = groundingMetadata.googleMapsWidgetContextToken;
+    }
 
     // Validate and enrich Place IDs and City IDs (check DB first, then Google Maps API)
     parsedResponse.recommendations =
@@ -150,6 +216,12 @@ exports.getRecommendations = async (req, res) => {
         City,
         Country
       );
+
+    // Add widget token to response if available
+    if (googleMapsWidgetToken) {
+      parsedResponse.googleMapsWidgetContextToken = googleMapsWidgetToken;
+      console.log('[Inspire] Added Maps widget token to response');
+    }
 
     // Auto-save messages to database if trip_id provided (validate trip exists and belongs to user)
     if (trip_id) {
@@ -280,7 +352,7 @@ exports.organizeItinerary = async (req, res) => {
       }
     }
 
-    // Resolve city_id to city name for AI prompt
+    // Resolve city_id to city name and location for AI prompt
     const cityRecord = await City.findByPk(city_id, {
       include: [{ model: Country, as: "country" }],
     });
@@ -295,8 +367,13 @@ exports.organizeItinerary = async (req, res) => {
         );
     }
     const cityName = cityRecord.name;
+    const cityLocation = {
+      latitude: cityRecord.latitude,
+      longitude: cityRecord.longitude
+    };
     console.log(
-      `[Inspire] Organizing itinerary for city_id ${city_id} (${cityName})`
+      `[Inspire] Organizing itinerary for city_id ${city_id} (${cityName}) with location:`,
+      cityLocation
     );
 
     // Initialize Gemini
@@ -326,7 +403,7 @@ exports.organizeItinerary = async (req, res) => {
     // Get schema with google_maps_id
     const responseSchema = promptService.getOrganizeItinerarySchema();
 
-    // Call Gemini
+    // Call Gemini with Maps Grounding for proximity/distance understanding
     const modelConfig = {
       model: GEMINI_MODEL_ORGANIZE,
       generationConfig: {
@@ -336,7 +413,24 @@ exports.organizeItinerary = async (req, res) => {
     };
 
     const geminiModel = genAI.getGenerativeModel(modelConfig);
-    const result = await geminiModel.generateContent(systemPrompt);
+
+    // Build request with Maps Grounding for better route optimization
+    const requestConfig = {
+      contents: [{ role: "user", parts: [{ text: systemPrompt }] }],
+      tools: [{ googleMaps: {} }],
+      toolConfig: {
+        retrievalConfig: {
+          latLng: {
+            latitude: cityLocation.latitude,
+            longitude: cityLocation.longitude
+          }
+        }
+      }
+    };
+
+    console.log('[Inspire/Organize] Maps Grounding enabled for route optimization');
+
+    const result = await geminiModel.generateContent(requestConfig);
     const text = result.response.text();
 
     let parsedResponse = JSON.parse(text);
@@ -719,6 +813,22 @@ exports.modifyTrip = async (req, res) => {
       })),
     };
 
+    // Extract location from first city for Maps Grounding
+    let cityLocation = null;
+    if (trip.cities && trip.cities.length > 0) {
+      const firstCity = trip.cities[0];
+      if (firstCity.latitude && firstCity.longitude) {
+        cityLocation = {
+          latitude: firstCity.latitude,
+          longitude: firstCity.longitude
+        };
+        console.log(
+          `[Inspire/ModifyTrip] Using location from ${firstCity.name}:`,
+          cityLocation
+        );
+      }
+    }
+
     // 3. Build system prompt
     const systemPrompt = buildTripModificationPrompt(
       tripContext,
@@ -726,7 +836,7 @@ exports.modifyTrip = async (req, res) => {
       conversation_history
     );
 
-    // 4. Call Gemini with JSON schema
+    // 4. Call Gemini with JSON schema and Maps Grounding
     const genAI = initGemini();
     if (!genAI) {
       return res
@@ -750,7 +860,27 @@ exports.modifyTrip = async (req, res) => {
     };
 
     const geminiModel = genAI.getGenerativeModel(modelConfig);
-    const result = await geminiModel.generateContent(systemPrompt);
+
+    // Build request with Maps Grounding for context-aware place suggestions
+    const requestConfig = {
+      contents: [{ role: "user", parts: [{ text: systemPrompt }] }]
+    };
+
+    // Add Google Maps Grounding if city location is available
+    if (cityLocation) {
+      requestConfig.tools = [{ googleMaps: {} }];
+      requestConfig.toolConfig = {
+        retrievalConfig: {
+          latLng: {
+            latitude: cityLocation.latitude,
+            longitude: cityLocation.longitude
+          }
+        }
+      };
+      console.log('[Inspire/ModifyTrip] Maps Grounding enabled for context-aware suggestions');
+    }
+
+    const result = await geminiModel.generateContent(requestConfig);
     const responseData = result.response;
     const text = responseData.text();
 
@@ -891,13 +1021,22 @@ You can propose the following operations:
 4. REMOVE_PLACE - Remove a place from the trip
 5. ADD_ITINERARY - Create or replace itinerary for a city
 
+USE GOOGLE MAPS:
+When suggesting places to add to the trip:
+- **Search Google Maps** for real, currently open places matching the user's request
+- When user says "nearby", find places actually close to existing trip locations using Google Maps
+- Verify places are accessible and have good reviews on Google Maps
+- Extract valid Google Place IDs directly from Google Maps
+- Consider real-time data: opening hours, popularity, current ratings
+
 CRITICAL RULES:
 1. ACCURACY: Only propose changes that make sense given the trip context
 2. VALIDATION: Before removing a city or place, check it exists in the trip
-3. SPECIFICITY: Always include Google Place IDs when adding places (use your knowledge of real places)
+3. SPECIFICITY: Always include Google Place IDs from Google Maps when adding places
 4. CLARIFICATION: If the user's request is ambiguous, ask clarifying questions with OPTIONS
 5. BATCH: Return ALL changes as separate operations (don't group them)
 6. REASONING: Include a "reason" for each change to explain why
+7. PROXIMITY: When adding places, use Google Maps to verify they're in the correct city/area
 
 WHEN TO ASK CLARIFICATION:
 - City name is ambiguous (e.g., "Paris" could be France or Texas)

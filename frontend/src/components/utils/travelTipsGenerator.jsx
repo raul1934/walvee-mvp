@@ -1,7 +1,12 @@
 /**
  * Generate travel tips for a specific day using Gemini AI
+ * @param {Object} dayData - Day itinerary data with places
+ * @param {string} destination - Destination name
+ * @param {Object} [cityLocation] - Optional city location for Maps Grounding
+ * @param {number} cityLocation.latitude - City latitude
+ * @param {number} cityLocation.longitude - City longitude
  */
-export async function generateDayTips(dayData, destination) {
+export async function generateDayTips(dayData, destination, cityLocation = null) {
   if (!dayData?.places || dayData.places.length === 0) {
     return {};
   }
@@ -21,6 +26,7 @@ ${placesContext}
 - Focus on practical insights: timing, atmosphere, what to expect
 - Only include periods that are relevant based on the places listed
 - If a period doesn't have relevant activities, omit it
+${cityLocation ? '- **Use Google Maps** to reference real opening hours, peak times, and current conditions for the places listed' : ''}
 
 **Output Format (JSON):**
 {
@@ -35,10 +41,11 @@ ${placesContext}
 - Maximum 2 lines per tip
 - No emojis
 - Be specific to the actual places in the itinerary
-- Omit periods without relevant activities (don't return empty strings)`;
+- Omit periods without relevant activities (don't return empty strings)
+${cityLocation ? '- Reference real-time data from Google Maps when mentioning opening hours or busy times' : ''}`;
 
   try {
-    const response = await invokeLLM({
+    const llmOptions = {
       prompt: prompt,
       add_context_from_internet: false,
       response_json_schema: {
@@ -51,7 +58,19 @@ ${placesContext}
           night: { type: "string" }
         }
       }
-    });
+    };
+
+    // Enable Maps Grounding if city location provided
+    if (cityLocation?.latitude && cityLocation?.longitude) {
+      llmOptions.use_grounding = true;
+      llmOptions.location = {
+        latitude: cityLocation.latitude,
+        longitude: cityLocation.longitude
+      };
+      console.log('[TravelTips] Maps Grounding enabled for', destination, 'at location:', cityLocation);
+    }
+
+    const response = await invokeLLM(llmOptions);
 
     const filteredTips = {};
     Object.keys(response).forEach(key => {
@@ -69,8 +88,13 @@ ${placesContext}
 
 /**
  * Generate tips for all days in a trip
+ * @param {Array} itinerary - Array of day objects
+ * @param {string} destination - Destination name
+ * @param {Object} [cityLocation] - Optional city location for Maps Grounding
+ * @param {number} cityLocation.latitude - City latitude
+ * @param {number} cityLocation.longitude - City longitude
  */
-export async function generateTripTips(itinerary, destination) {
+export async function generateTripTips(itinerary, destination, cityLocation = null) {
   if (!itinerary || itinerary.length === 0) {
     return itinerary;
   }
@@ -78,7 +102,7 @@ export async function generateTripTips(itinerary, destination) {
   const enrichedItinerary = [];
 
   for (const day of itinerary) {
-    const tips = await generateDayTips(day, destination);
+    const tips = await generateDayTips(day, destination, cityLocation);
     enrichedItinerary.push({
       ...day,
       ...tips

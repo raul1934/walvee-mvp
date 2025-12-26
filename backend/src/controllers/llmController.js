@@ -58,6 +58,8 @@ exports.chat = async (req, res) => {
       prompt,
       model = GEMINI_MODEL_CHAT_DEFAULT,
       response_json_schema,
+      use_grounding = false,
+      location,
     } = req.body;
 
     if (!prompt) {
@@ -93,8 +95,34 @@ exports.chat = async (req, res) => {
 
     const geminiModel = genAI.getGenerativeModel(modelConfig);
 
+    // Build request config
+    const requestConfig = {
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+    };
+
+    // Enable Maps Grounding if requested and location provided
+    if (use_grounding && location?.latitude && location?.longitude) {
+      requestConfig.tools = [{ googleMaps: {} }];
+      requestConfig.toolConfig = {
+        retrievalConfig: {
+          latLng: {
+            latitude: location.latitude,
+            longitude: location.longitude,
+          },
+        },
+      };
+      console.log(
+        "[LLM Chat] Maps Grounding enabled with location:",
+        location
+      );
+    } else if (use_grounding) {
+      console.log(
+        "[LLM Chat] Grounding requested but no valid location provided - grounding disabled"
+      );
+    }
+
     // Generate content
-    const result = await geminiModel.generateContent(prompt);
+    const result = await geminiModel.generateContent(requestConfig);
     const response_data = result.response;
     const text = response_data.text();
 
