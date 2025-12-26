@@ -29,9 +29,19 @@ const ChatMessage = sequelize.define(
       type: DataTypes.JSON,
       allowNull: true,
     },
+    city_id: {
+      type: DataTypes.CHAR(36),
+      allowNull: true,
+      references: {
+        model: "cities",
+        key: "id",
+      },
+    },
     city_context: {
       type: DataTypes.STRING(255),
       allowNull: true,
+      // TODO: FUTURE CLEANUP - Remove this column after city_id is fully adopted
+      // Keep for backward compatibility with old messages that only have city_context
     },
     timestamp: {
       type: DataTypes.DATE,
@@ -43,7 +53,8 @@ const ChatMessage = sequelize.define(
     tableName: "chat_messages",
     indexes: [
       { fields: ["trip_id", "timestamp"] },
-      { fields: ["trip_id", "city_context"] },
+      { fields: ["trip_id", "city_id"] }, // New index for city_id lookups
+      { fields: ["trip_id", "city_context"] }, // Keep old index for backward compatibility
     ],
   }
 );

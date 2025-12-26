@@ -13,6 +13,7 @@ import {
   loadMessages,
 } from "@/api/inspireService";
 import { Trip } from "@/api/backendService";
+import { City } from "@/api/cityService";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ChevronRight,
@@ -311,6 +312,13 @@ export default function InspirePrompt() {
   const [cityTabs, setCityTabs] = useState([]);
   const [initialCityPrefillDone, setInitialCityPrefillDone] = useState(false);
   const [activeCity, setActiveCity] = useState(null);
+
+  // Helper function to get active city ID (UUID)
+  const getActiveCityId = () => {
+    if (!activeCity) return null;
+    const tab = cityTabs.find((t) => t.name === activeCity);
+    return tab?.id || null;
+  };
 
   // Filters & Cities modal
   const [showFilters, setShowFilters] = useState(false);
@@ -943,18 +951,7 @@ export default function InspirePrompt() {
             await Trip.addCity(tripId, payload);
             createdCityId = resolvedCityId;
           } catch (cityError) {
-            // Check if it's a duplicate city error
-            if (cityError.response?.data?.code === "DUPLICATE_CITY") {
-              setErrorModalConfig({
-                title: "City Already Added",
-                message:
-                  cityError.response?.data?.message ||
-                  "This city is already in your trip.",
-              });
-              setShowErrorModal(true);
-              return;
-            }
-            // For other city errors, log and continue
+            // For city errors, log and continue
             console.error("[InspirePrompt] Error adding city:", cityError);
           }
         }
@@ -971,19 +968,7 @@ export default function InspirePrompt() {
       } catch (error) {
         console.error("[InspirePrompt] Error persisting place:", error);
 
-        // Check if it's a duplicate place error
-        if (error.response?.data?.code === "DUPLICATE_PLACE") {
-          setErrorModalConfig({
-            title: "Place Already Added",
-            message:
-              error.response?.data?.message ||
-              "This place is already in your trip.",
-          });
-          setShowErrorModal(true);
-          return;
-        }
-
-        // For other errors, show generic error
+        // Show generic error for all errors
         setErrorModalConfig({
           title: "Error Adding Place",
           message:
@@ -1336,9 +1321,22 @@ export default function InspirePrompt() {
     setIsOrganizingTrip(true);
 
     try {
+      // Get city ID from cityName
+      const cityTab = cityTabs.find((t) => t.name === cityName);
+      const cityId = cityTab?.id || null;
+
+      if (!cityId) {
+        console.error(
+          "[handleConfirmOrganize] City ID not found for:",
+          cityName
+        );
+        setIsOrganizingTrip(false);
+        return;
+      }
+
       // Call new organize endpoint
       const response = await organizeItinerary({
-        city_name: cityName,
+        city_id: cityId,
         places: places || [],
         days: days,
         user_query: "", // Optional custom instructions
@@ -1572,7 +1570,7 @@ export default function InspirePrompt() {
         user_query: currentInput,
         conversation_history: conversationHistory,
         filters: selectedFilters,
-        city_context: activeCity,
+        city_id: getActiveCityId(),
         trip_id: currentTripId,
       });
 
@@ -1782,6 +1780,12 @@ export default function InspirePrompt() {
           margin-top: 64px;
           position: relative;
           width: 100%;
+        }
+
+        /* When city tabs are visible, add extra margin */
+        .inspire-main-layout.with-city-tabs {
+          margin-top: 64px;
+          height: calc(100vh - 64px);
         }
 
         /* Places sidebar */
@@ -2511,17 +2515,46 @@ export default function InspirePrompt() {
           width: 100%;
           max-width: 520px;
           height: 100vh;
-          background: #0D0D0D;
-          box-shadow: -4px 0 24px rgba(0, 0, 0, 0.5);
+          background: linear-gradient(135deg, #0F1014 0%, #1A1B23 100%);
+          box-shadow:
+            -4px 0 24px rgba(0, 0, 0, 0.5),
+            -2px 0 12px rgba(59, 130, 246, 0.1);
           animation: slideInFromRight 0.3s ease-out;
           display: flex;
           flex-direction: column;
+          border-left: 1px solid rgba(255, 255, 255, 0.1);
         }
 
-        /* Organize Trip Modal tweaks */
-        .place-modal-content.p-6 {
-          max-width: 700px;
-          padding: 24px;
+        /* Organize Trip modal */
+        .organize-trip-modal-container {
+          position: fixed;
+          inset: 0;
+          z-index: 100;
+          display: flex;
+          align-items: center;
+          justify-content: flex-end;
+        }
+
+        .organize-trip-modal-backdrop {
+          position: absolute;
+          inset: 0;
+          background: rgba(0, 0, 0, 0.7);
+          backdrop-filter: blur(4px);
+        }
+
+        .organize-trip-modal-content {
+          position: relative;
+          width: 100%;
+          max-width: 520px;
+          height: 100vh;
+          background: linear-gradient(135deg, #0F1014 0%, #1A1B23 100%);
+          box-shadow:
+            -4px 0 24px rgba(0, 0, 0, 0.5),
+            -2px 0 12px rgba(59, 130, 246, 0.1);
+          animation: slideInFromRight 0.3s ease-out;
+          display: flex;
+          flex-direction: column;
+          border-left: 1px solid rgba(255, 255, 255, 0.1);
         }
 
         .organize-days-input {
@@ -2547,9 +2580,9 @@ export default function InspirePrompt() {
         @media (max-width: 768px) {
           .places-sidebar {
             width: 300px;
-            position: absolute;
+            position: fixed;
             left: 0;
-            top: 0;
+            top: 116px; /* Header (64px) + City tabs container (~52px) */
             bottom: 0;
             z-index: 40;
             transform: translateX(-100%);
@@ -2646,7 +2679,11 @@ export default function InspirePrompt() {
       )}
 
       {/* Main Layout with Sidebar (sidebar moved inside content area for proper stacking) */}
-      <div className="inspire-main-layout">
+      <div
+        className={`inspire-main-layout ${
+          cityTabs.length > 0 || messages.length > 0 ? "with-city-tabs" : ""
+        }`}
+      >
         {/* Fixed Places Sidebar (left, non-scrolling on desktop) */}
         {activeCity && (
           <PlacesSidebar

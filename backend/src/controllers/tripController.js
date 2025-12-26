@@ -504,10 +504,8 @@ const createTrip = async (req, res, next) => {
 
     // Create trip_cities entries if cities array provided
     if (cities && Array.isArray(cities) && cities.length > 0) {
-      // normalize to integer ids
-      const cityIds = cities
-        .map((c) => (typeof c === "object" ? c.id : c))
-        .filter(Boolean);
+      // Extract city UUIDs from objects (cities must be [{id: uuid}] format)
+      const cityIds = cities.map((c) => c.id).filter(Boolean);
       for (let i = 0; i < cityIds.length; i++) {
         const cityId = cityIds[i];
         await Trip.sequelize.query(
@@ -688,9 +686,8 @@ const updateTrip = async (req, res, next) => {
       await Trip.sequelize.query("DELETE FROM trip_cities WHERE trip_id = ?", {
         replacements: [id],
       });
-      const cityIds = cities
-        .map((c) => (typeof c === "object" ? c.id : c))
-        .filter(Boolean);
+      // Extract city UUIDs from objects (cities must be [{id: uuid}] format)
+      const cityIds = cities.map((c) => c.id).filter(Boolean);
       for (let i = 0; i < cityIds.length; i++) {
         const cityId = cityIds[i];
         await Trip.sequelize.query(
@@ -1381,14 +1378,8 @@ const addPlaceToTrip = async (req, res, next) => {
     });
 
     if (existingPlace) {
-      return res
-        .status(409)
-        .json(
-          buildErrorResponse(
-            "DUPLICATE_PLACE",
-            `"${name}" is already added to this trip`
-          )
-        );
+      // Return existing place instead of error
+      return res.status(200).json(buildSuccessResponse({ place: existingPlace }));
     }
 
     // Resolve place record from provided `place_id` which can be either a Google Place ID (string)
@@ -1559,18 +1550,18 @@ const addCityToTrip = async (req, res, next) => {
     const hasCityAlready = await trip.hasCity(cityRecord.id);
 
     if (hasCityAlready) {
-      // City already exists - return error
+      // City already exists - return success with existing city
       const cityName = cityRecord.country
         ? `${cityRecord.name}, ${cityRecord.country.name}`
         : cityRecord.name;
-      return res
-        .status(409)
-        .json(
-          buildErrorResponse(
-            "DUPLICATE_CITY",
-            `"${cityName}" is already added to this trip`
-          )
-        );
+      return res.status(200).json(
+        buildSuccessResponse({
+          city: {
+            id: cityRecord.id,
+            name: cityName,
+          },
+        })
+      );
     }
 
     // Get all existing cities to compute next city_order

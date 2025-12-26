@@ -66,7 +66,8 @@ class InspirePromptService {
    * @param {string} userQuery - Raw user input
    * @param {Object} filters - User filters
    * @param {Array} conversationHistory - Message history
-   * @param {string} cityContext - Active city name (optional)
+   * @param {string} cityId - Active city UUID (optional)
+   * @param {string} cityName - Active city name (optional) - resolved from cityId
    * @param {string} language - "pt" or "en"
    * @returns {string} - Complete prompt for Gemini
    */
@@ -74,7 +75,8 @@ class InspirePromptService {
     userQuery,
     filters,
     conversationHistory,
-    cityContext,
+    cityId,
+    cityName,
     language
   ) {
     const filterContext = this.buildFilterContext(filters);
@@ -87,8 +89,11 @@ IMPORTANT: Always check grammar and spelling in your responses. Ensure all text 
     }.`;
 
     // Add city context restriction if provided
-    if (cityContext) {
-      systemPrompt += `\n\nCURRENT CITY CONTEXT: The user is currently planning their trip to ${cityContext}. Focus recommendations ONLY on places, activities, and experiences IN ${cityContext}. Do NOT suggest other cities.`;
+    if (cityId && cityName) {
+      systemPrompt += `\n\nCURRENT CITY CONTEXT: The user is currently planning their trip to ${cityName} (City ID: ${cityId}). Focus recommendations ONLY on places, activities, and experiences IN ${cityName}. Do NOT suggest other cities.`;
+    } else if (cityName) {
+      // Fallback for backward compatibility if only cityName provided
+      systemPrompt += `\n\nCURRENT CITY CONTEXT: The user is currently planning their trip to ${cityName}. Focus recommendations ONLY on places, activities, and experiences IN ${cityName}. Do NOT suggest other cities.`;
     }
 
     const fullPrompt = `${systemPrompt}
@@ -103,18 +108,18 @@ CURRENT USER MESSAGE: "${userQuery}"
 INSTRUCTIONS:
 1. **Check grammar and spelling** in all your responses
 2. **Always provide recommendations** - ${
-      cityContext
-        ? "places, beaches, activities, or businesses IN " + cityContext
+      cityName
+        ? "places, beaches, activities, or businesses IN " + cityName
         : "cities, places, activities, or businesses"
     }
 3. **Return structured data** with a conversational message AND recommendations
 4. ${
-      cityContext
-        ? "**IMPORTANT: Only recommend places WITHIN " + cityContext + "**"
+      cityName
+        ? "**IMPORTANT: Only recommend places WITHIN " + cityName + "**"
         : "**City Detection**: Identify if user mentioned a specific city"
     }
 5. ${
-      !cityContext
+      !cityName
         ? "**If NO city mentioned AND no active city**: Suggest 3-4 destination cities"
         : ""
     }
@@ -130,15 +135,15 @@ INSTRUCTIONS:
   "recommendations": [
     {
       "name": "${
-        cityContext ? "Place/Activity/Business Name" : "Place/City Name"
+        cityName ? "Place/Activity/Business Name" : "Place/City Name"
       }",
       "type": "${
-        cityContext
+        cityName
           ? '"place" | "activity" | "business"'
           : '"city" | "place" | "activity" | "business" | "cidade" | "lugar" | "atividade" | "negócio"'
       }",
       "description": "Brief description",
-      "city": "${cityContext || "City name (if applicable)"}",
+      "city": "${cityName || "City name (if applicable)"}",
       "country": "Country",
       "why": "Why it matches",
       "google_place_id": "REQUIRED - Google Place ID for this location"
@@ -649,6 +654,12 @@ Keep durations short and realistic. Respond in ${
    */
   async enrichWithCityIds(recommendations, City, Country, PlaceModel = null) {
     const cityEnrichmentPromises = recommendations.map(async (rec) => {
+      // TODO: FUTURE CLEANUP - Consider removing city/country name parsing fallback
+      // This logic extracts city/country from "Place Name, City, Country" format
+      // when LLM doesn't provide separate city/country fields.
+      // Once LLM reliability improves, this can be simplified to only use
+      // the city/country fields directly from recommendations.
+
       // If city or country missing, try to extract from the recommendation name
       if (!rec.city || !rec.country) {
         try {

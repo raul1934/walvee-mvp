@@ -27,14 +27,16 @@ router.post(
     body("cities").optional().isArray(),
     body("cities.*")
       .optional()
+      .isObject()
       .custom((val) => {
         const isUuid = (v) =>
           typeof v === "string" && /^[0-9a-fA-F\-]{36}$/.test(v);
-        if (typeof val === "string" && isUuid(val)) return true;
-        if (typeof val === "object" && isUuid(val.id)) return true;
-        throw new Error(
-          "each city must be a uuid string or object with an `id` uuid"
-        );
+        if (!val.id || !isUuid(val.id)) {
+          throw new Error(
+            "each city must be an object with an `id` uuid property"
+          );
+        }
+        return true;
       }),
     body("destinationLat").optional().isFloat(),
     body("destinationLng").optional().isFloat(),
@@ -69,14 +71,16 @@ router.put(
     body("cities").optional().isArray(),
     body("cities.*")
       .optional()
+      .isObject()
       .custom((val) => {
         const isUuid = (v) =>
           typeof v === "string" && /^[0-9a-fA-F\-]{36}$/.test(v);
-        if (typeof val === "string" && isUuid(val)) return true;
-        if (typeof val === "object" && isUuid(val.id)) return true;
-        throw new Error(
-          "each city must be a uuid string or object with an `id` uuid"
-        );
+        if (!val.id || !isUuid(val.id)) {
+          throw new Error(
+            "each city must be an object with an `id` uuid property"
+          );
+        }
+        return true;
       }),
   ],
   validate,

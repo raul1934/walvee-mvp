@@ -709,6 +709,80 @@ const migrations = [
       }
     },
   },
+  {
+    name: "add_city_id_to_chat_messages",
+    up: async (connection) => {
+      console.log("  -> Adding city_id column to chat_messages table");
+
+      // Step 1: Add city_id column (nullable initially)
+      try {
+        await connection.query(`
+          ALTER TABLE chat_messages
+          ADD COLUMN city_id CHAR(36) NULL
+        `);
+        console.log("    ✓ Added city_id column");
+      } catch (err) {
+        if (err && err.code === "ER_DUP_FIELDNAME") {
+          console.log("    -> city_id column already exists, skipping");
+        } else {
+          throw err;
+        }
+      }
+
+      // Step 2: Add foreign key constraint
+      try {
+        await connection.query(`
+          ALTER TABLE chat_messages
+          ADD CONSTRAINT fk_chat_messages_city
+          FOREIGN KEY (city_id) REFERENCES cities(id)
+          ON UPDATE CASCADE
+          ON DELETE SET NULL
+        `);
+        console.log("    ✓ Added foreign key constraint to cities table");
+      } catch (err) {
+        if (err && (err.code === "ER_DUP_KEYNAME" || err.code === "ER_FK_DUP_NAME")) {
+          console.log("    -> Foreign key constraint already exists, skipping");
+        } else {
+          throw err;
+        }
+      }
+
+      // Step 3: Backfill city_id from city_context
+      try {
+        console.log("    -> Backfilling city_id from city_context");
+        const [result] = await connection.query(`
+          UPDATE chat_messages cm
+          SET city_id = (
+            SELECT c.id
+            FROM cities c
+            WHERE LOWER(c.name) = LOWER(cm.city_context)
+            LIMIT 1
+          )
+          WHERE cm.city_context IS NOT NULL
+          AND cm.city_context != ''
+          AND cm.city_id IS NULL
+        `);
+        console.log(`    ✓ Backfilled ${result.affectedRows || 0} rows`);
+      } catch (err) {
+        console.log("    -> Could not backfill city_id (this may be OK):", err.message);
+      }
+
+      // Step 4: Add index for performance
+      try {
+        await connection.query(`
+          ALTER TABLE chat_messages
+          ADD INDEX idx_chat_messages_trip_city (trip_id, city_id)
+        `);
+        console.log("    ✓ Added index idx_chat_messages_trip_city");
+      } catch (err) {
+        if (err && err.code === "ER_DUP_KEYNAME") {
+          console.log("    -> Index idx_chat_messages_trip_city already exists, skipping");
+        } else {
+          throw err;
+        }
+      }
+    },
+  },
 ];
 
 const runMigrations = async () => {

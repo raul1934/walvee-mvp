@@ -57,7 +57,7 @@ const GEMINI_MODEL_TRIP_MODIFICATION =
  * @param   {Object} req.body.user_query - User's search query
  * @param   {Array} [req.body.conversation_history] - Previous conversation messages
  * @param   {Object} [req.body.filters] - User filters (interests, budget, pace, etc.)
- * @param   {string} [req.body.city_context] - Active city name to restrict recommendations
+ * @param   {string} [req.body.city_id] - Active city UUID to restrict recommendations
  * @returns {InspireSuccessResponse} Success response with recommendations
  * @returns {InspireErrorResponse} Error response
  */
@@ -67,7 +67,7 @@ exports.getRecommendations = async (req, res) => {
       user_query,
       conversation_history = [],
       filters = {},
-      city_context = null,
+      city_id = null,
       trip_id = null,
     } = req.body;
 
@@ -91,6 +91,24 @@ exports.getRecommendations = async (req, res) => {
         );
     }
 
+    // Resolve city_id to city name for AI prompt
+    let cityName = null;
+    if (city_id) {
+      const cityRecord = await City.findByPk(city_id, {
+        include: [{ model: Country, as: "country" }],
+      });
+      if (cityRecord) {
+        cityName = cityRecord.name;
+        console.log(
+          `[Inspire] Resolved city_id ${city_id} to city name: ${cityName}`
+        );
+      } else {
+        console.warn(
+          `[Inspire] city_id ${city_id} not found in database - proceeding without city context`
+        );
+      }
+    }
+
     // Build prompt using service
     const promptService = new InspirePromptService();
     const language = promptService.detectLanguage(user_query);
@@ -98,7 +116,8 @@ exports.getRecommendations = async (req, res) => {
       user_query,
       filters,
       conversation_history,
-      city_context,
+      city_id,
+      cityName,
       language
     );
 
@@ -155,7 +174,8 @@ exports.getRecommendations = async (req, res) => {
               trip_id,
               role: "user",
               content: user_query,
-              city_context,
+              city_id,
+              city_context: cityName, // Keep for backward compatibility
               timestamp: new Date(),
             },
             {
@@ -164,7 +184,8 @@ exports.getRecommendations = async (req, res) => {
               role: "assistant",
               content: parsedResponse.message,
               recommendations: parsedResponse.recommendations,
-              city_context,
+              city_id,
+              city_context: cityName, // Keep for backward compatibility
               timestamp: new Date(),
             },
           ];
@@ -206,7 +227,7 @@ exports.getRecommendations = async (req, res) => {
  * @desc    Create structured itinerary from places
  * @access  Private
  * @param   {string} [req.body.user_query] - Optional custom instructions
- * @param   {string} req.body.city_name - City name for the itinerary
+ * @param   {string} req.body.city_id - City UUID for the itinerary
  * @param   {Array} req.body.places - Array of places to organize
  * @param   {number} req.body.days - Number of days for the itinerary
  * @returns {InspireSuccessResponse} Success response with organized itinerary
@@ -214,16 +235,16 @@ exports.getRecommendations = async (req, res) => {
  */
 exports.organizeItinerary = async (req, res) => {
   try {
-    const { user_query = "", city_name, places, days } = req.body;
+    const { user_query = "", city_id, places, days } = req.body;
 
     // Validation
-    if (!city_name || !places || !days) {
+    if (!city_id || !places || !days) {
       return res
         .status(400)
         .json(
           buildErrorResponse(
             "VALIDATION_ERROR",
-            "city_name, places, and days are required"
+            "city_id, places, and days are required"
           )
         );
     }
@@ -238,6 +259,25 @@ exports.organizeItinerary = async (req, res) => {
           )
         );
     }
+
+    // Resolve city_id to city name for AI prompt
+    const cityRecord = await City.findByPk(city_id, {
+      include: [{ model: Country, as: "country" }],
+    });
+    if (!cityRecord) {
+      return res
+        .status(404)
+        .json(
+          buildErrorResponse(
+            "NOT_FOUND",
+            `City with id ${city_id} not found in database`
+          )
+        );
+    }
+    const cityName = cityRecord.name;
+    console.log(
+      `[Inspire] Organizing itinerary for city_id ${city_id} (${cityName})`
+    );
 
     // Initialize Gemini
     const genAI = initGemini();
@@ -254,10 +294,10 @@ exports.organizeItinerary = async (req, res) => {
 
     // Build prompt using service
     const promptService = new InspirePromptService();
-    const language = promptService.detectLanguage(user_query || city_name);
+    const language = promptService.detectLanguage(user_query || cityName);
     const systemPrompt = promptService.buildOrganizeItineraryPrompt(
       user_query,
-      city_name,
+      cityName,
       places,
       days,
       language

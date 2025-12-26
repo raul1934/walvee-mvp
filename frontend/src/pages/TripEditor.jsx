@@ -411,7 +411,7 @@ export default function TripEditor() {
       trip_images: formData.trip_images || [],
       images: formData.images || [],
       visibility: formData.visibility,
-      cities: formData.cities.map((c) => c.id),
+      cities: formData.cities.map((c) => ({ id: c.id })),
       tags: formData.tags || [],
       itinerary: formData.itinerary.map((day) => ({
         day: day.day,

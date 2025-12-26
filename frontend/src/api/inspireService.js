@@ -1,6 +1,32 @@
 import { apiClient, endpoints } from "./apiClient";
 
 /**
+ * @typedef {Object} RecommendationFilters
+ * @property {string[]} [interests] - User interests
+ * @property {string} [budget] - Budget level
+ * @property {string} [pace] - Travel pace
+ * @property {string} [companions] - Travel companions
+ * @property {string} [season] - Preferred season
+ */
+
+/**
+ * @typedef {Object} RecommendationsOptions
+ * @property {string} user_query - User's search query
+ * @property {Array<{role: string, content: string}>} [conversation_history] - Previous messages
+ * @property {RecommendationFilters} [filters] - User filters
+ * @property {string} [city_id] - City UUID to restrict recommendations (not city name)
+ * @property {string} [trip_id] - Optional trip ID for auto-save
+ */
+
+/**
+ * @typedef {Object} OrganizeItineraryOptions
+ * @property {string} city_id - City UUID (required, not city name)
+ * @property {Array<Object>} places - Array of places to organize
+ * @property {number} days - Number of days for the itinerary
+ * @property {string} [user_query] - Optional custom instructions
+ */
+
+/**
  * Invoke the Inspire endpoint (wraps LLM chat with Inspire-specific defaults)
  * @param {Object} options - { prompt, trip_id (optional), conversation_history (optional) }
  */
@@ -56,7 +82,7 @@ export async function applyChanges(tripId, changes) {
 
 /**
  * Get AI recommendations for places/cities
- * @param {Object} options - { user_query, conversation_history, filters, city_context }
+ * @param {RecommendationsOptions} options - Recommendation options
  * @returns {Promise<Object>} AI recommendations response
  */
 export async function getRecommendations(options) {
@@ -74,7 +100,7 @@ export async function getRecommendations(options) {
 
 /**
  * Organize itinerary from places
- * @param {Object} options - { user_query, city_name, places, days }
+ * @param {OrganizeItineraryOptions} options - Itinerary options
  * @returns {Promise<Object>} Organized itinerary response
  */
 export async function organizeItinerary(options) {

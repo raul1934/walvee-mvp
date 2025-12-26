@@ -178,6 +178,8 @@ function initModels() {
   // Chat Message associations
   Trip.hasMany(ChatMessage, { foreignKey: "trip_id", as: "chatMessages" });
   ChatMessage.belongsTo(Trip, { foreignKey: "trip_id", as: "trip" });
+  City.hasMany(ChatMessage, { foreignKey: "city_id", as: "chatMessages" });
+  ChatMessage.belongsTo(City, { foreignKey: "city_id", as: "city" });
 
   modelsInitialized = true;
 }
