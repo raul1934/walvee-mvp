@@ -42,6 +42,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import TripMap from "../components/map/TripMap";
+import PublishTripModal from "../components/trip/PublishTripModal";
 
 export default function TripEditor() {
   const { tripId } = useParams();
@@ -125,6 +126,11 @@ export default function TripEditor() {
   const [cityPlaces, setCityPlaces] = useState({}); // Object keyed by city ID
   const [cityPlacesLoading, setCityPlacesLoading] = useState(false);
   const [cityPlaceType, setCityPlaceType] = useState("all");
+
+  // Publish modal state
+  const [showPublishModal, setShowPublishModal] = useState(false);
+  const [isPublishing, setIsPublishing] = useState(false);
+  const [tripData, setTripData] = useState(null);
   const [cityPlaceSearch, setCityPlaceSearch] = useState("");
   // When user types a place search, store global results here (across cities)
   const [globalPlaceSearchResults, setGlobalPlaceSearchResults] = useState([]);
@@ -501,6 +507,49 @@ export default function TripEditor() {
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Publish handlers
+  const handleOpenPublishModal = async () => {
+    // Fetch latest trip data with all photos
+    try {
+      const response = await Trip.getById(tripId);
+      if (response && response.success && response.data) {
+        setTripData(response.data);
+        setShowPublishModal(true);
+      }
+    } catch (error) {
+      showNotification({
+        type: "error",
+        title: "Error",
+        message: "Could not load trip data for publishing",
+      });
+    }
+  };
+
+  const handlePublish = async (photosData) => {
+    setIsPublishing(true);
+    try {
+      const response = await Trip.publish(tripId, photosData);
+
+      showNotification({
+        type: "success",
+        title: "Trip Published",
+        message: "Your trip has been published successfully!",
+      });
+
+      setShowPublishModal(false);
+      // Optionally navigate to the trip details page
+      navigate(`/TripDetails/${tripId}`);
+    } catch (error) {
+      showNotification({
+        type: "error",
+        title: "Publish Failed",
+        message: error.message || "Could not publish trip",
+      });
+    } finally {
+      setIsPublishing(false);
     }
   };
 
@@ -1340,23 +1389,35 @@ export default function TripEditor() {
               </h1>
             </div>
 
-            <Button
-              onClick={mode === "create" ? handleCreate : handleUpdate}
-              disabled={loading}
-              className="bg-gradient-to-r from-blue-600 to-purple-600 hover:opacity-90 text-white font-semibold h-10 px-6 rounded-lg my-2 md:my-0"
-            >
-              {loading ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
-                  {mode === "create" ? "Creating..." : "Saving..."}
-                </>
-              ) : (
-                <>
-                  <Save className="w-4 h-4 mr-2" />
-                  {mode === "create" ? "Create Trip" : "Save Changes"}
-                </>
+            <div className="flex gap-3">
+              {mode === "edit" && tripId && (
+                <Button
+                  onClick={handleOpenPublishModal}
+                  disabled={loading}
+                  className="bg-gradient-to-r from-green-600 to-emerald-600 hover:opacity-90 text-white font-semibold h-10 px-6 rounded-lg"
+                >
+                  <UploadIcon className="w-4 h-4 mr-2" />
+                  Publish
+                </Button>
               )}
-            </Button>
+              <Button
+                onClick={mode === "create" ? handleCreate : handleUpdate}
+                disabled={loading}
+                className="bg-gradient-to-r from-blue-600 to-purple-600 hover:opacity-90 text-white font-semibold h-10 px-6 rounded-lg my-2 md:my-0"
+              >
+                {loading ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                    {mode === "create" ? "Creating..." : "Saving..."}
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-4 h-4 mr-2" />
+                    {mode === "create" ? "Create Trip" : "Save Changes"}
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
         </div>
 
@@ -2681,6 +2742,15 @@ export default function TripEditor() {
           </div>
         </div>
       )}
+
+      {/* Publish Trip Modal */}
+      <PublishTripModal
+        isOpen={showPublishModal}
+        onClose={() => setShowPublishModal(false)}
+        trip={tripData}
+        onPublish={handlePublish}
+        isPublishing={isPublishing}
+      />
     </div>
   );
 }

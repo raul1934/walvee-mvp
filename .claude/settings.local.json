@@ -10,7 +10,8 @@
       "Bash(node:*)",
       "Bash(curl:*)",
       "Bash(npm run migrate:*)",
-      "Bash(npm run lint)"
+      "Bash(npm run lint)",
+      "Bash(mysql:*)"
     ]
   }
 }

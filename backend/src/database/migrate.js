@@ -783,6 +783,122 @@ const migrations = [
       }
     },
   },
+  {
+    name: "add_city_id_to_trip_itinerary_days",
+    up: async (connection) => {
+      console.log("  -> Adding city_id column to trip_itinerary_days table");
+
+      // Step 1: Add city_id column (nullable initially)
+      try {
+        await connection.query(`
+          ALTER TABLE trip_itinerary_days
+          ADD COLUMN city_id CHAR(36) NULL
+        `);
+        console.log("    ✓ Added city_id column");
+      } catch (err) {
+        if (err && err.code === "ER_DUP_FIELDNAME") {
+          console.log("    -> city_id column already exists, skipping");
+        } else {
+          throw err;
+        }
+      }
+
+      // Step 2: Add foreign key constraint
+      try {
+        await connection.query(`
+          ALTER TABLE trip_itinerary_days
+          ADD CONSTRAINT fk_trip_itinerary_days_city
+          FOREIGN KEY (city_id) REFERENCES cities(id)
+          ON UPDATE CASCADE
+          ON DELETE SET NULL
+        `);
+        console.log("    ✓ Added foreign key constraint to cities table");
+      } catch (err) {
+        if (err && (err.code === "ER_DUP_KEYNAME" || err.code === "ER_FK_DUP_NAME")) {
+          console.log("    -> Foreign key constraint already exists, skipping");
+        } else {
+          throw err;
+        }
+      }
+
+      // Step 3: Backfill city_id from trip_cities (use first city for each trip)
+      try {
+        console.log("    -> Backfilling city_id from trip_cities");
+        const [result] = await connection.query(`
+          UPDATE trip_itinerary_days tid
+          SET city_id = (
+            SELECT tc.city_id
+            FROM trip_cities tc
+            WHERE tc.trip_id = tid.trip_id
+            ORDER BY tc.city_order ASC
+            LIMIT 1
+          )
+          WHERE tid.city_id IS NULL
+        `);
+        console.log(`    ✓ Backfilled ${result.affectedRows || 0} itinerary days`);
+      } catch (err) {
+        console.log("    -> Could not backfill city_id (this may be OK):", err.message);
+      }
+
+      // Step 4: Remove old unique constraint (trip_id, day_number)
+      try {
+        console.log("    -> Removing old unique constraint");
+        const [constraints] = await connection.query(`
+          SELECT CONSTRAINT_NAME
+          FROM information_schema.TABLE_CONSTRAINTS
+          WHERE TABLE_NAME = 'trip_itinerary_days'
+            AND CONSTRAINT_TYPE = 'UNIQUE'
+            AND CONSTRAINT_SCHEMA = DATABASE()
+        `);
+
+        for (const constraint of constraints) {
+          const constraintName = constraint.CONSTRAINT_NAME;
+          if (constraintName.includes('trip') && constraintName.includes('day')) {
+            try {
+              await connection.query(`
+                ALTER TABLE trip_itinerary_days DROP INDEX ${constraintName}
+              `);
+              console.log(`    ✓ Removed constraint: ${constraintName}`);
+            } catch (err) {
+              console.log(`    -> Could not remove constraint ${constraintName}`);
+            }
+          }
+        }
+      } catch (err) {
+        console.log("    -> Could not remove old constraints (this may be OK)");
+      }
+
+      // Step 5: Add new unique constraint (trip_id, city_id, day_number)
+      try {
+        await connection.query(`
+          ALTER TABLE trip_itinerary_days
+          ADD CONSTRAINT unique_trip_city_day UNIQUE (trip_id, city_id, day_number)
+        `);
+        console.log("    ✓ Added unique constraint on (trip_id, city_id, day_number)");
+      } catch (err) {
+        if (err && err.code === "ER_DUP_KEYNAME") {
+          console.log("    -> Unique constraint unique_trip_city_day already exists, skipping");
+        } else {
+          throw err;
+        }
+      }
+
+      // Step 6: Add index for query performance
+      try {
+        await connection.query(`
+          ALTER TABLE trip_itinerary_days
+          ADD INDEX idx_trip_itinerary_days_trip_city (trip_id, city_id)
+        `);
+        console.log("    ✓ Added index idx_trip_itinerary_days_trip_city");
+      } catch (err) {
+        if (err && err.code === "ER_DUP_KEYNAME") {
+          console.log("    -> Index idx_trip_itinerary_days_trip_city already exists, skipping");
+        } else {
+          throw err;
+        }
+      }
+    },
+  },
 ];
 
 const runMigrations = async () => {

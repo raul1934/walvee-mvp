@@ -235,7 +235,8 @@ exports.getRecommendations = async (req, res) => {
  */
 exports.organizeItinerary = async (req, res) => {
   try {
-    const { user_query = "", city_id, places, days } = req.body;
+    const { user_query = "", city_id, places, days, trip_id } = req.body;
+    const userId = req.user.id; // From auth middleware
 
     // Validation
     if (!city_id || !places || !days) {
@@ -258,6 +259,25 @@ exports.organizeItinerary = async (req, res) => {
             "places must be a non-empty array"
           )
         );
+    }
+
+    // Validate trip_id if provided
+    let trip = null;
+    if (trip_id) {
+      trip = await Trip.findOne({
+        where: { id: trip_id, author_id: userId },
+      });
+
+      if (!trip) {
+        return res
+          .status(404)
+          .json(
+            buildErrorResponse(
+              "NOT_FOUND",
+              "Trip not found or you don't have permission to modify it"
+            )
+          );
+      }
     }
 
     // Resolve city_id to city name for AI prompt
@@ -342,6 +362,88 @@ exports.organizeItinerary = async (req, res) => {
       }
     });
 
+    // Save itinerary to database if trip_id provided
+    if (trip_id && trip) {
+      console.log(
+        `[Inspire] Saving itinerary to trip ${trip_id} for city ${city_id}`
+      );
+
+      // Delete existing itinerary days for this specific city only
+      const deletedCount = await TripItineraryDay.destroy({
+        where: {
+          trip_id: trip_id,
+          city_id: city_id,
+        },
+      });
+
+      console.log(
+        `[Inspire] Deleted ${deletedCount} existing itinerary days for city ${city_id}`
+      );
+
+      // Create new itinerary days and activities
+      const savedDays = [];
+      for (const day of parsedResponse.itinerary) {
+        const dayRecord = await TripItineraryDay.create({
+          trip_id: trip_id,
+          city_id: city_id,
+          day_number: day.day,
+          title: day.title,
+          description: day.description,
+        });
+
+        // Create activities for this day (from day.places)
+        const savedActivities = [];
+        if (day.places && day.places.length > 0) {
+          for (let i = 0; i < day.places.length; i++) {
+            const place = day.places[i];
+
+            // Find place_id if google_place_id provided
+            let placeId = null;
+            if (
+              place.google_place_id &&
+              place.google_place_id !== "MANUAL_ENTRY_REQUIRED"
+            ) {
+              const placeRecord = await Place.findOne({
+                where: { google_place_id: place.google_place_id },
+              });
+              placeId = placeRecord?.id || null;
+            }
+
+            const activity = await TripItineraryActivity.create({
+              itinerary_day_id: dayRecord.id,
+              time: place.estimated_duration || null,
+              name: place.name,
+              location: place.name,
+              description: place.notes || "",
+              activity_order: i,
+              place_id: placeId,
+            });
+
+            savedActivities.push(activity);
+          }
+        }
+
+        savedDays.push({
+          ...dayRecord.toJSON(),
+          activities: savedActivities,
+        });
+      }
+
+      console.log(
+        `[Inspire] Created ${savedDays.length} itinerary days for city ${city_id}`
+      );
+
+      // Return saved itinerary with database IDs
+      return res.json(
+        buildSuccessResponse({
+          ...parsedResponse,
+          saved: true,
+          itinerary_days: savedDays,
+        })
+      );
+    }
+
+    // If no trip_id, return organized itinerary without saving
     return res.json(buildSuccessResponse(parsedResponse));
   } catch (error) {
     console.error("[Inspire] organizeItinerary error:", error);

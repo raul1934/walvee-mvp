@@ -17,6 +17,15 @@ const TripItineraryDay = sequelize.define(
         key: "id",
       },
     },
+    city_id: {
+      type: DataTypes.UUID,
+      allowNull: true,
+      references: {
+        model: "cities",
+        key: "id",
+      },
+      comment: "Links itinerary day to a specific city for multi-city trips",
+    },
     day_number: {
       type: DataTypes.INTEGER,
       allowNull: false,
@@ -35,7 +44,8 @@ const TripItineraryDay = sequelize.define(
     indexes: [
       { fields: ["trip_id"] },
       { fields: ["day_number"] },
-      { unique: true, fields: ["trip_id", "day_number"] },
+      { fields: ["trip_id", "city_id"] },
+      { unique: true, fields: ["trip_id", "city_id", "day_number"] },
     ],
   }
 );

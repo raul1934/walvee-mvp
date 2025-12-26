@@ -39,6 +39,7 @@ import UserAvatar from "../components/common/UserAvatar";
 import PlaceDetails from "../components/trip/PlaceDetails";
 import ProposedChanges from "../components/inspire/ProposedChanges";
 import ClarificationQuestions from "../components/inspire/ClarificationQuestions";
+import PublishTripModal from "../components/trip/PublishTripModal";
 
 const EXAMPLE_PROMPTS = [
   "Scuba trip through Southeast Asia on a budget.",
@@ -360,6 +361,11 @@ export default function InspirePrompt() {
   const [proposedChanges, setProposedChanges] = useState(null);
   const [clarificationQuestions, setClarificationQuestions] = useState(null);
   const [isApplyingChanges, setIsApplyingChanges] = useState(false);
+
+  // Publish modal state
+  const [showPublishModal, setShowPublishModal] = useState(false);
+  const [isPublishing, setIsPublishing] = useState(false);
+  const [fullTripData, setFullTripData] = useState(null);
 
   // Example prompts rotation
   const [currentExampleIndex, setCurrentExampleIndex] = useState(0);
@@ -1334,27 +1340,23 @@ export default function InspirePrompt() {
         return;
       }
 
-      // Call new organize endpoint
+      // Call organize endpoint WITH trip_id for auto-save
       const response = await organizeItinerary({
         city_id: cityId,
         places: places || [],
         days: days,
         user_query: "", // Optional custom instructions
+        trip_id: tripId, // Backend saves automatically if trip_id provided
       });
 
       // Response already has .itinerary
       const itinerary = response.itinerary || [];
 
-      // Persist itinerary to backend if tripId exists
-      if (tripId) {
-        try {
-          await Trip.saveItinerary(tripId, { itinerary });
-        } catch (error) {
-          console.error("[InspirePrompt] Error persisting itinerary:", error);
-          // Continue with local state update even if backend fails
-        }
-      }
+      console.log(
+        `[InspirePrompt] Itinerary organized${tripId ? " and saved" : ""} for city ${cityId}`
+      );
 
+      // Update local state with organized itinerary
       setCityTabs((prev) =>
         prev.map((tab) =>
           tab.name === cityName
@@ -1366,6 +1368,15 @@ export default function InspirePrompt() {
       setIsOrganizeTripModalOpen(false);
     } catch (error) {
       console.error("[OrganizeTrip] Error:", error);
+      // Show error notification to user
+      setErrorModalConfig({
+        title: "Error Organizing Trip",
+        message:
+          error.response?.data?.message ||
+          error.message ||
+          "Failed to organize itinerary. Please try again.",
+      });
+      setShowErrorModal(true);
     } finally {
       setIsOrganizingTrip(false);
     }
@@ -1634,31 +1645,55 @@ export default function InspirePrompt() {
   // Placeholder function for opening login modal
   const openLoginModal = () => {};
 
-  // Handle publishing trip
+  // Handle opening publish modal
   const handlePublishTrip = async () => {
     if (!tripId) return;
 
     try {
-      const title = prompt("Enter trip title:");
-      if (!title || !title.trim()) return;
+      const response = await Trip.get(tripId);
 
-      const description = prompt("Enter trip description (optional):");
+      // Handle both response formats - direct data or wrapped in success/data
+      let tripData;
+      if (response && response.success && response.data) {
+        tripData = response.data;
+      } else if (response && response.id) {
+        tripData = response;
+      } else {
+        throw new Error("Invalid response format");
+      }
 
-      await finalizeTrip(tripId, {
-        title: title.trim(),
-        description: description?.trim() || "",
-        is_public: true,
+      setFullTripData(tripData);
+      setShowPublishModal(true);
+    } catch (error) {
+      setErrorModalConfig({
+        title: "Error",
+        message: error.message || "Could not load trip data for publishing",
       });
+      setShowErrorModal(true);
+    }
+  };
 
+  // Handle publishing with photos
+  const handlePublishWithPhotos = async (photosData, tripDetails) => {
+    setIsPublishing(true);
+    try {
+      await Trip.publish(tripId, { photos: photosData, ...tripDetails });
+
+      setShowPublishModal(false);
       // Redirect to trip details
       navigate(`/TripDetails/${tripId}`);
     } catch (error) {
       console.error("[InspirePrompt] Error publishing trip:", error);
-      alert(
-        error.response?.data?.error?.message ||
+      setErrorModalConfig({
+        title: "Publish Failed",
+        message:
+          error.response?.data?.error?.message ||
           error.message ||
-          "Failed to publish trip"
-      );
+          "Failed to publish trip",
+      });
+      setShowErrorModal(true);
+    } finally {
+      setIsPublishing(false);
     }
   };
 
@@ -1868,7 +1903,7 @@ export default function InspirePrompt() {
           height: 100%;
           box-sizing: border-box;
           align-self: center;
-          flex: 0 1 900px;
+          flex: 1;
         }
 
         /* Conversation State (now scrollable) */
@@ -1976,9 +2011,11 @@ export default function InspirePrompt() {
           display: flex;
           flex-direction: column;
           align-items: center;
-          justify-content: flex-start;
+          justify-content: center;
           max-width: 1200px;
           margin: 0 auto;
+          flex: 1;
+          min-height: 0;
         }
 
         .welcome-hero {
@@ -3094,6 +3131,15 @@ export default function InspirePrompt() {
             }}
           />
         )}
+
+        {/* Publish Trip Modal */}
+        <PublishTripModal
+          isOpen={showPublishModal}
+          onClose={() => setShowPublishModal(false)}
+          trip={fullTripData}
+          onPublish={handlePublishWithPhotos}
+          isPublishing={isPublishing}
+        />
       </div>
     </div>
   );

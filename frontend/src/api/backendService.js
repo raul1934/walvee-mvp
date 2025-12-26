@@ -139,6 +139,14 @@ export const Trip = {
     return response.data;
   },
 
+  async publish(tripId, data) {
+    const response = await apiClient.post(
+      endpoints.trips.publish(tripId),
+      data
+    );
+    return response.data;
+  },
+
   async patch(tripId, data) {
     const response = await apiClient.request(
       endpoints.trips.finalize(tripId),

@@ -71,6 +71,16 @@ function initModels() {
   });
   TripItineraryDay.belongsTo(Trip, { foreignKey: "trip_id" });
 
+  // City-TripItineraryDay association
+  TripItineraryDay.belongsTo(City, {
+    foreignKey: "city_id",
+    as: "city",
+  });
+  City.hasMany(TripItineraryDay, {
+    foreignKey: "city_id",
+    as: "itineraryDays",
+  });
+
   TripItineraryDay.hasMany(TripItineraryActivity, {
     foreignKey: "itinerary_day_id",
     as: "activities",

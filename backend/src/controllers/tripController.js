@@ -308,8 +308,7 @@ const getTripById = async (req, res, next) => {
             {
               model: CityPhoto,
               as: "photos",
-              attributes: ["url_small", "url_medium", "url_large"],
-              limit: 3,
+              attributes: ["id", "url_small", "url_medium", "url_large"],
             },
           ],
         },
@@ -348,7 +347,7 @@ const getTripById = async (req, res, next) => {
                 {
                   model: PlacePhoto,
                   as: "photos",
-                  attributes: ["url_small", "url_medium", "url_large", "photo_order"],
+                  attributes: ["id", "url_small", "url_medium", "url_large", "photo_order"],
                   order: [["photo_order", "ASC"]],
                 },
               ],
@@ -1865,6 +1864,182 @@ const removeCityFromTrip = async (req, res, next) => {
   }
 };
 
+/**
+ * Publish trip with selected photos
+ * POST /trips/:id/publish
+ */
+const publishTrip = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    let { photos, title, description } = req.body;
+    const userId = req.user.id;
+
+    // Verify trip exists and user is the author
+    const trip = await Trip.findOne({
+      where: { id, author_id: userId },
+    });
+
+    if (!trip) {
+      return res
+        .status(404)
+        .json(
+          buildErrorResponse(
+            "NOT_FOUND",
+            "Trip not found or you don't have permission to publish it"
+          )
+        );
+    }
+
+    // If no photos provided, auto-select random photos from cities/places
+    if (!photos || photos.length === 0) {
+      // Get trip with cities and places
+      const tripWithData = await Trip.findByPk(id, {
+        include: [
+          {
+            model: City,
+            as: "cities",
+            attributes: ["id"],
+            through: { attributes: [] },
+            include: [
+              {
+                model: CityPhoto,
+                as: "photos",
+                attributes: ["id"],
+                limit: 5,
+              },
+            ],
+          },
+          {
+            model: TripPlace,
+            as: "places",
+            attributes: ["place_id"],
+            include: [
+              {
+                model: Place,
+                as: "place",
+                attributes: ["id"],
+                include: [
+                  {
+                    model: PlacePhoto,
+                    as: "photos",
+                    attributes: ["id"],
+                    limit: 5,
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      });
+
+      const cityPhotos = [];
+      const placePhotos = [];
+
+      // Extract city photos
+      if (tripWithData.cities) {
+        tripWithData.cities.forEach((city) => {
+          if (city.photos) {
+            city.photos.forEach((photo) => {
+              cityPhotos.push({ id: photo.id, type: "city" });
+            });
+          }
+        });
+      }
+
+      // Extract place photos
+      if (tripWithData.places) {
+        tripWithData.places.forEach((tripPlace) => {
+          if (tripPlace.place && tripPlace.place.photos) {
+            tripPlace.place.photos.forEach((photo) => {
+              placePhotos.push({ id: photo.id, type: "place" });
+            });
+          }
+        });
+      }
+
+      // Shuffle and combine photos
+      const shuffleArray = (array) => {
+        const shuffled = [...array];
+        for (let i = shuffled.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+        }
+        return shuffled;
+      };
+
+      const shuffledCityPhotos = shuffleArray(cityPhotos).slice(0, 5);
+      const shuffledPlacePhotos = shuffleArray(placePhotos).slice(0, 5);
+      const autoPhotos = [...shuffledCityPhotos, ...shuffledPlacePhotos].slice(
+        0,
+        10
+      );
+
+      // Convert to photos array format
+      photos = autoPhotos.map((photo, index) => ({
+        place_photo_id: photo.type === "place" ? photo.id : null,
+        city_photo_id: photo.type === "city" ? photo.id : null,
+        image_order: index,
+        is_cover: index === 0,
+      }));
+    }
+
+    // Update trip details
+    const updateData = { is_public: true, is_draft: false };
+    if (title !== undefined) {
+      updateData.title = title;
+    }
+    if (description !== undefined) {
+      updateData.description = description;
+    }
+    await trip.update(updateData);
+
+    // Delete existing trip images
+    await TripImage.destroy({ where: { trip_id: id } });
+
+    // Create new trip images (only if we have photos)
+    if (photos && photos.length > 0) {
+      const tripImages = photos.map((photo) => ({
+        trip_id: id,
+        place_photo_id: photo.place_photo_id || null,
+        city_photo_id: photo.city_photo_id || null,
+        image_order: photo.image_order,
+        is_cover: photo.is_cover,
+      }));
+
+      await TripImage.bulkCreate(tripImages);
+    }
+
+    // Fetch trip with images to return
+    const updatedTrip = await Trip.findByPk(id, {
+      include: [
+        {
+          model: TripImage,
+          as: "images",
+          include: [
+            {
+              model: PlacePhoto,
+              as: "placePhoto",
+            },
+            {
+              model: CityPhoto,
+              as: "cityPhoto",
+            },
+          ],
+        },
+      ],
+    });
+
+    return res.json(
+      buildSuccessResponse({
+        message: "Trip published successfully",
+        trip: updatedTrip,
+      })
+    );
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getTrips,
   getTripById,
@@ -1883,4 +2058,5 @@ module.exports = {
   createDraftTrip,
   getCurrentDraftTrip,
   finalizeTripDraft,
+  publishTrip,
 };
