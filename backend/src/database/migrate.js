@@ -398,7 +398,9 @@ const migrations = [
         `);
         console.log("  -> Backfilled trip_cities from destination_city_id");
       } else {
-        console.log("  -> Skipping backfill (destination_city_id column doesn't exist)");
+        console.log(
+          "  -> Skipping backfill (destination_city_id column doesn't exist)"
+        );
       }
     },
   },
@@ -581,29 +583,129 @@ const migrations = [
             AND COLUMN_NAME = 'place_id'
         `);
 
-        if (rows && rows.length > 0 && rows[0].COLUMN_TYPE && rows[0].COLUMN_TYPE.toLowerCase().includes('int')) {
-          await connection.query(`ALTER TABLE trip_places MODIFY COLUMN place_id CHAR(36) NULL`);
-          console.log('  -> Changed trip_places.place_id to CHAR(36)');
+        if (
+          rows &&
+          rows.length > 0 &&
+          rows[0].COLUMN_TYPE &&
+          rows[0].COLUMN_TYPE.toLowerCase().includes("int")
+        ) {
+          await connection.query(
+            `ALTER TABLE trip_places MODIFY COLUMN place_id CHAR(36) NULL`
+          );
+          console.log("  -> Changed trip_places.place_id to CHAR(36)");
         } else {
-          console.log('  -> trip_places.place_id already non-integer or missing, skipping');
+          console.log(
+            "  -> trip_places.place_id already non-integer or missing, skipping"
+          );
         }
 
         // Drop existing FK if present and add proper FK to places.id
         try {
-          await connection.query(`ALTER TABLE trip_places DROP FOREIGN KEY fk_trip_places_place`);
+          await connection.query(
+            `ALTER TABLE trip_places DROP FOREIGN KEY fk_trip_places_place`
+          );
         } catch (err) {
           // ignore
         }
 
         try {
-          await connection.query(`ALTER TABLE trip_places ADD CONSTRAINT fk_trip_places_place FOREIGN KEY (place_id) REFERENCES places(id) ON DELETE SET NULL ON UPDATE CASCADE`);
-          console.log('  -> Added fk_trip_places_place -> places(id)');
+          await connection.query(
+            `ALTER TABLE trip_places ADD CONSTRAINT fk_trip_places_place FOREIGN KEY (place_id) REFERENCES places(id) ON DELETE SET NULL ON UPDATE CASCADE`
+          );
+          console.log("  -> Added fk_trip_places_place -> places(id)");
         } catch (err) {
-          console.log('  -> Could not add fk_trip_places_place (maybe exists)');
+          console.log("  -> Could not add fk_trip_places_place (maybe exists)");
         }
       } catch (err) {
-        console.error('Error migrating trip_places.place_id:', err.message);
+        console.error("Error migrating trip_places.place_id:", err.message);
         throw err;
+      }
+    },
+  },
+  {
+    name: "ensure_id_default_uuid",
+    up: async (connection) => {
+      console.log(
+        "  -> Ensuring id columns use CHAR(36) and DEFAULT UUID() where possible"
+      );
+      const tables = [
+        "countries",
+        "cities",
+        "users",
+        "trips",
+        "trip_images",
+        "trip_tags",
+        "trip_places",
+        "trip_itinerary_days",
+        "trip_itinerary_activities",
+        "trip_likes",
+        "reviews",
+        "trip_steals",
+        "place_favorites",
+        "trip_cities",
+        "place_photos",
+        "city_photos",
+        "chat_messages",
+      ];
+
+      for (const t of tables) {
+        try {
+          const [cols] = await connection.query(
+            `
+            SELECT COLUMN_NAME, COLUMN_TYPE, COLUMN_DEFAULT
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = ?
+              AND COLUMN_NAME = 'id'
+          `,
+            [t]
+          );
+
+          if (!cols || cols.length === 0) {
+            console.log(`    -> ${t}: no id column found, skipping`);
+            continue;
+          }
+
+          const col = cols[0];
+          const isChar36 =
+            col.COLUMN_TYPE &&
+            col.COLUMN_TYPE.toLowerCase().includes("char(36)");
+          const hasDefault = col.COLUMN_DEFAULT != null;
+
+          if (!isChar36) {
+            // Attempt to alter type to CHAR(36)
+            try {
+              await connection.query(
+                `ALTER TABLE ${t} MODIFY COLUMN id CHAR(36) NOT NULL`
+              );
+              console.log(`    -> ${t}: changed id to CHAR(36)`);
+            } catch (err) {
+              console.warn(
+                `    -> ${t}: could not change id to CHAR(36): ${err.message}`
+              );
+            }
+          }
+
+          if (!hasDefault) {
+            try {
+              // Use expression default UUID() where supported
+              await connection.query(
+                `ALTER TABLE ${t} MODIFY COLUMN id CHAR(36) NOT NULL DEFAULT (UUID())`
+              );
+              console.log(`    -> ${t}: set id DEFAULT UUID()`);
+            } catch (err) {
+              console.warn(
+                `    -> ${t}: could not set DEFAULT UUID() on id: ${err.message}`
+              );
+            }
+          } else {
+            console.log(`    -> ${t}: id already has default, skipping`);
+          }
+        } catch (err) {
+          console.error(
+            `    -> Error ensuring id default on ${t}: ${err.message}`
+          );
+        }
       }
     },
   },

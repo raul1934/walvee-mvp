@@ -1,5 +1,8 @@
 const { GoogleGenerativeAI } = require("@google/generative-ai");
-const { buildSuccessResponse, buildErrorResponse } = require("../utils/helpers");
+const {
+  buildSuccessResponse,
+  buildErrorResponse,
+} = require("../utils/helpers");
 
 /**
  * Supported Gemini Models (as of December 2025)
@@ -33,7 +36,9 @@ const { buildSuccessResponse, buildErrorResponse } = require("../utils/helpers")
 const initGemini = () => {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    console.warn("GEMINI_API_KEY not configured. LLM functionality will not work.");
+    console.warn(
+      "GEMINI_API_KEY not configured. LLM functionality will not work."
+    );
     return null;
   }
   return new GoogleGenerativeAI(apiKey);
@@ -46,22 +51,31 @@ const initGemini = () => {
  */
 exports.chat = async (req, res) => {
   try {
-    const { prompt, model = "gemini-2.5-flash", response_json_schema } = req.body;
+    const GEMINI_MODEL_CHAT_DEFAULT =
+      process.env.GEMINI_MODEL_CHAT_DEFAULT || "gemini-2.0-flash-lite-001";
+
+    const {
+      prompt,
+      model = GEMINI_MODEL_CHAT_DEFAULT,
+      response_json_schema,
+    } = req.body;
 
     if (!prompt) {
-      return res.status(400).json(
-        buildErrorResponse("VALIDATION_ERROR", "Prompt is required")
-      );
+      return res
+        .status(400)
+        .json(buildErrorResponse("VALIDATION_ERROR", "Prompt is required"));
     }
 
     const genAI = initGemini();
     if (!genAI) {
-      return res.status(500).json(
-        buildErrorResponse(
-          "SERVICE_UNAVAILABLE",
-          "LLM service not configured. Please add GEMINI_API_KEY to environment variables."
-        )
-      );
+      return res
+        .status(500)
+        .json(
+          buildErrorResponse(
+            "SERVICE_UNAVAILABLE",
+            "LLM service not configured. Please add GEMINI_API_KEY to environment variables."
+          )
+        );
     }
 
     // Initialize the model
@@ -103,8 +117,13 @@ exports.chat = async (req, res) => {
     );
   } catch (error) {
     console.error("LLM chat error:", error);
-    return res.status(500).json(
-      buildErrorResponse("LLM_ERROR", error.message || "Failed to process LLM request")
-    );
+    return res
+      .status(500)
+      .json(
+        buildErrorResponse(
+          "LLM_ERROR",
+          error.message || "Failed to process LLM request"
+        )
+      );
   }
 };

@@ -179,45 +179,30 @@ class TripModificationService {
     // 1. Resolve city (find in DB or create from Google Maps)
     const city = await this.resolveCity(city_name, country, transaction);
 
-    // 2. Check if city already in trip
-    const existingAssociation = await sequelize.query(
-      "SELECT * FROM trip_cities WHERE trip_id = :tripId AND city_id = :cityId",
-      {
-        replacements: { tripId: trip.id, cityId: city.id },
-        type: sequelize.QueryTypes.SELECT,
-        transaction,
-      }
-    );
-
-    if (existingAssociation.length > 0) {
+    // 2. Check if city already in trip using association methods
+    const hasCity = await trip.hasCity(city.id, { transaction });
+    if (hasCity) {
       throw new Error(`City ${city_name} is already in this trip`);
     }
 
-    // 3. Get next city_order
-    const maxOrderResult = await sequelize.query(
-      "SELECT COALESCE(MAX(city_order), -1) as max_order FROM trip_cities WHERE trip_id = :tripId",
-      {
-        replacements: { tripId: trip.id },
-        type: sequelize.QueryTypes.SELECT,
-        transaction,
-      }
-    );
+    // 3. Get next city_order from existing associated cities
+    const existingCities = await trip.getCities({
+      joinTableAttributes: ["city_order"],
+      transaction,
+    });
 
-    const nextOrder = maxOrderResult[0].max_order + 1;
+    const nextOrder =
+      existingCities.length > 0
+        ? Math.max(
+            ...existingCities.map((c) => c.trip_cities?.city_order || 0)
+          ) + 1
+        : 0;
 
-    // 4. Insert into trip_cities
-    await sequelize.query(
-      "INSERT INTO trip_cities (id, trip_id, city_id, city_order, created_at) VALUES (:id, :tripId, :cityId, :cityOrder, NOW())",
-      {
-        replacements: {
-          id: uuidv4(),
-          tripId: trip.id,
-          cityId: city.id,
-          cityOrder: nextOrder,
-        },
-        transaction,
-      }
-    );
+    // 4. Add city using association method
+    await trip.addCity(city.id, {
+      through: { city_order: nextOrder },
+      transaction,
+    });
 
     console.log(`[TripModificationService] Added city ${city_name} to trip ${trip.id}`);
   }
@@ -239,52 +224,50 @@ class TripModificationService {
       throw new Error(`City ${city_name} not found in this trip`);
     }
 
-    // 2. Remove city from trip_cities
-    await sequelize.query(
-      "DELETE FROM trip_cities WHERE trip_id = :tripId AND city_id = :cityId",
-      {
-        replacements: { tripId: trip.id, cityId: city.id },
-        transaction,
-      }
-    );
+    // 2. Remove city association using association method
+    try {
+      await trip.removeCity(city.id, { transaction });
+    } catch (err) {
+      // Fallback: if association removal fails, try direct destroy
+      await sequelize.query(
+        "DELETE FROM trip_cities WHERE trip_id = :tripId AND city_id = :cityId",
+        { replacements: { tripId: trip.id, cityId: city.id }, transaction }
+      );
+    }
 
     // 3. Clean up orphaned places (places in this city that are in the trip)
-    await TripPlace.destroy({
-      where: {
-        trip_id: trip.id,
-        place_id: {
-          [Op.in]: sequelize.literal(
-            `(SELECT id FROM places WHERE city_id = '${city.id}')`
-          ),
-        },
-      },
+    const placesInCity = await Place.findAll({
+      where: { city_id: city.id },
+      attributes: ["id"],
       transaction,
     });
 
-    // 4. Clean up itinerary activities for places in this city
-    const placeIdsInCity = await sequelize.query(
-      "SELECT id FROM places WHERE city_id = :cityId",
-      {
-        replacements: { cityId: city.id },
-        type: sequelize.QueryTypes.SELECT,
-        transaction,
-      }
-    );
+    const placeIds = placesInCity.map((p) => p.id);
 
-    if (placeIdsInCity.length > 0) {
-      const placeIds = placeIdsInCity.map((p) => p.id);
-
-      await TripItineraryActivity.destroy({
-        where: {
-          place_id: { [Op.in]: placeIds },
-          itinerary_day_id: {
-            [Op.in]: sequelize.literal(
-              `(SELECT id FROM trip_itinerary_days WHERE trip_id = '${trip.id}')`
-            ),
-          },
-        },
+    if (placeIds.length > 0) {
+      await TripPlace.destroy({
+        where: { trip_id: trip.id, place_id: { [Op.in]: placeIds } },
         transaction,
       });
+
+      // 4. Clean up itinerary activities for those places
+      const dayRows = await TripItineraryDay.findAll({
+        where: { trip_id: trip.id },
+        attributes: ["id"],
+        transaction,
+      });
+
+      const dayIds = dayRows.map((d) => d.id);
+
+      if (dayIds.length > 0) {
+        await TripItineraryActivity.destroy({
+          where: {
+            place_id: { [Op.in]: placeIds },
+            itinerary_day_id: { [Op.in]: dayIds },
+          },
+          transaction,
+        });
+      }
     }
 
     console.log(`[TripModificationService] Removed city ${city_name} from trip ${trip.id}`);
@@ -337,6 +320,42 @@ class TripModificationService {
     );
 
     console.log(`[TripModificationService] Added place ${place_name} to trip ${trip.id}`);
+
+    // 5. Ensure the place's city is added to the trip as a city (if place has a city)
+    try {
+      if (place.city_id) {
+        const hasCity = await trip.hasCity(place.city_id, { transaction });
+
+        if (!hasCity) {
+          // Compute next city_order from existing cities
+          const existingCities = await trip.getCities({
+            joinTableAttributes: ["city_order"],
+            transaction,
+          });
+
+          const nextCityOrder =
+            existingCities.length > 0
+              ? Math.max(
+                  ...existingCities.map((c) => c.trip_cities?.city_order || 0)
+                ) + 1
+              : 0;
+
+          await trip.addCity(place.city_id, {
+            through: { city_order: nextCityOrder },
+            transaction,
+          });
+
+          console.log(
+            `[TripModificationService] Auto-added city ${place.city_id} to trip ${trip.id} when adding place ${place.id}`
+          );
+        }
+      }
+    } catch (err) {
+      console.warn(
+        `[TripModificationService] Failed to auto-add city for place ${place.id}:`,
+        err.message
+      );
+    }
   }
 
   /**
@@ -613,46 +632,47 @@ class TripModificationService {
    * @returns {Promise<City|null>}
    */
   async findCityInTrip(tripId, cityName, cityId = null, transaction) {
-    // If cityId provided, use it directly
+    // If cityId provided, verify it exists and is associated with the trip
     if (cityId) {
-      const city = await City.findOne({
-        where: { id: cityId },
+      const city = await City.findByPk(cityId, { transaction });
+      if (!city) return null;
+
+      const tripWithCity = await Trip.findOne({
+        where: { id: tripId },
+        include: [
+          {
+            model: City,
+            as: "cities",
+            where: { id: cityId },
+            attributes: ["id"],
+          },
+        ],
         transaction,
       });
 
-      if (city) {
-        // Verify it's in the trip
-        const inTrip = await sequelize.query(
-          "SELECT 1 FROM trip_cities WHERE trip_id = :tripId AND city_id = :cityId",
-          {
-            replacements: { tripId, cityId },
-            type: sequelize.QueryTypes.SELECT,
-            transaction,
-          }
-        );
-
-        return inTrip.length > 0 ? city : null;
-      }
+      return tripWithCity && tripWithCity.cities && tripWithCity.cities.length > 0 ? city : null;
     }
 
     // Otherwise, search by name
-    const result = await sequelize.query(
-      `SELECT c.* FROM cities c
-       INNER JOIN trip_cities tc ON tc.city_id = c.id
-       WHERE tc.trip_id = :tripId AND c.name = :cityName
-       LIMIT 1`,
-      {
-        replacements: { tripId, cityName },
-        type: sequelize.QueryTypes.SELECT,
-        transaction,
-      }
-    );
+    const tripWithNamedCity = await Trip.findOne({
+      where: { id: tripId },
+      include: [
+        {
+          model: City,
+          as: "cities",
+          where: { name: cityName },
+          attributes: ["id"],
+        },
+      ],
+      transaction,
+    });
 
-    if (result.length === 0) {
+    if (!tripWithNamedCity || !tripWithNamedCity.cities || tripWithNamedCity.cities.length === 0) {
       return null;
     }
 
-    return await City.findByPk(result[0].id, { transaction });
+    const cityIdFound = tripWithNamedCity.cities[0].id;
+    return await City.findByPk(cityIdFound, { transaction });
   }
 }
 

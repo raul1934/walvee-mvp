@@ -40,6 +40,16 @@ const initGemini = () => {
   return new GoogleGenerativeAI(apiKey);
 };
 
+// Default Gemini model names (configurable via .env)
+const GEMINI_MODEL_DEFAULT =
+  process.env.GEMINI_MODEL_DEFAULT || "gemini-2.5-flash";
+const GEMINI_MODEL_RECOMMENDATIONS =
+  process.env.GEMINI_MODEL_RECOMMENDATIONS || GEMINI_MODEL_DEFAULT;
+const GEMINI_MODEL_ORGANIZE =
+  process.env.GEMINI_MODEL_ORGANIZE || GEMINI_MODEL_DEFAULT;
+const GEMINI_MODEL_TRIP_MODIFICATION =
+  process.env.GEMINI_MODEL_TRIP_MODIFICATION || "gemini-2.0-flash-exp";
+
 /**
  * @route   POST /inspire/recommendations
  * @desc    Get AI-powered place/city recommendations
@@ -97,7 +107,7 @@ exports.getRecommendations = async (req, res) => {
 
     // Call Gemini
     const modelConfig = {
-      model: "gemini-2.5-flash",
+      model: GEMINI_MODEL_RECOMMENDATIONS,
       generationConfig: {
         responseMimeType: "application/json",
         responseSchema,
@@ -122,29 +132,59 @@ exports.getRecommendations = async (req, res) => {
         Country
       );
 
-    // Auto-save messages to database if trip_id provided
+    // Auto-save messages to database if trip_id provided (validate trip exists and belongs to user)
     if (trip_id) {
-      const messagesToSave = [
-        {
-          id: uuidv4(),
-          trip_id,
-          role: "user",
-          content: user_query,
-          city_context,
-          timestamp: new Date(),
-        },
-        {
-          id: uuidv4(),
-          trip_id,
-          role: "assistant",
-          content: parsedResponse.message,
-          recommendations: parsedResponse.recommendations,
-          city_context,
-          timestamp: new Date(),
-        },
-      ];
+      try {
+        const tripRecord = await Trip.findOne({ where: { id: trip_id } });
+        if (!tripRecord) {
+          console.warn(
+            `[Inspire] Trip ${trip_id} not found - skipping message persistence`
+          );
+        } else if (
+          tripRecord.author_id &&
+          tripRecord.author_id !== req.user?.id
+        ) {
+          // Do not persist messages for trips that the user doesn't own
+          console.warn(
+            `[Inspire] Trip ${trip_id} does not belong to user ${req.user?.id} - skipping message persistence`
+          );
+        } else {
+          const messagesToSave = [
+            {
+              id: uuidv4(),
+              trip_id,
+              role: "user",
+              content: user_query,
+              city_context,
+              timestamp: new Date(),
+            },
+            {
+              id: uuidv4(),
+              trip_id,
+              role: "assistant",
+              content: parsedResponse.message,
+              recommendations: parsedResponse.recommendations,
+              city_context,
+              timestamp: new Date(),
+            },
+          ];
 
-      await ChatMessage.bulkCreate(messagesToSave);
+          try {
+            await ChatMessage.bulkCreate(messagesToSave);
+          } catch (saveErr) {
+            // Log and continue - do not make the entire request fail due to FK or other persistence errors
+            console.error(
+              `[Inspire] Failed to persist chat messages for trip ${trip_id}:`,
+              saveErr.message
+            );
+          }
+        }
+      } catch (err) {
+        console.error(
+          "[Inspire] Error validating trip for message persistence:",
+          err.message
+        );
+      }
     }
 
     return res.json(buildSuccessResponse(parsedResponse));
@@ -228,7 +268,7 @@ exports.organizeItinerary = async (req, res) => {
 
     // Call Gemini
     const modelConfig = {
-      model: "gemini-2.5-flash",
+      model: GEMINI_MODEL_ORGANIZE,
       generationConfig: {
         responseMimeType: "application/json",
         responseSchema,
@@ -387,7 +427,7 @@ exports.call = async (req, res) => {
       const responseSchema = getTripModificationSchema();
 
       const modelConfig = {
-        model: "gemini-2.0-flash-exp",
+        model: GEMINI_MODEL_TRIP_MODIFICATION,
         generationConfig: {
           responseMimeType: "application/json",
           responseSchema,
@@ -406,7 +446,7 @@ exports.call = async (req, res) => {
 
     // Normal inspire flow - determine schema based on schema_type
     const modelConfig = {
-      model: "gemini-2.5-flash",
+      model: GEMINI_MODEL_DEFAULT,
     };
 
     // Add JSON schema if schema_type is provided
@@ -560,7 +600,7 @@ exports.modifyTrip = async (req, res) => {
     const responseSchema = getTripModificationSchema();
 
     const modelConfig = {
-      model: "gemini-2.0-flash-exp",
+      model: GEMINI_MODEL_TRIP_MODIFICATION,
       generationConfig: {
         responseMimeType: "application/json",
         responseSchema,

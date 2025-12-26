@@ -551,6 +551,10 @@ const initGemini = () => {
   return new GoogleGenerativeAI(apiKey);
 };
 
+// Model used to generate place review text
+const GEMINI_MODEL_PLACE_REVIEW =
+  process.env.GEMINI_MODEL_PLACE_REVIEW || "gemini-2.0-flash-lite-001";
+
 /**
  * Helper to generate AI review text using Gemini
  */
@@ -592,7 +596,7 @@ Sources:
 **Tone:** Helpful travel curator sharing expert insights — informative, warm, trustworthy.`;
 
     const modelConfig = {
-      model: "gemini-2.5-flash",
+      model: GEMINI_MODEL_PLACE_REVIEW,
       generationConfig: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -676,7 +680,8 @@ const getPlaceReviews = async (req, res, next) => {
               aiReview = await PlaceReview.create({
                 place_id: placeId,
                 reviewer_id: walveeUser.id,
-                created_by: walveeUser.preferred_name || walveeUser.full_name || "Walvee",
+                created_by:
+                  walveeUser.preferred_name || walveeUser.full_name || "Walvee",
                 rating: aiGeneratedReview.rating,
                 comment: aiGeneratedReview.text,
                 is_ai_generated: true,
