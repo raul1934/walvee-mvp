@@ -1,8 +1,8 @@
 const { DataTypes } = require("sequelize");
 const { sequelize } = require("../../database/sequelize");
 
-const TripImage = sequelize.define(
-  "TripImage",
+const TripCity = sequelize.define(
+  "TripCity",
   {
     id: {
       type: DataTypes.UUID,
@@ -17,38 +17,31 @@ const TripImage = sequelize.define(
         key: "id",
       },
     },
-    place_photo_id: {
+    city_id: {
       type: DataTypes.UUID,
-      allowNull: true,
+      allowNull: false,
       references: {
-        model: "place_photos",
+        model: "cities",
         key: "id",
       },
     },
-    city_photo_id: {
-      type: DataTypes.UUID,
-      allowNull: true,
-      references: {
-        model: "city_photos",
-        key: "id",
-      },
-    },
-    image_order: {
+    city_order: {
       type: DataTypes.INTEGER,
+      allowNull: false,
       defaultValue: 0,
     },
   },
   {
-    tableName: "trip_images",
+    tableName: "trip_cities",
     paranoid: true,
-    timestamps: true,
-    updatedAt: false,
     indexes: [
-      { fields: ["trip_id"] },
-      { fields: ["place_photo_id"] },
-      { fields: ["city_photo_id"] },
+      {
+        unique: true,
+        fields: ["trip_id", "city_id"],
+        name: "idx_trip_cities_trip_city",
+      },
     ],
   }
 );
 
-module.exports = TripImage;
+module.exports = TripCity;

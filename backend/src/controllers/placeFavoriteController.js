@@ -99,7 +99,7 @@ const getUserPlaceFavorites = async (req, res, next) => {
             {
               model: PlacePhoto,
               as: "photos",
-              attributes: ["id", ],
+              attributes: ["id", "url"],
             },
             {
               model: City,
@@ -130,9 +130,7 @@ const getUserPlaceFavorites = async (req, res, next) => {
         rating: place.rating || null,
         price_level: place.price_level || null,
         category: (place.types && place.types[0]) || null,
-        photo_url: place.photos?.[0]
-          ? getFullImageUrl(place.photos[0].url)
-          : null,
+        photo_url: place.photos?.[0]?.url || null,
 
         // Nested place object for more structured access
         place: {
@@ -146,7 +144,7 @@ const getUserPlaceFavorites = async (req, res, next) => {
           price_level: place.price_level,
           photo: place.photos?.[0]
             ? {
-                url: getFullImageUrl(place.photos[0].url),
+                url: place.photos[0].url,
               }
             : null,
         },

@@ -191,9 +191,9 @@ export default function Home({ user, userLoading }) {
                       <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-500 border-t-transparent" />
                     </div>
                   ) : trips.length > 0 ? (
-                    [...trips, ...trips, ...trips].map((trip, index) => (
+                    trips.map((trip, index) => (
                       <TripCard
-                        key={`${trip.id}-${index}`}
+                        key={trip.id}
                         trip={trip}
                         isLoggedIn={!!user}
                         isFavorited={trip.currentUserLiked || false}

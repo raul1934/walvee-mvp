@@ -3,6 +3,7 @@ const {
   User,
   TripTag,
   TripPlace,
+  TripCity,
   TripItineraryDay,
   TripItineraryActivity,
   TripLike,
@@ -113,7 +114,7 @@ const getTrips = async (req, res, next) => {
               {
                 model: PlacePhoto,
                 as: "photos",
-                attributes: ["photo_order"],
+                attributes: ["id", "url", "photo_order"],
                 order: [["photo_order", "ASC"]],
               },
             ],
@@ -166,9 +167,7 @@ const getTrips = async (req, res, next) => {
                   {
                     model: PlacePhoto,
                     as: "photos",
-                    attributes: [
-                                                                                        "photo_order",
-                    ],
+                    attributes: ["id", "url", "photo_order"],
                     order: [["photo_order", "ASC"]],
                   },
                   {
@@ -305,7 +304,7 @@ const getTripById = async (req, res, next) => {
             {
               model: CityPhoto,
               as: "photos",
-              attributes: ["id", ],
+              attributes: ["id", "url", "photo_order"],
             },
           ],
         },
@@ -344,8 +343,7 @@ const getTripById = async (req, res, next) => {
                 {
                   model: PlacePhoto,
                   as: "photos",
-                  attributes: ["id", "photo_order"],
-                  order: [["photo_order", "ASC"]],
+                  attributes: ["id", "url", "photo_order"],
                 },
               ],
             },
@@ -387,14 +385,13 @@ const getTripById = async (req, res, next) => {
                       model: PlacePhoto,
                       as: "photos",
                       attributes: ["url"],
-                      limit: 3,
+                      limit: 10,
                     },
                   ],
                 },
               ],
             },
           ],
-          order: [["day_number", "ASC"]],
         },
         {
           model: TripComment,
@@ -407,7 +404,6 @@ const getTripById = async (req, res, next) => {
             },
           ],
           limit: 10,
-          order: [["created_at", "DESC"]],
         },
         {
           model: TripImage,
@@ -416,22 +412,20 @@ const getTripById = async (req, res, next) => {
             "id",
             "place_photo_id",
             "city_photo_id",
-            "is_cover",
             "image_order",
           ],
           include: [
             {
               model: PlacePhoto,
               as: "placePhoto",
-              attributes: ["id", ],
+              attributes: ["id", "url"],
             },
             {
               model: CityPhoto,
               as: "cityPhoto",
-              attributes: ["id", ],
+              attributes: ["id", "url"],
             },
           ],
-          order: [["image_order", "ASC"]],
         },
         {
           model: TripLike,
@@ -439,6 +433,11 @@ const getTripById = async (req, res, next) => {
           attributes: ["id"],
           required: false,
         },
+      ],
+      order: [
+        [{ model: TripItineraryDay, as: "itineraryDays" }, "day_number", "ASC"],
+        [{ model: TripItineraryDay, as: "itineraryDays" }, { model: TripItineraryActivity, as: "activities" }, "activity_order", "ASC"],
+        [{ model: TripImage, as: "images" }, "image_order", "ASC"],
       ],
     });
 
@@ -490,6 +489,11 @@ const createTrip = async (req, res, next) => {
       return res
         .status(404)
         .json(buildErrorResponse("RESOURCE_NOT_FOUND", "User not found"));
+    }
+
+    // Ensure is_draft is false when trip is public
+    if (tripData.is_public === true) {
+      tripData.is_draft = false;
     }
 
     // Create trip
@@ -553,7 +557,6 @@ const createTrip = async (req, res, next) => {
           trip_id: trip.id,
           place_photo_id: img.place_photo_id || null,
           city_photo_id: img.city_photo_id || null,
-          is_cover: img.is_cover || false,
           image_order: img.image_order !== undefined ? img.image_order : index,
         }))
       );
@@ -608,9 +611,7 @@ const createTrip = async (req, res, next) => {
                     {
                       model: PlacePhoto,
                       as: "photos",
-                      attributes: [
-                                                                                                "photo_order",
-                      ],
+                      attributes: ["id", "url", "photo_order"],
                       order: [["photo_order", "ASC"]],
                     },
                   ],
@@ -628,6 +629,106 @@ const createTrip = async (req, res, next) => {
   } catch (error) {
     next(error);
   }
+};
+
+/**
+ * Auto-select photos from trip's places and cities when no trip_images provided
+ * @param {string} tripId - Trip UUID
+ * @returns {Promise<Array>} Array of trip image objects to create
+ */
+const autoSelectTripPhotos = async (tripId) => {
+  const tripImages = [];
+
+  // Get trip with all associated cities and places with their photos
+  const trip = await Trip.findByPk(tripId, {
+    include: [
+      {
+        model: City,
+        as: "cities",
+        attributes: ["id"],
+        through: { attributes: [] },
+        include: [
+          {
+            model: CityPhoto,
+            as: "photos",
+            attributes: ["id"],
+            limit: 5,
+          },
+        ],
+      },
+      {
+        model: TripPlace,
+        as: "places",
+        attributes: ["place_id"],
+        include: [
+          {
+            model: Place,
+            as: "place",
+            attributes: ["id"],
+            include: [
+              {
+                model: PlacePhoto,
+                as: "photos",
+                attributes: ["id"],
+                limit: 5,
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  });
+
+  if (!trip) return tripImages;
+
+  const cityPhotos = [];
+  const placePhotos = [];
+
+  // Collect city photos
+  if (trip.cities) {
+    trip.cities.forEach((city) => {
+      if (city.photos) {
+        city.photos.forEach((photo) => {
+          cityPhotos.push({ id: photo.id, type: "city" });
+        });
+      }
+    });
+  }
+
+  // Collect place photos
+  if (trip.places) {
+    trip.places.forEach((tripPlace) => {
+      if (tripPlace.place?.photos) {
+        tripPlace.place.photos.forEach((photo) => {
+          placePhotos.push({ id: photo.id, type: "place" });
+        });
+      }
+    });
+  }
+
+  // Combine and shuffle photos
+  const allPhotos = [...placePhotos, ...cityPhotos];
+
+  // Shuffle array
+  for (let i = allPhotos.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [allPhotos[i], allPhotos[j]] = [allPhotos[j], allPhotos[i]];
+  }
+
+  // Select up to 6 random photos
+  const selectedPhotos = allPhotos.slice(0, 6);
+
+  // Convert to trip image format
+  selectedPhotos.forEach((photo, index) => {
+    tripImages.push({
+      trip_id: tripId,
+      place_photo_id: photo.type === "place" ? photo.id : null,
+      city_photo_id: photo.type === "city" ? photo.id : null,
+      image_order: index,
+    });
+  });
+
+  return tripImages;
 };
 
 const updateTrip = async (req, res, next) => {
@@ -654,6 +755,11 @@ const updateTrip = async (req, res, next) => {
             "You do not have permission to update this trip"
           )
         );
+    }
+
+    // Ensure is_draft is false when trip is public
+    if (tripData.is_public === true) {
+      tripData.is_draft = false;
     }
 
     // Update trip
@@ -717,17 +823,25 @@ const updateTrip = async (req, res, next) => {
     // Update trip images
     if (trip_images !== undefined) {
       await TripImage.destroy({ where: { trip_id: id } });
+
+      let imagesToCreate = [];
+
       if (Array.isArray(trip_images) && trip_images.length > 0) {
-        await TripImage.bulkCreate(
-          trip_images.map((img, index) => ({
-            trip_id: id,
-            place_photo_id: img.place_photo_id || null,
-            city_photo_id: img.city_photo_id || null,
-            is_cover: img.is_cover || false,
-            image_order:
-              img.image_order !== undefined ? img.image_order : index,
-          }))
-        );
+        // User provided images explicitly
+        imagesToCreate = trip_images.map((img, index) => ({
+          trip_id: id,
+          place_photo_id: img.place_photo_id || null,
+          city_photo_id: img.city_photo_id || null,
+          image_order:
+            img.image_order !== undefined ? img.image_order : index,
+        }));
+      } else {
+        // No images provided - auto-select from places/cities
+        imagesToCreate = await autoSelectTripPhotos(id);
+      }
+
+      if (imagesToCreate.length > 0) {
+        await TripImage.bulkCreate(imagesToCreate);
       }
     }
 
@@ -780,9 +894,7 @@ const updateTrip = async (req, res, next) => {
                     {
                       model: PlacePhoto,
                       as: "photos",
-                      attributes: [
-                                                                                                "photo_order",
-                      ],
+                      attributes: ["id", "url", "photo_order"],
                       order: [["photo_order", "ASC"]],
                     },
                   ],
@@ -840,50 +952,6 @@ async function formatTripResponse(trip) {
   const derivationsCount = await TripSteal.count({
     where: { original_trip_id: tripData.id },
   });
-
-  // Collect all images: trip_images + city photos + place photos
-  const images = [];
-
-  // Add trip images first (ordered by image_order)
-  if (tripData.images && tripData.images.length > 0) {
-    tripData.images.forEach((tripImage) => {
-      if (tripImage.placePhoto?.url) {
-        images.push(getFullImageUrl(tripImage.placePhoto.url));
-      } else if (tripImage.cityPhoto?.url) {
-        images.push(getFullImageUrl(tripImage.cityPhoto.url));
-      }
-    });
-  }
-
-  // Add photos from cities (if present)
-  if (tripData.cities && tripData.cities.length > 0) {
-    tripData.cities.forEach((city) => {
-      if (city.photos) {
-        city.photos.forEach((photo) => {
-          if (photo.url) images.push(getFullImageUrl(photo.url));
-        });
-      }
-    });
-  }
-
-  // Add place photos from itinerary days and activities
-  if (tripData.itineraryDays) {
-    const addedPlaceIds = new Set();
-    tripData.itineraryDays.forEach((day) => {
-      if (day.activities) {
-        day.activities.forEach((activity) => {
-          if (activity.place?.photos && !addedPlaceIds.has(activity.place.id)) {
-            addedPlaceIds.add(activity.place.id);
-            activity.place.photos.forEach((photo) => {
-              if (photo.url) {
-                images.push(getFullImageUrl(photo.url));
-              }
-            });
-          }
-        });
-      }
-    });
-  }
 
   const durationDays = tripData.itineraryDays
     ? tripData.itineraryDays.length
@@ -1001,22 +1069,20 @@ async function formatTripResponse(trip) {
     best_time_to_visit: tripData.best_time_to_visit,
     difficulty_level: tripData.difficulty_level,
     trip_type: tripData.trip_type,
-    images: images,
     trip_images: tripData.images
       ? tripData.images.map((img) => ({
           id: img.id,
           place_photo_id: img.place_photo_id,
           city_photo_id: img.city_photo_id,
-          is_cover: img.is_cover,
           image_order: img.image_order,
           placePhoto: img.placePhoto
             ? {
-                url: getFullImageUrl(img.placePhoto.url),
+                url: img.placePhoto.url,
               }
             : null,
           cityPhoto: img.cityPhoto
             ? {
-                url: getFullImageUrl(img.cityPhoto.url),
+                url: img.cityPhoto.url,
               }
             : null,
         }))
@@ -1066,7 +1132,7 @@ async function formatTripResponse(trip) {
                 city_id: p.place.city_id,
                 photos: p.place.photos
                   ? p.place.photos.map((photo) => ({
-                      url: getFullImageUrl(photo.url),
+                      url: photo.url,
                       photo_order: photo.photo_order,
                     }))
                   : [],
@@ -1091,12 +1157,10 @@ async function formatTripResponse(trip) {
                   price_level: a.place.price_level,
                   types: a.place.types || [],
                   description: a.description || "",
-                  photo: a.place.photos?.[0]
-                    ? getFullImageUrl(a.place.photos[0].url)
-                    : null,
+                  photo: a.place.photos?.[0]?.url || null,
                   photos: a.place.photos
                     ? a.place.photos.map((p) => ({
-                        url: getFullImageUrl(p.url),
+                        url: p.url,
                       }))
                     : [],
                 }))
@@ -1220,7 +1284,7 @@ const getTripDerivations = async (req, res, next) => {
             {
               model: TripImage,
               as: "images",
-              attributes: ["id", "place_photo_id", "city_photo_id", "is_cover"],
+              attributes: ["id", "place_photo_id", "city_photo_id", "image_order"],
               include: [
                 {
                   model: PlacePhoto,
@@ -1233,7 +1297,7 @@ const getTripDerivations = async (req, res, next) => {
                   attributes: ["url"],
                 },
               ],
-              where: { is_cover: true },
+              order: [["image_order", "ASC"]],
               required: false,
               limit: 1,
             },
@@ -1255,9 +1319,9 @@ const getTripDerivations = async (req, res, next) => {
       if (steal.newTrip?.images && steal.newTrip.images.length > 0) {
         const coverImage = steal.newTrip.images[0];
         if (coverImage.placePhoto?.url) {
-          coverImageUrl = getFullImageUrl(coverImage.placePhoto.url);
+          coverImageUrl = coverImage.placePhoto.url;
         } else if (coverImage.cityPhoto?.url) {
-          coverImageUrl = getFullImageUrl(coverImage.cityPhoto.url);
+          coverImageUrl = coverImage.cityPhoto.url;
         }
       }
 
@@ -1556,9 +1620,13 @@ const addCityToTrip = async (req, res, next) => {
       ? Math.max(...existingCities.map(c => c.trip_cities?.city_order || 0)) + 1
       : 0;
 
-    // Add city to trip using Sequelize association method
-    await trip.addCity(cityRecord.id, {
-      through: { city_order: nextOrder },
+    // Add city to trip using TripCity junction model directly
+    // Sequelize's addCity() doesn't pass 'id' through the 'through' option properly
+    await TripCity.create({
+      id: uuidv4(),
+      trip_id: trip.id,
+      city_id: cityRecord.id,
+      city_order: nextOrder
     });
 
     // Return created city inside `data` for consistent client consumption
@@ -1747,6 +1815,15 @@ const finalizeTripDraft = async (req, res, next) => {
       is_draft: false,
     });
 
+    // Check if trip has images, if not auto-select from places/cities
+    const existingImages = await TripImage.count({ where: { trip_id: id } });
+    if (existingImages === 0) {
+      const imagesToCreate = await autoSelectTripPhotos(id);
+      if (imagesToCreate.length > 0) {
+        await TripImage.bulkCreate(imagesToCreate);
+      }
+    }
+
     // Reload with full data
     const updatedTrip = await Trip.findByPk(id, {
       include: [
@@ -1875,94 +1952,11 @@ const publishTrip = async (req, res, next) => {
 
     // If no photos provided, auto-select random photos from cities/places
     if (!photos || photos.length === 0) {
-      // Get trip with cities and places
-      const tripWithData = await Trip.findByPk(id, {
-        include: [
-          {
-            model: City,
-            as: "cities",
-            attributes: ["id"],
-            through: { attributes: [] },
-            include: [
-              {
-                model: CityPhoto,
-                as: "photos",
-                attributes: ["id"],
-                limit: 5,
-              },
-            ],
-          },
-          {
-            model: TripPlace,
-            as: "places",
-            attributes: ["place_id"],
-            include: [
-              {
-                model: Place,
-                as: "place",
-                attributes: ["id"],
-                include: [
-                  {
-                    model: PlacePhoto,
-                    as: "photos",
-                    attributes: ["id"],
-                    limit: 5,
-                  },
-                ],
-              },
-            ],
-          },
-        ],
-      });
-
-      const cityPhotos = [];
-      const placePhotos = [];
-
-      // Extract city photos
-      if (tripWithData.cities) {
-        tripWithData.cities.forEach((city) => {
-          if (city.photos) {
-            city.photos.forEach((photo) => {
-              cityPhotos.push({ id: photo.id, type: "city" });
-            });
-          }
-        });
-      }
-
-      // Extract place photos
-      if (tripWithData.places) {
-        tripWithData.places.forEach((tripPlace) => {
-          if (tripPlace.place && tripPlace.place.photos) {
-            tripPlace.place.photos.forEach((photo) => {
-              placePhotos.push({ id: photo.id, type: "place" });
-            });
-          }
-        });
-      }
-
-      // Shuffle and combine photos
-      const shuffleArray = (array) => {
-        const shuffled = [...array];
-        for (let i = shuffled.length - 1; i > 0; i--) {
-          const j = Math.floor(Math.random() * (i + 1));
-          [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-        }
-        return shuffled;
-      };
-
-      const shuffledCityPhotos = shuffleArray(cityPhotos).slice(0, 5);
-      const shuffledPlacePhotos = shuffleArray(placePhotos).slice(0, 5);
-      const autoPhotos = [...shuffledCityPhotos, ...shuffledPlacePhotos].slice(
-        0,
-        10
-      );
-
-      // Convert to photos array format
-      photos = autoPhotos.map((photo, index) => ({
-        place_photo_id: photo.type === "place" ? photo.id : null,
-        city_photo_id: photo.type === "city" ? photo.id : null,
-        image_order: index,
-        is_cover: index === 0,
+      const autoPhotos = await autoSelectTripPhotos(id);
+      photos = autoPhotos.map((photo) => ({
+        place_photo_id: photo.place_photo_id,
+        city_photo_id: photo.city_photo_id,
+        image_order: photo.image_order,
       }));
     }
 
@@ -1986,7 +1980,6 @@ const publishTrip = async (req, res, next) => {
         place_photo_id: photo.place_photo_id || null,
         city_photo_id: photo.city_photo_id || null,
         image_order: photo.image_order,
-        is_cover: photo.is_cover,
       }));
 
       await TripImage.bulkCreate(tripImages);
@@ -2023,6 +2016,116 @@ const publishTrip = async (req, res, next) => {
   }
 };
 
+/**
+ * Get available images for trip editor
+ * POST /api/trips/:id/available-images
+ */
+const getAvailableImages = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { cityIds, placeIds } = req.body;
+
+    const images = [];
+
+    // Fetch city photos
+    if (cityIds && cityIds.length > 0) {
+      const cityPhotos = await CityPhoto.findAll({
+        where: {
+          city_id: cityIds,
+        },
+        attributes: ["id", "url", "city_id", "photo_order"],
+        include: [
+          {
+            model: City,
+            as: "city",
+            attributes: ["id", "name"],
+          },
+        ],
+        order: [["photo_order", "ASC"]],
+      });
+
+      cityPhotos.forEach((photo) => {
+        images.push({
+          id: photo.id,
+          url: photo.url,
+          source: "city",
+          sourceName: photo.city?.name || "Unknown City",
+          cityPhotoId: photo.id,
+          placePhotoId: null,
+        });
+      });
+    }
+
+    // Fetch place photos
+    if (placeIds && placeIds.length > 0) {
+      const placePhotos = await PlacePhoto.findAll({
+        where: {
+          place_id: placeIds,
+        },
+        attributes: ["id", "url", "place_id", "photo_order"],
+        include: [
+          {
+            model: Place,
+            as: "place",
+            attributes: ["id", "name"],
+          },
+        ],
+        order: [["photo_order", "ASC"]],
+      });
+
+      placePhotos.forEach((photo) => {
+        images.push({
+          id: photo.id,
+          url: photo.url,
+          source: "place",
+          sourceName: photo.place?.name || "Unknown Place",
+          placePhotoId: photo.id,
+          cityPhotoId: null,
+        });
+      });
+    }
+
+    // Get current trip images to mark which are selected
+    const tripImages = await TripImage.findAll({
+      where: { trip_id: id },
+      attributes: ["place_photo_id", "city_photo_id", "image_order"],
+      order: [["image_order", "ASC"]],
+    });
+
+    // Create a map of selected images
+    const selectedImagesMap = new Map();
+    tripImages.forEach((img) => {
+      const photoId = img.place_photo_id || img.city_photo_id;
+      if (photoId) {
+        selectedImagesMap.set(photoId, {
+          isSelected: true,
+          order: img.image_order,
+        });
+      }
+    });
+
+    // Add selection info to images
+    const imagesWithSelection = images.map((img) => {
+      const selection = selectedImagesMap.get(img.id);
+      return {
+        ...img,
+        isSelected: selection?.isSelected || false,
+        imageOrder: selection?.order !== undefined ? selection.order : null,
+      };
+    });
+
+    res.json(
+      buildSuccessResponse({
+        images: imagesWithSelection,
+        totalCount: imagesWithSelection.length,
+        selectedCount: Array.from(selectedImagesMap.keys()).length,
+      })
+    );
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getTrips,
   getTripById,
@@ -2040,6 +2143,7 @@ module.exports = {
   saveItinerary,
   createDraftTrip,
   getCurrentDraftTrip,
+  getAvailableImages,
   finalizeTripDraft,
   publishTrip,
 };

@@ -38,7 +38,7 @@ const getDerivations = async (req, res, next) => {
               {
                 model: TripImage,
                 as: "images",
-                attributes: ["id", "place_photo_id", "city_photo_id", "is_cover"],
+                attributes: ["id", "place_photo_id", "city_photo_id", "image_order"],
                 include: [
                   {
                     model: PlacePhoto,
@@ -51,7 +51,7 @@ const getDerivations = async (req, res, next) => {
                     attributes: ["url"],
                   },
                 ],
-                where: { is_cover: true },
+                order: [["image_order", "ASC"]],
                 required: false,
                 limit: 1,
               },
@@ -65,7 +65,7 @@ const getDerivations = async (req, res, next) => {
               {
                 model: TripImage,
                 as: "images",
-                attributes: ["id", "place_photo_id", "city_photo_id", "is_cover"],
+                attributes: ["id", "place_photo_id", "city_photo_id", "image_order"],
                 include: [
                   {
                     model: PlacePhoto,
@@ -78,7 +78,7 @@ const getDerivations = async (req, res, next) => {
                     attributes: ["url"],
                   },
                 ],
-                where: { is_cover: true },
+                order: [["image_order", "ASC"]],
                 required: false,
                 limit: 1,
               },
@@ -153,7 +153,7 @@ const createDerivation = async (req, res, next) => {
         {
           model: TripImage,
           as: "images",
-          attributes: ["place_photo_id", "city_photo_id", "is_cover", "image_order"],
+          attributes: ["place_photo_id", "city_photo_id", "image_order"],
         },
       ],
     });
@@ -256,7 +256,6 @@ const createDerivation = async (req, res, next) => {
           trip_id: clonedTripId,
           place_photo_id: img.place_photo_id,
           city_photo_id: img.city_photo_id,
-          is_cover: img.is_cover,
           image_order: img.image_order,
         }))
       );

@@ -12,6 +12,7 @@ const {
   TripItineraryDay,
   TripItineraryActivity,
   TripLike,
+  TripImage,
 } = require("../models/sequelize");
 const { Op } = require("sequelize");
 const {
@@ -190,6 +191,24 @@ const getUserTrips = async (req, res, next) => {
             },
           ],
         },
+        {
+          model: TripImage,
+          as: "images",
+          attributes: ["id", "place_photo_id", "city_photo_id", "image_order"],
+          include: [
+            {
+              model: PlacePhoto,
+              as: "placePhoto",
+              attributes: ["id", "url"],
+            },
+            {
+              model: CityPhoto,
+              as: "cityPhoto",
+              attributes: ["id", "url"],
+            },
+          ],
+          order: [["image_order", "ASC"]],
+        },
       ],
     });
 
@@ -199,9 +218,60 @@ const getUserTrips = async (req, res, next) => {
       includeFollows: true,
     });
 
+    // Format trips to include trip_images with full structure
+    const formattedTrips = tripsWithContext.map((trip) => {
+      const tripData = trip.toJSON ? trip.toJSON() : trip;
+
+      // Calculate duration_days from itinerary
+      const durationDays = tripData.itineraryDays ? tripData.itineraryDays.length : 0;
+      tripData.duration_days = durationDays;
+
+      // Transform itineraryDays to itinerary for consistency with homeController
+      if (tripData.itineraryDays) {
+        tripData.itinerary = tripData.itineraryDays.map((day) => ({
+          day: day.day_number,
+          title: day.title,
+          description: day.description,
+          places: day.activities
+            ? day.activities
+                .filter((a) => a.place)
+                .map((a) => ({
+                  name: a.place.name,
+                  address: a.place.address,
+                  rating: a.place.rating ? parseFloat(a.place.rating) : null,
+                  price_level: a.place.price_level,
+                  types: a.place.types || [],
+                  description: a.description || "",
+                  photo: a.place.photos?.[0]?.url || null,
+                }))
+            : [],
+        }));
+        delete tripData.itineraryDays;
+      }
+
+      // Transform images array to trip_images with full structure
+      if (tripData.images && Array.isArray(tripData.images)) {
+        tripData.trip_images = tripData.images
+          .map((img) => ({
+            id: img.id,
+            place_photo_id: img.place_photo_id,
+            city_photo_id: img.city_photo_id,
+            image_order: img.image_order,
+            placePhoto: img.placePhoto ? { url: img.placePhoto.url } : null,
+            cityPhoto: img.cityPhoto ? { url: img.cityPhoto.url } : null,
+          }))
+          .sort((a, b) => (a.image_order || 0) - (b.image_order || 0));
+
+        // Remove old images field
+        delete tripData.images;
+      }
+
+      return tripData;
+    });
+
     const pagination = buildPaginationMeta(pageNum, limitNum, total);
 
-    res.json(buildSuccessResponse(tripsWithContext, pagination));
+    res.json(buildSuccessResponse(formattedTrips, pagination));
   } catch (error) {
     next(error);
   }

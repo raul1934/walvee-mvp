@@ -177,12 +177,12 @@ Format: {"place_id": "ChIJ..." or null}`,
               <div className="flex items-center gap-1">
                 <Star className="w-3 h-3 text-yellow-400 fill-yellow-400" />
                 <span className="font-semibold text-white">
-                  {rating.toFixed(1)}
+                  {rating ?? "N/A"}
                 </span>
               </div>
               {reviewsCount && (
                 <span className="text-gray-500">
-                  ({reviewsCount.toLocaleString()})
+                  ({reviewsCount ?? "N/A"})
                 </span>
               )}
             </div>

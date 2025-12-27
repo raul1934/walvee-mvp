@@ -19,7 +19,8 @@
       "Bash(ls:*)",
       "Bash(find src -name \"*.js\" -type f -exec perl -i -pe '\n# Replace .url_small, .url_medium, .url_large with .url\ns/\\\\.url_small/.url/g;\ns/\\\\.url_medium/.url/g;\ns/\\\\.url_large/.url/g;\n\n# Replace [\"\"url_small\"\", \"\"url_medium\"\", \"\"url_large\"\"] with [\"\"url\"\"]\ns/\\\\[\"\"url_small\"\",\\\\s*\"\"url_medium\"\",\\\\s*\"\"url_large\"\"\\\\]/[\"\"url\"\"]/g;\n\n# Replace attributes: [\"\"...\"\", \"\"url_small\"\", ... ] patterns\ns/\"\"url_small\"\",?\\\\s*//g;\ns/\"\"url_medium\"\",?\\\\s*//g;\ns/\"\"url_large\"\",?\\\\s*//g;\n\n# Replace ||url patterns \\(fallbacks\\)\ns/\\\\|\\\\|\\\\s*[a-zA-Z_\\\\.]+\\\\.url//g;\n\n# Replace photo.width and photo.height\ns/photo\\\\.width/null/g;\ns/photo\\\\.height/null/g;\ns/width:\\\\s*null,?\\\\s*$//g;\ns/height:\\\\s*null,?\\\\s*$//g;\n' {} ;)",
       "Bash(cat:*)",
-      "Bash(xargs perl:*)"
+      "Bash(xargs perl:*)",
+      "Bash(npm run db:query:*)"
     ]
   }
 }

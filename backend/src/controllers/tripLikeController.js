@@ -34,7 +34,6 @@ const getUserFavorites = async (req, res, next) => {
                 "id",
                 "place_photo_id",
                 "city_photo_id",
-                "is_cover",
                 "image_order",
               ],
               include: [

@@ -167,22 +167,22 @@ export default function CityExplore({
                 <Link to={createProfileUrl(local.id)} className="block group">
                   <div className="relative mb-3 inline-block">
                     <UserAvatar
-                      src={local.avatar}
+                      src={local.photo}
                       name={local.name}
                       size="xl"
                       ring={true}
-                      email={local.id}
+                      userId={local.id}
                     />
                     <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-purple-600 rounded-full flex items-center justify-center text-xs font-bold text-white border-2 border-[#0C0E11]">
-                      {local.tripsCount}
+                      {local.trips_count || 0}
                     </div>
                   </div>
                   <h4 className="font-semibold text-white text-sm mb-1 group-hover:text-purple-400 transition-colors truncate">
                     {local.name}
                   </h4>
                   <p className="text-xs text-gray-500">
-                    {local.tripsCount}{" "}
-                    {local.tripsCount === 1 ? "trip" : "trips"}
+                    {local.trips_count || 0}{" "}
+                    {local.trips_count === 1 ? "trip" : "trips"}
                   </p>
                 </Link>
               </motion.div>

@@ -12,11 +12,12 @@ const { Op } = require("sequelize");
 const {
   buildSuccessResponse,
   buildErrorResponse,
-  getFullImageUrl,
   generateUUID,
 } = require("../utils/helpers");
 const {
   searchPlace,
+  searchPlacesText,
+  searchPlacesTextPage,
   getPlaceDetailsWithPhotos,
   searchCitiesFromGoogle,
   getPlaceDetails,
@@ -202,14 +203,85 @@ const searchPlaces = async (req, res, next) => {
     }
 
     // STEP 2: Fallback - search Google Places Text Search for multiple results
-    const googleResults = await searchPlacesText(
+    // We will persist first-page results synchronously, re-query DB, and if DB
+    // still has fewer than MIN_PERSISTED_RESULTS, attempt to fetch subsequent
+    // pages using next_page_token (waiting between requests as required by Google).
+    const MIN_PERSISTED_RESULTS = 5;
+
+    // Helper: persist Google place details (with photos) into the DB
+    const saveGooglePlaceById = async (placeId, resolvedCityId = null) => {
+      try {
+        const placeDetails = await getPlaceDetailsWithPhotos(placeId);
+
+        if (!resolvedCityId && placeDetails.city_name) {
+          resolvedCityId = await findOrCreateCityFromPlace(placeDetails);
+        }
+
+        let newPlace;
+        try {
+          newPlace = await Place.create({
+            google_place_id: placeDetails.place_id,
+            name: placeDetails.name,
+            address: placeDetails.formatted_address,
+            city_id: resolvedCityId,
+            latitude: placeDetails.latitude,
+            longitude: placeDetails.longitude,
+            rating: placeDetails.rating,
+            user_ratings_total: placeDetails.user_ratings_total,
+            price_level: placeDetails.price_level,
+            types: placeDetails.types,
+            phone_number: placeDetails.phone_number,
+            website: placeDetails.website,
+            opening_hours: placeDetails.opening_hours,
+            visible: true,
+          });
+        } catch (error) {
+          if (error.name === "SequelizeUniqueConstraintError") {
+            newPlace = await Place.findOne({
+              where: { google_place_id: placeDetails.place_id },
+            });
+          } else {
+            throw error;
+          }
+        }
+
+        if (placeDetails.photos && placeDetails.photos.length > 0) {
+          const photoPromises = placeDetails.photos
+            .slice(0, 10)
+            .map((photo, idx) =>
+              PlacePhoto.create({
+                place_id: newPlace.id,
+                google_photo_reference: photo.photo_reference,
+                url: photo.url,
+                attribution: photo.html_attributions?.[0] || null,
+                photo_order: idx,
+              }).catch((err) => {
+                if (err.name !== "SequelizeUniqueConstraintError") {
+                  console.error(`Error saving photo for ${placeId}:`, err);
+                }
+                return null;
+              })
+            );
+
+          await Promise.all(photoPromises);
+        }
+
+        return newPlace;
+      } catch (err) {
+        console.error(`[Place Persist] Error saving place ${placeId}:`, err);
+        return null;
+      }
+    };
+
+    // Fetch first page
+    const firstPage = await searchPlacesTextPage(
       query,
       destinationBias,
       type,
-      maxResults
+      null
     );
 
-    if (!googleResults || googleResults.length === 0) {
+    if (!firstPage || (firstPage.results || []).length === 0) {
       console.log(
         `[Place Search] No Google results for query="${query}" type=${
           type || ""
@@ -220,8 +292,133 @@ const searchPlaces = async (req, res, next) => {
         .json(buildErrorResponse("NOT_FOUND", "Place not found"));
     }
 
-    // Convert Google results into a lightweight response shape
-    const results = googleResults.map((r) => ({
+    // Persist each result from the first page synchronously (so DB can be queried afterwards)
+    for (const r of firstPage.results) {
+      try {
+        await saveGooglePlaceById(r.place_id, resolvedCityId);
+      } catch (err) {
+        console.error("Error persisting google place:", err);
+      }
+    }
+
+    // Re-query DB for matching places
+    const updatedDbResults = await Place.findAll({
+      where: whereClause,
+      include: [
+        {
+          model: PlacePhoto,
+          as: "photos",
+          separate: true,
+          order: [["photo_order", "ASC"]],
+        },
+      ],
+      limit: maxResults,
+    });
+
+    let filteredUpdatedDbResults = updatedDbResults;
+    if (type) {
+      filteredUpdatedDbResults = updatedDbResults.filter((p) => {
+        if (!p.types) return false;
+        try {
+          return Array.isArray(p.types)
+            ? p.types.includes(type)
+            : JSON.stringify(p.types)
+                .toLowerCase()
+                .includes(type.toLowerCase());
+        } catch (e) {
+          return false;
+        }
+      });
+    }
+
+    // If we got enough persisted DB results, return them
+    if (filteredUpdatedDbResults && filteredUpdatedDbResults.length >= MIN_PERSISTED_RESULTS) {
+      console.log(
+        `[Place Search] Returning ${
+          filteredUpdatedDbResults.length
+        } persisted DB results for query="${query}" type=${type || ""} city=${
+          city || ""
+        }`
+      );
+      return res.json(buildSuccessResponse(filteredUpdatedDbResults));
+    }
+
+    // Otherwise, attempt to fetch additional pages using next_page_token
+    let collectedPages = 1;
+    let nextToken = firstPage.next_page_token;
+    while (
+      filteredUpdatedDbResults.length < MIN_PERSISTED_RESULTS &&
+      nextToken &&
+      collectedPages < 3
+    ) {
+      // Google requires a short delay before next_page_token becomes valid
+      await new Promise((r) => setTimeout(r, 2000));
+      collectedPages += 1;
+      try {
+        const nextPage = await searchPlacesTextPage(
+          query,
+          destinationBias,
+          type,
+          nextToken
+        );
+        nextToken = nextPage.next_page_token;
+
+        for (const r of nextPage.results) {
+          try {
+            await saveGooglePlaceById(r.place_id, resolvedCityId);
+          } catch (err) {
+            console.error("Error persisting google place:", err);
+          }
+        }
+
+        // Re-query DB
+        const reQueried = await Place.findAll({
+          where: whereClause,
+          include: [
+            {
+              model: PlacePhoto,
+              as: "photos",
+              separate: true,
+              order: [["photo_order", "ASC"]],
+            },
+          ],
+          limit: maxResults,
+        });
+
+        filteredUpdatedDbResults = type
+          ? reQueried.filter((p) => {
+              if (!p.types) return false;
+              try {
+                return Array.isArray(p.types)
+                  ? p.types.includes(type)
+                  : JSON.stringify(p.types)
+                      .toLowerCase()
+                      .includes(type.toLowerCase());
+              } catch (e) {
+                return false;
+              }
+            })
+          : reQueried;
+      } catch (err) {
+        console.error("Error fetching next page from Google Places:", err);
+        break;
+      }
+    }
+
+    // If we have any persisted DB results, return them
+    if (filteredUpdatedDbResults && filteredUpdatedDbResults.length > 0) {
+      console.log(
+        `[Place Search] Returning ${
+          filteredUpdatedDbResults.length
+        } persisted DB results for query="${query}" type=${type || ""} city=${
+          city || ""
+        } after paging`
+      );
+      return res.json(buildSuccessResponse(filteredUpdatedDbResults));
+    }
+
+    // Fallback: convert first-page Google results into a lightweight response shape
+    const results = firstPage.results.map((r) => ({
       id: null,
       google_place_id: r.place_id,
       name: r.name,
@@ -233,11 +430,9 @@ const searchPlaces = async (req, res, next) => {
     }));
 
     console.log(
-      `[Place Search] Returning ${
-        results.length
-      } Google results for query="${query}" type=${type || ""} city=${
-        city || ""
-      }`
+      `[Place Search] Returning ${results.length} Google results for query="${query}" type=${
+        type || ""
+      } city=${city || ""}`
     );
 
     return res.json(buildSuccessResponse(results));
@@ -512,14 +707,10 @@ const getPlaceById = async (req, res, next) => {
         .json(buildErrorResponse("NOT_FOUND", "Place not found"));
     }
 
-    // Format photos with full URLs
+    // Format photos
     const formattedPlace = {
       ...place.toJSON(),
-      photos:
-        place.photos?.map((photo) => ({
-          ...photo.toJSON(),
-          url: getFullImageUrl(photo.url),
-        })) || [],
+      photos: place.photos?.map((photo) => photo.toJSON()) || [],
     };
 
     return res.json(buildSuccessResponse(formattedPlace));

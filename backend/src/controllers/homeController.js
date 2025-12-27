@@ -34,7 +34,6 @@ const getHomeTrips = async (req, res) => {
     try {
       trips = await Trip.findAll({
         where: { is_draft: false },
-        order: sequelize.literal('RAND()'),
         limit: parseInt(limit),
         attributes: [
           "id",
@@ -115,12 +114,11 @@ const getHomeTrips = async (req, res) => {
                 ],
               },
             ],
-            order: [["day_number", "ASC"]],
           },
           {
             model: TripImage,
             as: "images",
-            attributes: ["id", "place_photo_id", "city_photo_id", "is_cover", "image_order"],
+            attributes: ["id", "place_photo_id", "city_photo_id", "image_order"],
             include: [
               {
                 model: PlacePhoto,
@@ -133,8 +131,13 @@ const getHomeTrips = async (req, res) => {
                 attributes: ["url"],
               },
             ],
-            order: [["image_order", "ASC"]],
           },
+        ],
+        order: [
+          sequelize.literal('RAND()'),
+          [{ model: TripItineraryDay, as: "itineraryDays" }, "day_number", "ASC"],
+          [{ model: TripItineraryDay, as: "itineraryDays" }, { model: TripItineraryActivity, as: "activities" }, "activity_order", "ASC"],
+          [{ model: TripImage, as: "images" }, "image_order", "ASC"],
         ],
       });
     } catch (err) {
@@ -147,7 +150,6 @@ const getHomeTrips = async (req, res) => {
 
       trips = await Trip.findAll({
         where: { is_draft: false },
-        order: sequelize.literal('RAND()'),
         limit: parseInt(limit),
         attributes: [
           "id",
@@ -220,15 +222,13 @@ const getHomeTrips = async (req, res) => {
                     ],
                   },
                 ],
-                order: [["activity_order", "ASC"]],
               },
             ],
-            order: [["day_number", "ASC"]],
           },
           {
             model: TripImage,
             as: "images",
-            attributes: ["id", "place_photo_id", "city_photo_id", "is_cover", "image_order"],
+            attributes: ["id", "place_photo_id", "city_photo_id", "image_order"],
             include: [
               {
                 model: PlacePhoto,
@@ -241,8 +241,13 @@ const getHomeTrips = async (req, res) => {
                 attributes: ["url"],
               },
             ],
-            order: [["image_order", "ASC"]],
           },
+        ],
+        order: [
+          sequelize.literal('RAND()'),
+          [{ model: TripItineraryDay, as: "itineraryDays" }, "day_number", "ASC"],
+          [{ model: TripItineraryDay, as: "itineraryDays" }, { model: TripItineraryActivity, as: "activities" }, "activity_order", "ASC"],
+          [{ model: TripImage, as: "images" }, "image_order", "ASC"],
         ],
       });
 
@@ -279,26 +284,27 @@ const getHomeTrips = async (req, res) => {
 
     // Map and format trips for frontend
     const formattedTrips = tripsWithContext.map((trip) => {
-      // Collect all images from trip_images table
-      const images = [];
-
-      // Add images from trip_images (sorted by image_order, cover first if is_cover=true)
-      if (trip.images && trip.images.length > 0) {
-        trip.images.forEach((tripImage) => {
-          let imageUrl = null;
-
-          // Get the photo URL from either place photo or city photo
-          if (tripImage.placePhoto) {
-            imageUrl = tripImage.placePhoto.url;
-          } else if (tripImage.cityPhoto) {
-            imageUrl = tripImage.cityPhoto.url;
-          }
-
-          if (imageUrl) {
-            images.push(getFullImageUrl(imageUrl));
-          }
-        });
-      }
+      // Format trip_images with full structure and sort by image_order
+      const tripImages = trip.images
+        ? trip.images
+            .map((img) => ({
+              id: img.id,
+              place_photo_id: img.place_photo_id,
+              city_photo_id: img.city_photo_id,
+              image_order: img.image_order,
+              placePhoto: img.placePhoto
+                ? {
+                    url: img.placePhoto.url,
+                  }
+                : null,
+              cityPhoto: img.cityPhoto
+                ? {
+                    url: img.cityPhoto.url,
+                  }
+                : null,
+            }))
+            .sort((a, b) => (a.image_order || 0) - (b.image_order || 0))
+        : [];
 
       // Calculate duration_days from itinerary
       const durationDays = trip.itineraryDays ? trip.itineraryDays.length : 0;
@@ -310,7 +316,7 @@ const getHomeTrips = async (req, res) => {
         destinationObj = {
           id: c.id,
           name: `${c.name}${c.country?.name ? `, ${c.country.name}` : ""}`,
-          photo: getFullImageUrl(c.photos?.[0]?.url),
+          photo: c.photos?.[0]?.url || null,
         };
       } else if (trip.destination) {
         destinationObj = { name: trip.destination };
@@ -327,7 +333,7 @@ const getHomeTrips = async (req, res) => {
         is_public: trip.is_public,
         // Preserve the raw `cities` association (frontend will map/display)
         cities: trip.cities || [],
-        images: images,
+        trip_images: tripImages,
         likes: trip.likes_count || 0,
         views: trip.views_count || 0,
         created_at: trip.created_at,
@@ -357,9 +363,7 @@ const getHomeTrips = async (req, res) => {
                       price_level: a.place.price_level,
                       types: [],
                       description: a.description || "",
-                      photo: a.place.photos?.[0]
-                        ? getFullImageUrl(a.place.photos[0].url)
-                        : null,
+                      photo: a.place.photos?.[0]?.url || null,
                     }))
                 : [],
               activities: day.activities
@@ -472,10 +476,10 @@ const getHomeCities = async (req, res) => {
       country_code: city.country?.code,
       google_maps_id: city.google_maps_id,
       trip_count: parseInt(city.dataValues.trip_count || 0),
-      photo: getFullImageUrl(city.photos?.[0]?.url),
-      city_image: getFullImageUrl(city.photos?.[0]?.url),
-      photo_small: getFullImageUrl(city.photos?.[0]?.url),
-      photo_large: getFullImageUrl(city.photos?.[0]?.url),
+      photo: city.photos?.[0]?.url || null,
+      city_image: city.photos?.[0]?.url || null,
+      photo_small: city.photos?.[0]?.url || null,
+      photo_large: city.photos?.[0]?.url || null,
     }));
 
     return res.json(

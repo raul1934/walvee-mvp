@@ -129,6 +129,9 @@ router.delete("/:id/cities/:cityId", authenticate, tripController.removeCityFrom
 // Save itinerary
 router.put("/:id/itinerary", authenticate, tripController.saveItinerary);
 
+// Get available images for trip editor
+router.post("/:id/available-images", authenticate, tripController.getAvailableImages);
+
 // Publish trip with photos
 router.post(
   "/:id/publish",
@@ -138,7 +141,6 @@ router.post(
     body("photos.*.place_photo_id").optional().isUUID(),
     body("photos.*.city_photo_id").optional().isUUID(),
     body("photos.*.image_order").optional().isInt({ min: 0 }),
-    body("photos.*.is_cover").optional().isBoolean(),
     body("title").optional().isString().trim().notEmpty().isLength({ max: 200 }),
     body("description").optional().isString().trim().isLength({ max: 5000 }),
   ],

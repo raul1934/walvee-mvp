@@ -200,7 +200,6 @@ export default function PublishTripModal({
       place_photo_id: photo.type === "place" ? photo.id : null,
       city_photo_id: photo.type === "city" ? photo.id : null,
       image_order: index,
-      is_cover: index === 0, // First photo is the cover
     }));
 
     onPublish(photosToSave, { title: tripTitle, description: tripDescription });
@@ -320,17 +319,12 @@ export default function PublishTripModal({
                       strategy={horizontalListSortingStrategy}
                     >
                       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-                        {selectedPhotos.map((photo, index) => (
+                        {selectedPhotos.map((photo) => (
                           <div key={photo.id} className="relative">
                             <SortablePhotoItem
                               photo={photo}
                               onRemove={handleRemoveSelected}
                             />
-                            {index === 0 && (
-                              <div className="absolute bottom-2 left-2 bg-blue-500 text-white text-xs font-bold px-2 py-1 rounded">
-                                COVER
-                              </div>
-                            )}
                           </div>
                         ))}
                       </div>

@@ -38,11 +38,6 @@ module.exports = {
         onUpdate: 'CASCADE',
         onDelete: 'SET NULL',
       },
-      is_cover: {
-        type: Sequelize.BOOLEAN,
-        defaultValue: false,
-        allowNull: false,
-      },
       image_order: {
         type: Sequelize.INTEGER,
         defaultValue: 0,
@@ -72,9 +67,6 @@ module.exports = {
     });
     await queryInterface.addIndex('trip_images', ['city_photo_id'], {
       name: 'idx_trip_images_city_photo_id',
-    });
-    await queryInterface.addIndex('trip_images', ['trip_id', 'is_cover'], {
-      name: 'idx_trip_images_trip_cover',
     });
   },
 

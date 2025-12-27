@@ -97,7 +97,7 @@ export default function PlacesSidebar({
                         <div className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-yellow-500/15 border border-yellow-500/30">
                           <Star className="w-3 h-3 fill-yellow-500 text-yellow-500" />
                           <span className="text-xs font-semibold text-yellow-400">
-                            {place.rating.toFixed(1)}
+                            {place.rating ?? "N/A"}
                           </span>
                         </div>
                       )}

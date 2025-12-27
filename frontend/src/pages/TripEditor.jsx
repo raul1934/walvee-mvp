@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import {
   ArrowLeft,
   Save,
@@ -24,6 +25,8 @@ import {
   Tag,
   MessageSquare,
   Repeat,
+  Edit2,
+  Check,
 } from "lucide-react";
 import { createPageUrl } from "@/utils";
 import {
@@ -37,12 +40,12 @@ import {
   SortableContext,
   verticalListSortingStrategy,
   horizontalListSortingStrategy,
+  rectSortingStrategy,
   useSortable,
   arrayMove,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import TripMap from "../components/map/TripMap";
-import PublishTripModal from "../components/trip/PublishTripModal";
 
 export default function TripEditor() {
   const { tripId } = useParams();
@@ -69,6 +72,7 @@ export default function TripEditor() {
     images: [],
     visibility: "public",
     is_public: true,
+    is_draft: true,
     cities: [],
     tags: [],
     itinerary: [
@@ -115,7 +119,10 @@ export default function TripEditor() {
 
   // Image gallery state
   const [selectedImages, setSelectedImages] = useState([]);
-  const [coverImageId, setCoverImageId] = useState(null);
+  const [showManageImagesModal, setShowManageImagesModal] = useState(false);
+  const [availableImages, setAvailableImages] = useState([]);
+  const [selectedImageIds, setSelectedImageIds] = useState(new Set());
+  const [loadingImages, setLoadingImages] = useState(false);
 
   // City modal state
   const [selectedCity, setSelectedCity] = useState(null);
@@ -127,13 +134,11 @@ export default function TripEditor() {
   const [cityPlacesLoading, setCityPlacesLoading] = useState(false);
   const [cityPlaceType, setCityPlaceType] = useState("all");
 
-  // Publish modal state
-  const [showPublishModal, setShowPublishModal] = useState(false);
-  const [isPublishing, setIsPublishing] = useState(false);
-  const [tripData, setTripData] = useState(null);
   const [cityPlaceSearch, setCityPlaceSearch] = useState("");
   // When user types a place search, store global results here (across cities)
   const [globalPlaceSearchResults, setGlobalPlaceSearchResults] = useState([]);
+  // Day edit modal state
+  const [editingDayIndex, setEditingDayIndex] = useState(null);
 
   // Drag and drop sensors
   const sensors = useSensors(
@@ -234,6 +239,18 @@ export default function TripEditor() {
   };
 
   const populateFormData = (trip) => {
+    const transformedImages = (trip.trip_images || []).map((img, index) => {
+      return {
+        id: img.place_photo_id || img.city_photo_id,
+        url: img.placePhoto?.url || img.cityPhoto?.url || null,
+        source: img.place_photo_id ? "place" : "city",
+        sourceName: "", // We don't have this in the response
+        placePhotoId: img.place_photo_id,
+        cityPhotoId: img.city_photo_id,
+        imageOrder: img.image_order !== undefined ? img.image_order : index,
+      };
+    }).filter(img => img.url);
+
     setFormData({
       title: trip.title,
       description: trip.description || "",
@@ -244,10 +261,10 @@ export default function TripEditor() {
       best_time_to_visit: trip.best_time_to_visit || "",
       difficulty_level: trip.difficulty_level || "",
       trip_type: trip.trip_type || "",
-      trip_images: trip.images || [],
-      images: trip.images || [],
+      trip_images: transformedImages,
       visibility: trip.is_public ? "public" : "private",
       is_public: trip.is_public,
+      is_draft: trip.is_draft !== undefined ? trip.is_draft : true,
       cities:
         trip.cities
           ?.sort((a, b) => (a.city_order || 0) - (b.city_order || 0))
@@ -356,17 +373,6 @@ export default function TripEditor() {
     // Ensure first day is selected when loading existing trip
     setSelectedDayIndex(0);
 
-    // Set cover image ID if available from trip_images
-    if (trip.images && Array.isArray(trip.images)) {
-      const coverImage = trip.images.find((img) => img.is_cover);
-      if (coverImage) {
-        // Use the photo ID as the identifier
-        const imageId = coverImage.place_photo_id || coverImage.city_photo_id;
-        if (imageId) {
-          setCoverImageId(imageId);
-        }
-      }
-    }
   };
 
   // Form validation
@@ -402,21 +408,169 @@ export default function TripEditor() {
     return Object.keys(newErrors).length === 0;
   };
 
+  // Image management functions
+  const collectAvailableImages = () => {
+    const imagesMap = new Map(); // Use map to deduplicate by URL (since place photos may not have IDs)
+
+    // Get images from cities
+    formData.cities.forEach((city) => {
+      if (city.photos && Array.isArray(city.photos)) {
+        city.photos.forEach((photo) => {
+          const key = photo.id || photo.url; // Use URL as fallback key
+          if (photo.url && !imagesMap.has(key)) {
+            imagesMap.set(key, {
+              id: photo.id || photo.url, // Use URL as ID if no ID exists
+              url: photo.url,
+              source: "city",
+              sourceName: city.name,
+              cityPhotoId: photo.id || null,
+              placePhotoId: null,
+            });
+          }
+        });
+      }
+    });
+
+    // Get images from itinerary places
+    formData.itinerary.forEach((day) => {
+      (day.activities || []).forEach((activity) => {
+        if (activity.place && activity.place.photos) {
+          activity.place.photos.forEach((photo) => {
+            const key = photo.id || photo.url; // Use URL as fallback key
+            if (photo.url && !imagesMap.has(key)) {
+              imagesMap.set(key, {
+                id: photo.id || photo.url, // Use URL as ID if no ID exists
+                url: photo.url,
+                source: "place",
+                sourceName: activity.place.name,
+                placePhotoId: photo.id || null,
+                cityPhotoId: null,
+              });
+            }
+          });
+        }
+      });
+    });
+
+    return Array.from(imagesMap.values());
+  };
+
+  const handleManageImages = async () => {
+    setShowManageImagesModal(true);
+    setLoadingImages(true);
+
+    try {
+      // Collect city and place IDs from current form data
+      const cityIds = formData.cities.map(c => c.id);
+      const placeIds = [];
+
+      formData.itinerary.forEach(day => {
+        (day.activities || []).forEach(activity => {
+          if (activity.place_id) {
+            placeIds.push(activity.place_id);
+          }
+        });
+      });
+
+      // Fetch available images from backend
+      const response = await apiClient.post(
+        endpoints.trips.availableImages(tripId || 'new'),
+        { cityIds, placeIds }
+      );
+
+      const images = response.data.images || [];
+      setAvailableImages(images);
+
+      // Pre-select images that are already selected
+      const selected = new Set(
+        images.filter(img => img.isSelected).map(img => img.id)
+      );
+      setSelectedImageIds(selected);
+    } catch (error) {
+      console.error('Error fetching images:', error);
+      showNotification({
+        type: 'error',
+        title: 'Error loading images',
+        message: error.message || 'Failed to load available images',
+      });
+    } finally {
+      setLoadingImages(false);
+    }
+  };
+
+  const handleToggleImage = (imageId) => {
+    setSelectedImageIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(imageId)) {
+        newSet.delete(imageId);
+      } else {
+        newSet.add(imageId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleSaveImages = () => {
+    // Convert selected IDs back to trip_images format
+    const selectedImagesArray = availableImages
+      .filter(img => selectedImageIds.has(img.id))
+      .map((img, index) => ({
+        id: img.id,
+        url: img.url,
+        source: img.source,
+        sourceName: img.sourceName,
+        placePhotoId: img.placePhotoId,
+        cityPhotoId: img.cityPhotoId,
+        imageOrder: index,
+      }));
+
+    setFormData(prev => ({
+      ...prev,
+      trip_images: selectedImagesArray,
+    }));
+
+    setShowManageImagesModal(false);
+  };
+
+  const handleImageDragEnd = (event) => {
+    const { active, over } = event;
+
+    if (over && active.id !== over.id) {
+      setFormData(prev => {
+        const oldIndex = prev.trip_images.findIndex(img => img.id === active.id);
+        const newIndex = prev.trip_images.findIndex(img => img.id === over.id);
+
+        const newImages = [...prev.trip_images];
+        const [movedImage] = newImages.splice(oldIndex, 1);
+        newImages.splice(newIndex, 0, movedImage);
+
+        // Update image_order
+        return {
+          ...prev,
+          trip_images: newImages.map((img, idx) => ({ ...img, imageOrder: idx })),
+        };
+      });
+    }
+  };
+
   // Transform form data to API format
   const transformFormDataToAPI = (formData) => {
     return {
       title: formData.title.trim(),
       description: formData.description?.trim() || "",
-      durationDays: parseInt(formData.durationDays),
+      duration: formData.durationDays ? `${formData.durationDays} days` : null,
       budget: formData.budget || null,
       transportation: formData.transportation || null,
       accommodation: formData.accommodation || null,
       best_time_to_visit: formData.best_time_to_visit || null,
       difficulty_level: formData.difficulty_level || null,
       trip_type: formData.trip_type || null,
-      trip_images: formData.trip_images || [],
-      images: formData.images || [],
-      visibility: formData.visibility,
+      trip_images: (formData.trip_images || []).map((img) => ({
+        place_photo_id: img.placePhotoId || null,
+        city_photo_id: img.cityPhotoId || null,
+        image_order: img.imageOrder,
+      })),
+      is_public: formData.is_public,
       cities: formData.cities.map((c) => ({ id: c.id })),
       tags: formData.tags || [],
       itinerary: formData.itinerary.map((day) => ({
@@ -510,47 +664,13 @@ export default function TripEditor() {
     }
   };
 
-  // Publish handlers
-  const handleOpenPublishModal = async () => {
-    // Fetch latest trip data with all photos
-    try {
-      const response = await Trip.getById(tripId);
-      if (response && response.success && response.data) {
-        setTripData(response.data);
-        setShowPublishModal(true);
-      }
-    } catch (error) {
-      showNotification({
-        type: "error",
-        title: "Error",
-        message: "Could not load trip data for publishing",
-      });
-    }
-  };
-
-  const handlePublish = async (photosData) => {
-    setIsPublishing(true);
-    try {
-      const response = await Trip.publish(tripId, photosData);
-
-      showNotification({
-        type: "success",
-        title: "Trip Published",
-        message: "Your trip has been published successfully!",
-      });
-
-      setShowPublishModal(false);
-      // Optionally navigate to the trip details page
-      navigate(`/TripDetails/${tripId}`);
-    } catch (error) {
-      showNotification({
-        type: "error",
-        title: "Publish Failed",
-        message: error.message || "Could not publish trip",
-      });
-    } finally {
-      setIsPublishing(false);
-    }
+  // Toggle visibility handler (local state only, saved on Save button click)
+  const handleToggleVisibility = (checked) => {
+    setFormData((prev) => ({
+      ...prev,
+      is_public: checked,
+      visibility: checked ? "public" : "private", // Keep for UI consistency
+    }));
   };
 
   // City search handler
@@ -966,16 +1086,13 @@ export default function TripEditor() {
                     {activity.place.photos &&
                     activity.place.photos.length > 0 ? (
                       <img
-                        src={
-                          activity.place.photos[0].url ||
-                          activity.place.photos[0].url
-                        }
+                        src={activity.place.photos[0].url}
                         alt={activity.place.name}
-                        className="w-12 h-12 rounded object-cover"
+                        className="w-12 h-12 rounded-xl object-cover"
                       />
                     ) : (
-                      <div className="w-12 h-12 bg-blue-700 rounded flex items-center justify-center">
-                        <MapPin className="w-5 h-5 text-blue-300" />
+                      <div className="w-12 h-12 bg-blue-900/50 rounded-xl flex items-center justify-center">
+                        <MapPin className="w-6 h-6 text-blue-400" />
                       </div>
                     )}
                     <div className="flex-1 min-w-0">
@@ -987,7 +1104,7 @@ export default function TripEditor() {
                       </div>
                       {activity.place.rating && (
                         <div className="text-xs text-yellow-500 mt-1">
-                          ⭐ {activity.place.rating.toFixed(1)}{" "}
+                          ⭐ {activity.place.rating ?? "N/A"}{" "}
                           {activity.place.user_ratings_total && (
                             <span className="text-gray-500">
                               ({activity.place.user_ratings_total})
@@ -1225,7 +1342,7 @@ export default function TripEditor() {
             console.error("Error searching places on user input:", err);
         }
       })();
-    }, 350);
+    }, 200);
 
     return () => {
       active = false;
@@ -1299,8 +1416,16 @@ export default function TripEditor() {
       >
         <div className="flex items-center gap-3">
           <div className="relative shrink-0">
-            <div className="w-12 h-12 bg-blue-900/50 rounded-xl flex items-center justify-center">
-              <MapPin className="w-6 h-6 text-blue-400" />
+            <div className="w-12 h-12 bg-blue-900/50 rounded-xl flex items-center justify-center overflow-hidden">
+              {city.photos && city.photos.length > 0 ? (
+                <img
+                  src={city.photos[0].url}
+                  alt={city.name}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <MapPin className="w-6 h-6 text-blue-400" />
+              )}
             </div>
             <div className="absolute -top-1 -left-1 w-5 h-5 bg-blue-600 rounded-full flex items-center justify-center text-xs font-bold">
               {index + 1}
@@ -1308,7 +1433,7 @@ export default function TripEditor() {
           </div>
           <button
             onClick={() => handleCityClick(city)}
-            className="flex-1 min-w-0 text-left"
+            className="flex-1 min-w-0 text-left overflow-hidden"
           >
             <h4 className="font-semibold mb-1 truncate">{city.name}</h4>
             <p className="text-xs text-gray-400 mb-1.5 truncate">
@@ -1341,6 +1466,59 @@ export default function TripEditor() {
     );
   };
 
+  const SortableImage = ({ image, index }) => {
+    const {
+      attributes,
+      listeners,
+      setNodeRef,
+      transform,
+      transition,
+      isDragging,
+    } = useSortable({
+      id: image.id,
+    });
+
+    const style = {
+      transform: CSS.Transform.toString(transform),
+      transition,
+      opacity: isDragging ? 0.5 : 1,
+    };
+
+    return (
+      <div
+        ref={setNodeRef}
+        style={style}
+        className="relative group rounded-lg overflow-hidden bg-[#0D0D0D] border border-gray-700"
+      >
+        <div className="aspect-video relative">
+          <img
+            src={image.url}
+            alt={image.sourceName}
+            className="w-full h-full object-cover"
+          />
+          {index === 0 && (
+            <div className="absolute top-2 left-2 bg-blue-600 text-white text-xs px-2 py-1 rounded">
+              Cover
+            </div>
+          )}
+          <div
+            {...attributes}
+            {...listeners}
+            className="absolute top-2 right-2 cursor-grab active:cursor-grabbing bg-black/50 hover:bg-black/70 rounded p-1.5"
+          >
+            <GripVertical className="w-4 h-4" />
+          </div>
+        </div>
+        <div className="p-2">
+          <p className="text-xs text-gray-400 truncate">
+            {image.source === "city" ? "City: " : "Place: "}
+            {image.sourceName}
+          </p>
+        </div>
+      </div>
+    );
+  };
+
   // Loading state
   if (loading && mode === "edit") {
     return (
@@ -1351,17 +1529,10 @@ export default function TripEditor() {
   }
 
   return (
-    <div className="h-screen bg-[#0A0B0F] text-white overflow-hidden pt-16">
+    <div className="h-screen bg-[#0A0B0F] text-white overflow-hidden pt-16 flex flex-col">
       <style>{`
         body {
           overflow: hidden;
-        }
-        .trip-editor-layout {
-          display: grid;
-          grid-template-columns: minmax(360px, 420px) 1fr;
-          height: calc(100vh - 4rem);
-          min-height: calc(100vh - 4rem);
-          max-height: calc(100vh - 4rem);
         }
 
         /* Custom visible scrollbar for vertical scrolling */
@@ -1399,7 +1570,7 @@ export default function TripEditor() {
       `}</style>
 
       {/* Header Section - Full Width */}
-      <div className="bg-[#0A0B0F] border-b border-[#1F1F1F]">
+      <div className="bg-[#0A0B0F] border-b border-[#1F1F1F] flex-shrink-0">
         <div className="px-4">
           <div className="flex items-center justify-between py-4">
             <div className="flex items-center gap-4">
@@ -1415,16 +1586,20 @@ export default function TripEditor() {
               </h1>
             </div>
 
-            <div className="flex gap-3">
+            <div className="flex gap-3 items-center">
               {mode === "edit" && tripId && (
-                <Button
-                  onClick={handleOpenPublishModal}
-                  disabled={loading}
-                  className="bg-gradient-to-r from-green-600 to-emerald-600 hover:opacity-90 text-white font-semibold h-10 px-6 rounded-lg"
-                >
-                  <UploadIcon className="w-4 h-4 mr-2" />
-                  Publish
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="visibility-toggle" className="text-sm font-medium text-gray-300 cursor-pointer">
+                    {formData.is_public ? "Public" : "Private"}
+                  </Label>
+                  <Switch
+                    id="visibility-toggle"
+                    checked={formData.is_public}
+                    onCheckedChange={handleToggleVisibility}
+                    disabled={loading}
+                    className="data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-green-600 data-[state=checked]:to-emerald-600"
+                  />
+                </div>
               )}
               <Button
                 onClick={mode === "create" ? handleCreate : handleUpdate}
@@ -1551,7 +1726,7 @@ export default function TripEditor() {
         </div>
       </div>
 
-      <div className="trip-editor-layout">
+      <div className="flex-1 grid grid-cols-[minmax(360px,420px)_1fr] min-h-0">
         {/* Left Column - Form */}
         <aside className="bg-[#0A0B0F] border-r border-[#1F1F1F] flex flex-col overflow-hidden min-h-0">
           {/* Scrollable Form Content */}
@@ -2040,84 +2215,69 @@ export default function TripEditor() {
                     if (!selectedDay) return null;
 
                     return (
-                      <div className="p-4">
-                        {/* Day Title */}
-                        <div className="mb-4">
-                          <Label className="text-sm font-semibold text-white mb-2">
-                            Day Title (Optional)
-                          </Label>
-                          <Input
-                            value={selectedDay.title}
-                            onChange={(e) => {
-                              const newItinerary = [...formData.itinerary];
-                              newItinerary[boundedIndex].title = e.target.value;
-                              setFormData((prev) => ({
-                                ...prev,
-                                itinerary: newItinerary,
-                              }));
-                            }}
-                            placeholder={`e.g., Exploring ${
-                              formData.cities[0]?.name || "the city"
-                            }`}
-                            className="bg-[#0D0D0D] border-gray-700 text-white h-12"
-                          />
-                        </div>
+                      <div className="p-4 space-y-3">
+                        {/* Day list view - Click to edit */}
+                        <button
+                          onClick={() => setEditingDayIndex(boundedIndex)}
+                          className="w-full text-left p-4 bg-[#0D1115] rounded-xl border border-[#23262B] hover:bg-[#13151A] transition-colors"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex-1 min-w-0">
+                              <h3 className="font-semibold text-white mb-1">
+                                {selectedDay.title || `Day ${boundedIndex + 1}`}
+                              </h3>
+                              {selectedDay.description && (
+                                <p className="text-xs text-gray-400 mb-2 line-clamp-2">
+                                  {selectedDay.description}
+                                </p>
+                              )}
+                              <div className="flex items-center gap-2 text-xs text-gray-500">
+                                <span>
+                                  {(selectedDay.activities || []).filter((a) => a).length} activities
+                                </span>
+                              </div>
+                            </div>
+                            <Edit2 className="w-4 h-4 text-gray-400 flex-shrink-0 mt-1" />
+                          </div>
+                        </button>
 
-                        {/* Day Description */}
-                        <div className="mb-4">
-                          <Label className="text-sm font-semibold text-white mb-2">
-                            Day Description (Optional)
-                          </Label>
-                          <Textarea
-                            value={selectedDay.description || ""}
-                            onChange={(e) => {
-                              const newItinerary = [...formData.itinerary];
-                              newItinerary[boundedIndex].description =
-                                e.target.value;
-                              setFormData((prev) => ({
-                                ...prev,
-                                itinerary: newItinerary,
-                              }));
-                            }}
-                            placeholder="Add a description for this day..."
-                            className="bg-[#0D0D0D] border-gray-700 text-white min-h-[80px] resize-none"
-                            rows={3}
-                          />
-                        </div>
-
-                        {/* Activities */}
-                        <div className="space-y-3">
-                          <DndContext
-                            sensors={sensors}
-                            collisionDetection={closestCenter}
-                            onDragEnd={handleActivityDragEnd(boundedIndex)}
-                          >
-                            <SortableContext
-                              items={(selectedDay.activities || [])
-                                .filter((a) => a)
-                                .map((_, idx) => `${boundedIndex}-${idx}`)}
-                              strategy={verticalListSortingStrategy}
-                            >
-                              {(selectedDay.activities || [])
-                                .filter((a) => a)
-                                .map((activity, activityIndex) => (
-                                  <SortableActivity
-                                    key={`${boundedIndex}-${activityIndex}`}
-                                    activity={activity}
-                                    dayIndex={boundedIndex}
-                                    activityIndex={activityIndex}
-                                  />
-                                ))}
-                            </SortableContext>
-                          </DndContext>
-
-                          <Button
-                            onClick={() => handleAddActivity(boundedIndex)}
-                            className="w-full bg-[#0D0D0D] hover:bg-gray-800 border border-gray-700 text-gray-300 h-10"
-                          >
-                            <Plus className="w-4 h-4 mr-2" />
-                            Add Activity
-                          </Button>
+                        {/* Activities list */}
+                        <div className="space-y-2">
+                          {(selectedDay.activities || [])
+                            .filter((a) => a)
+                            .map((activity, activityIndex) => (
+                              <button
+                                key={`${boundedIndex}-${activityIndex}`}
+                                onClick={() => {
+                                  // Open place picker to view/change place
+                                  setPlacePickerActivity({ dayIndex: boundedIndex, activityIndex });
+                                  setShowPlacePickerModal(true);
+                                }}
+                                className="w-full flex items-center gap-3 p-3 bg-[#0D1115] rounded-lg border border-[#23262B] hover:bg-[#13151A] transition-colors text-left"
+                              >
+                                <div className="flex-shrink-0 w-8 h-8 bg-blue-700 rounded flex items-center justify-center text-white text-sm font-semibold">
+                                  {activityIndex + 1}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  {activity.place ? (
+                                    <>
+                                      <div className="font-medium text-white text-sm truncate">
+                                        {activity.place.name}
+                                      </div>
+                                      {activity.time && (
+                                        <div className="text-xs text-gray-400">
+                                          {activity.time}
+                                        </div>
+                                      )}
+                                    </>
+                                  ) : (
+                                    <div className="text-sm text-gray-400">
+                                      No place selected
+                                    </div>
+                                  )}
+                                </div>
+                              </button>
+                            ))}
                         </div>
                       </div>
                     );
@@ -2128,154 +2288,51 @@ export default function TripEditor() {
 
             {/* Images Tab */}
             {activeTab === "images" && (
-              <>
-                <div className="p-4">
-                  <h2 className="text-base font-semibold text-white mb-3">
-                    Trip Images
+              <div className="p-4 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-base font-semibold text-white">
+                    Trip Images ({formData.trip_images?.length || 0})
                   </h2>
-
-                  <div className="space-y-4">
-                    {/* Collect all images from places and cities */}
-                    {(() => {
-                      const allImages = [];
-
-                      // Get images from itinerary places
-                      formData.itinerary.forEach((day) => {
-                        (day.activities || []).forEach((activity) => {
-                          if (activity.place && activity.place.photos) {
-                            activity.place.photos.forEach((photo) => {
-                              allImages.push({
-                                id: photo.id || photo.url,
-                                url: photo.url,
-                                source: "place",
-                                sourceName: activity.place.name,
-                                placeId: activity.place.id,
-                                placePhotoId: photo.id,
-                                cityPhotoId: null,
-                              });
-                            });
-                          }
-                        });
-                      });
-
-                      // Get images from cities
-                      formData.cities.forEach((city) => {
-                        if (city.photos && Array.isArray(city.photos)) {
-                          city.photos.forEach((photo) => {
-                            allImages.push({
-                              id: photo.id || photo.url,
-                              url: photo.url,
-                              source: "city",
-                              sourceName: city.name,
-                              cityId: city.id,
-                              placePhotoId: null,
-                              cityPhotoId: photo.id,
-                            });
-                          });
-                        }
-                      });
-
-                      if (allImages.length === 0) {
-                        return (
-                          <div className="text-center py-12 text-gray-400">
-                            <ImageIcon className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                            <p className="text-sm">No images yet</p>
-                            <p className="text-xs mt-1">
-                              Add places or cities to see their images here
-                            </p>
-                          </div>
-                        );
-                      }
-
-                      return (
-                        <div className="grid grid-cols-2 gap-3">
-                          {allImages.map((image) => (
-                            <div
-                              key={image.id}
-                              className="relative group rounded-lg overflow-hidden bg-[#0D0D0D] border border-gray-700"
-                            >
-                              <div className="aspect-video relative">
-                                <img
-                                  src={image.url}
-                                  alt={image.sourceName}
-                                  className="w-full h-full object-cover"
-                                />
-                                {coverImageId === image.id && (
-                                  <div className="absolute top-2 left-2 bg-blue-600 text-white text-xs px-2 py-1 rounded">
-                                    Cover
-                                  </div>
-                                )}
-                              </div>
-                              <div className="p-2">
-                                <p className="text-xs text-gray-400 truncate">
-                                  From {image.sourceName}
-                                </p>
-                                <Button
-                                  onClick={() => {
-                                    setCoverImageId(image.id);
-                                    // Update trip_images: set all to is_cover: false, then set this one to true
-                                    const updatedTripImages = [
-                                      // Remove existing trip_image for this photo if it exists
-                                      ...formData.trip_images.filter(
-                                        (ti) =>
-                                          ti.place_photo_id !==
-                                            image.placePhotoId &&
-                                          ti.city_photo_id !== image.cityPhotoId
-                                      ),
-                                      // Set all others to not cover
-                                      ...formData.trip_images
-                                        .filter(
-                                          (ti) =>
-                                            ti.place_photo_id ===
-                                              image.placePhotoId ||
-                                            ti.city_photo_id ===
-                                              image.cityPhotoId
-                                        )
-                                        .map((ti) => ({
-                                          ...ti,
-                                          is_cover: false,
-                                        })),
-                                      // Add this image as cover
-                                      {
-                                        place_photo_id:
-                                          image.placePhotoId || null,
-                                        city_photo_id:
-                                          image.cityPhotoId || null,
-                                        is_cover: true,
-                                        image_order: 0,
-                                      },
-                                    ];
-                                    setFormData((prev) => ({
-                                      ...prev,
-                                      trip_images: updatedTripImages,
-                                    }));
-                                    showNotification({
-                                      type: "success",
-                                      title: "Cover image set",
-                                      message:
-                                        "This image is now your trip cover",
-                                    });
-                                  }}
-                                  className={`w-full mt-2 h-8 text-xs ${
-                                    coverImageId === image.id
-                                      ? "bg-gray-600"
-                                      : "bg-blue-600 hover:bg-blue-700"
-                                  }`}
-                                  disabled={coverImageId === image.id}
-                                >
-                                  {coverImageId === image.id
-                                    ? "Current Cover"
-                                    : "Set as Cover"}
-                                </Button>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      );
-                    })()}
-                  </div>
+                  <button
+                    onClick={handleManageImages}
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+                  >
+                    <ImageIcon className="w-4 h-4" />
+                    Manage Images
+                  </button>
                 </div>
-              </>
+
+                {!formData.trip_images || formData.trip_images.length === 0 ? (
+                  <div className="text-center py-12 text-gray-400">
+                    <ImageIcon className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                    <p className="text-sm">No images selected</p>
+                    <p className="text-xs mt-1">
+                      Click "Manage Images" to select photos from your cities and places
+                    </p>
+                  </div>
+                ) : (
+                  <DndContext
+                    sensors={sensors}
+                    collisionDetection={closestCenter}
+                    onDragEnd={handleImageDragEnd}
+                  >
+                    <SortableContext
+                      items={formData.trip_images.map((img) => img.id)}
+                      strategy={rectSortingStrategy}
+                    >
+                      <div className="grid grid-cols-2 gap-3">
+                        {formData.trip_images.map((image, index) => (
+                          <SortableImage
+                            key={image.id}
+                            image={image}
+                            index={index}
+                          />
+                        ))}
+                      </div>
+                    </SortableContext>
+                  </DndContext>
+                )}
+              </div>
             )}
           </div>
         </aside>
@@ -2582,9 +2639,113 @@ export default function TripEditor() {
         </div>
       )}
 
+      {/* Manage Images Modal */}
+      {showManageImagesModal && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+          <div className="relative bg-[#0D0D0D] rounded-2xl border border-[#1F1F1F] shadow-2xl w-full max-w-4xl max-h-[80vh] flex flex-col">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-6 border-b border-[#1F1F1F] shrink-0">
+              <div>
+                <h2 className="text-xl font-bold text-white">Manage Trip Images</h2>
+                <p className="text-sm text-gray-400 mt-1">
+                  Select photos from your cities and places ({selectedImageIds.size} selected)
+                </p>
+              </div>
+              <button
+                onClick={() => setShowManageImagesModal(false)}
+                className="text-gray-400 hover:text-white"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            {/* Image Grid */}
+            <div className="flex-1 overflow-y-auto p-6">
+              {loadingImages ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-500 border-t-transparent" />
+                </div>
+              ) : availableImages.length === 0 ? (
+                <div className="text-center py-12 text-gray-400">
+                  <ImageIcon className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                  <p className="text-sm">No images available</p>
+                  <p className="text-xs mt-1">
+                    Add cities and places with photos to your trip first
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-3 gap-4">
+                  {availableImages.map((image) => {
+                    const isSelected = selectedImageIds.has(image.id);
+                    return (
+                      <div
+                        key={image.id}
+                        onClick={() => handleToggleImage(image.id)}
+                        className={`relative rounded-lg overflow-hidden cursor-pointer transition-all ${
+                          isSelected
+                            ? "ring-2 ring-blue-500 scale-95"
+                            : "hover:ring-2 hover:ring-gray-600"
+                        }`}
+                      >
+                        <div className="aspect-video relative">
+                          <img
+                            src={image.url}
+                            alt={image.sourceName}
+                            className="w-full h-full object-cover"
+                          />
+                          {isSelected && (
+                            <div className="absolute inset-0 bg-blue-600/20 flex items-center justify-center">
+                              <div className="bg-blue-600 rounded-full p-2">
+                                <Check className="w-5 h-5 text-white" />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                        <div className="p-2 bg-[#0D0D0D]">
+                          <p className="text-xs text-gray-400 truncate">
+                            {image.source === "city" ? "City: " : "Place: "}
+                            {image.sourceName}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex items-center justify-between p-6 border-t border-[#1F1F1F] shrink-0">
+              <button
+                onClick={() => {
+                  setSelectedImageIds(new Set());
+                }}
+                className="text-sm text-gray-400 hover:text-white transition-colors"
+              >
+                Clear Selection
+              </button>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowManageImagesModal(false)}
+                  className="px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-sm font-medium transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSaveImages}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm font-medium transition-colors"
+                >
+                  Save ({selectedImageIds.size})
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Place Picker Modal */}
       {showPlacePickerModal && placePickerActivity && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[200] p-4">
           <div className="relative bg-[#0D0D0D] rounded-2xl border border-[#1F1F1F] shadow-2xl transition-all w-full max-w-3xl h-[600px] flex flex-col">
             {/* Modal Header */}
             <div className="flex items-center justify-between p-6 border-b border-[#1F1F1F] shrink-0">
@@ -2665,7 +2826,7 @@ export default function TripEditor() {
                 const filteredPlaces = allPlaces.filter((place) => {
                   const matchesSearch = cityPlaceSearch
                     ? place.name
-                        .toLowerCase()
+                        ?.toLowerCase()
                         .includes(cityPlaceSearch.toLowerCase())
                     : true;
                   const matchesType =
@@ -2728,11 +2889,11 @@ export default function TripEditor() {
                                 place.photos[0].url
                               }
                               alt={place.name}
-                              className="w-16 h-16 rounded-lg object-cover"
+                              className="w-12 h-12 rounded-xl object-cover"
                             />
                           ) : (
-                            <div className="w-16 h-16 bg-gray-700 rounded-lg flex items-center justify-center">
-                              <MapPin className="w-6 h-6 text-gray-400" />
+                            <div className="w-12 h-12 bg-blue-900/50 rounded-xl flex items-center justify-center">
+                              <MapPin className="w-6 h-6 text-blue-400" />
                             </div>
                           )}
                           <div className="flex-1 min-w-0">
@@ -2745,7 +2906,7 @@ export default function TripEditor() {
                             <div className="flex items-center gap-2 mt-1">
                               {place.rating && (
                                 <span className="text-xs text-yellow-500">
-                                  ⭐ {place.rating.toFixed(1)}
+                                  ⭐ {place.rating ?? "N/A"}
                                 </span>
                               )}
                               {place.user_ratings_total && (
@@ -2769,14 +2930,126 @@ export default function TripEditor() {
         </div>
       )}
 
-      {/* Publish Trip Modal */}
-      <PublishTripModal
-        isOpen={showPublishModal}
-        onClose={() => setShowPublishModal(false)}
-        trip={tripData}
-        onPublish={handlePublish}
-        isPublishing={isPublishing}
-      />
+
+      {/* Edit Day Modal */}
+      {editingDayIndex !== null && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+          <div className="relative bg-[#0D0D0D] rounded-2xl border border-[#1F1F1F] shadow-2xl transition-all w-full max-w-4xl max-h-[90vh] flex flex-col">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-6 border-b border-[#1F1F1F] shrink-0">
+              <h2 className="text-xl font-bold text-white">
+                Edit Day {editingDayIndex + 1}
+              </h2>
+              <button
+                onClick={() => setEditingDayIndex(null)}
+                className="text-gray-400 hover:text-white"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+              {/* Day Title */}
+              <div>
+                <Label className="text-sm font-semibold text-white mb-2">
+                  Day Title (Optional)
+                </Label>
+                <Input
+                  value={formData.itinerary[editingDayIndex]?.title || ""}
+                  onChange={(e) => {
+                    const newItinerary = [...formData.itinerary];
+                    newItinerary[editingDayIndex].title = e.target.value;
+                    setFormData((prev) => ({
+                      ...prev,
+                      itinerary: newItinerary,
+                    }));
+                  }}
+                  placeholder={`e.g., Exploring ${
+                    formData.cities[0]?.name || "the city"
+                  }`}
+                  className="bg-[#1A1B23] border-gray-700 text-white h-12"
+                />
+              </div>
+
+              {/* Day Description */}
+              <div>
+                <Label className="text-sm font-semibold text-white mb-2">
+                  Day Description (Optional)
+                </Label>
+                <Textarea
+                  value={formData.itinerary[editingDayIndex]?.description || ""}
+                  onChange={(e) => {
+                    const newItinerary = [...formData.itinerary];
+                    newItinerary[editingDayIndex].description = e.target.value;
+                    setFormData((prev) => ({
+                      ...prev,
+                      itinerary: newItinerary,
+                    }));
+                  }}
+                  placeholder="Add a description for this day..."
+                  className="bg-[#1A1B23] border-gray-700 text-white min-h-[80px] resize-none"
+                  rows={3}
+                />
+              </div>
+
+              {/* Activities */}
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <Label className="text-sm font-semibold text-white">
+                    Activities
+                  </Label>
+                  <Button
+                    onClick={() => handleAddActivity(editingDayIndex)}
+                    size="sm"
+                    className="bg-blue-600 hover:bg-blue-700 h-8"
+                  >
+                    <Plus className="w-4 h-4 mr-1" />
+                    Add Activity
+                  </Button>
+                </div>
+
+                <div className="space-y-3">
+                  <DndContext
+                    sensors={sensors}
+                    collisionDetection={closestCenter}
+                    onDragEnd={handleActivityDragEnd(editingDayIndex)}
+                  >
+                    <SortableContext
+                      items={(formData.itinerary[editingDayIndex]?.activities || [])
+                        .filter((a) => a)
+                        .map((_, idx) => `${editingDayIndex}-${idx}`)}
+                      strategy={verticalListSortingStrategy}
+                    >
+                      {(formData.itinerary[editingDayIndex]?.activities || [])
+                        .filter((a) => a)
+                        .map((activity, activityIndex) => (
+                          <SortableActivity
+                            key={`${editingDayIndex}-${activityIndex}`}
+                            activity={activity}
+                            dayIndex={editingDayIndex}
+                            activityIndex={activityIndex}
+                          />
+                        ))}
+                    </SortableContext>
+                  </DndContext>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex items-center justify-end gap-3 p-6 border-t border-[#1F1F1F] shrink-0">
+              <Button
+                onClick={() => setEditingDayIndex(null)}
+                variant="outline"
+                className="bg-transparent border-gray-700 text-gray-300 hover:bg-gray-800"
+              >
+                Done
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

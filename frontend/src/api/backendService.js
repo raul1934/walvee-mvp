@@ -94,13 +94,6 @@ export const Trip = {
     return response.data;
   },
 
-  async getPlacesEnriched(tripId) {
-    const response = await apiClient.get(
-      endpoints.trips.getPlacesEnriched(tripId)
-    );
-    return response.data;
-  },
-
   async addPlace(tripId, placeData) {
     const response = await apiClient.post(
       endpoints.trips.addPlace(tripId),

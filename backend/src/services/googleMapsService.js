@@ -302,10 +302,10 @@ const searchPlacesText = async (
   }
 
   try {
+    // Keep backward compatible behavior: return the first page limited to `limit`
     const params = {
       query: destination ? `${query}, ${destination}` : query,
       key: GOOGLE_MAPS_API_KEY,
-      // types is optional and sometimes ignored by Text Search, but include as a hint
     };
     if (type) params.type = type;
 
@@ -329,6 +329,60 @@ const searchPlacesText = async (
   } catch (error) {
     console.error(
       "[Google Maps Service] Error searching places text:",
+      error.message
+    );
+    throw error;
+  }
+};
+
+// Helper: wait for the next_page_token to become valid
+const delay = (ms) => new Promise((res) => setTimeout(res, ms));
+
+/**
+ * Fetch a single Text Search page. Returns results and next_page_token (if present).
+ * @param {string} query
+ * @param {string|null} destination
+ * @param {string|null} type
+ * @param {string|null} pagetoken
+ */
+const searchPlacesTextPage = async (query, destination = null, type = null, pagetoken = null) => {
+  if (!GOOGLE_MAPS_API_KEY) {
+    throw new Error("Google Maps API key is not configured");
+  }
+
+  try {
+    const params = {
+      query: destination ? `${query}, ${destination}` : query,
+      key: GOOGLE_MAPS_API_KEY,
+    };
+    if (type) params.type = type;
+    if (pagetoken) params.pagetoken = pagetoken;
+
+    const response = await axios.get(`${PLACES_API_BASE_URL}/textsearch/json`, {
+      params,
+    });
+
+    // Accept OK and ZERO_RESULTS as valid responses. For pagetoken flows, Google may return INVALID_REQUEST briefly.
+    if (
+      response.data.status !== "OK" &&
+      response.data.status !== "ZERO_RESULTS" &&
+      response.data.status !== "INVALID_REQUEST"
+    ) {
+      console.error(
+        `[Google Maps Service] Text search error: ${response.data.status}`
+      );
+      throw new Error(`Google Places API error: ${response.data.status}`);
+    }
+
+    return {
+      results: response.data.results || [],
+      next_page_token: response.data.next_page_token || null,
+      status: response.data.status,
+      error_message: response.data.error_message || null,
+    };
+  } catch (error) {
+    console.error(
+      "[Google Maps Service] Error searching places text page:",
       error.message
     );
     throw error;
@@ -609,6 +663,8 @@ module.exports = {
   geocodeAddress,
   getTimezone,
   searchPlace,
+  searchPlacesText,
+  searchPlacesTextPage,
   getPlaceDetailsWithPhotos,
   getCityDetailsWithPhotos,
   getPhotoUrl,

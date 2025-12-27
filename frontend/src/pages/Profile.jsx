@@ -930,7 +930,7 @@ export default function Profile() {
             <p className="text-xs text-gray-400 text-center leading-relaxed line-clamp-2 mb-3">
               {profileUser.bio ||
                 `I'm from ${
-                  profileUser.city || "somewhere"
+                  userCity?.name || profileUser.city?.name || profileUser.city || "somewhere"
                 } and a person who loves to travel and explore the natural world.`}
             </p>
 

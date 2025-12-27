@@ -97,16 +97,7 @@ export default function CityTopPlaces({
                       <>
                         <Star className="w-3.5 h-3.5 text-yellow-400 fill-yellow-400" />
                         <span className="text-xs font-bold text-white">
-                          {(() => {
-                            const rating =
-                              place.rating !== undefined &&
-                              place.rating !== null
-                                ? parseFloat(place.rating)
-                                : null;
-                            return rating !== null && !Number.isNaN(rating)
-                              ? rating.toFixed(1)
-                              : "";
-                          })()}
+                          {place.rating ?? "N/A"}
                         </span>
                       </>
                     ) : null}
@@ -140,7 +131,7 @@ export default function CityTopPlaces({
                             place.mentions === 1 ? "trip" : "trips"
                           }`
                         : place.user_ratings_total
-                        ? `${place.user_ratings_total.toLocaleString()} reviews`
+                        ? `${place.user_ratings_total ?? "N/A"} reviews`
                         : place.address || cityName}
                     </span>
                   </div>
@@ -151,20 +142,11 @@ export default function CityTopPlaces({
                       <div className="flex items-center gap-1">
                         <Star className="w-3 h-3 text-yellow-400 fill-yellow-400" />
                         <span className="font-semibold text-white">
-                          {(() => {
-                            const rating =
-                              place.rating !== undefined &&
-                              place.rating !== null
-                                ? parseFloat(place.rating)
-                                : null;
-                            return rating !== null && !Number.isNaN(rating)
-                              ? rating.toFixed(1)
-                              : "";
-                          })()}
+                          {place.rating ?? "N/A"}
                         </span>
                         {place.user_ratings_total && (
                           <span className="text-gray-500">
-                            ({place.user_ratings_total.toLocaleString()})
+                            ({place.user_ratings_total ?? "N/A"})
                           </span>
                         )}
                       </div>

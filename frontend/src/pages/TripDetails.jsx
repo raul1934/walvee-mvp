@@ -47,18 +47,12 @@ export default function TripDetails() {
   const [activeTab, setActiveTab] = useState("itinerary");
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [selectedDay, setSelectedDay] = useState(0);
-  const [placePhotos, setPlacePhotos] = useState([]);
-  const [isLoadingPhotos, setIsLoadingPhotos] = useState(false);
   const [showScrollCta, setShowScrollCta] = useState(false);
   const [isScrollDebounced, setIsScrollDebounced] = useState(false);
 
   const [selectedPlaceId, setSelectedPlaceId] = useState(null);
   const [selectedPlaceIndex, setSelectedPlaceIndex] = useState(null);
   const [selectedPlaceDetails, setSelectedPlaceDetails] = useState(null);
-
-  const [enrichedPlaces, setEnrichedPlaces] = useState({});
-  const [loadingDayPlaces, setLoadingDayPlaces] = useState(false);
-  const [enrichedDays, setEnrichedDays] = useState(() => new Set());
 
   const [imageErrors, setImageErrors] = useState(() => new Set());
 
@@ -596,135 +590,6 @@ export default function TripDetails() {
     }
   }, [tripData, urlDay, urlPlaceId, urlGpid]);
 
-  useEffect(() => {
-    if (!tripData || activeTab !== "photos") return;
-
-    const fetchPlacePhotos = async () => {
-      setIsLoadingPhotos(true);
-      setImageErrors(new Set());
-
-      try {
-        // Use backend API to get enriched places with cached photos
-        const response = await Trip.getPlacesEnriched(tripData.id);
-
-        if (response.success && response.data) {
-          const allPhotos = [];
-
-          // Extract photos from enriched places
-          response.data.forEach((tripPlace) => {
-            if (tripPlace.place?.photos) {
-              const photos = tripPlace.place.photos
-                .slice(0, 3)
-                .map((photo) => ({
-                  url: photo.url || photo.url,
-                  placeName: tripPlace.name,
-                }));
-              allPhotos.push(...photos);
-            }
-          });
-
-          setPlacePhotos(allPhotos);
-          setCurrentImageIndex(0);
-        } else {
-          setPlacePhotos([]);
-        }
-      } catch (error) {
-        console.error("Error fetching place photos:", error);
-        setPlacePhotos([]);
-      } finally {
-        setIsLoadingPhotos(false);
-      }
-    };
-
-    fetchPlacePhotos();
-  }, [tripData, activeTab]);
-
-  useEffect(() => {
-    if (!tripData || !tripData.itinerary) return;
-
-    const currentDay = tripData.itinerary[selectedDay];
-    if (!currentDay?.places || currentDay.places.length === 0) return;
-
-    const dayKey = `day-${selectedDay}`;
-    const enrichedDaysSet =
-      enrichedDays instanceof Set ? enrichedDays : new Set();
-
-    // Check if already enriched - don't re-run
-    if (enrichedDaysSet.has(dayKey)) return;
-
-    const enrichDayPlaces = async () => {
-      setLoadingDayPlaces(true);
-
-      try {
-        // Use backend API to get enriched places
-        const response = await Trip.getPlacesEnriched(tripData.id);
-
-        if (response.success && response.data) {
-          const newEnrichedPlaces = {};
-
-          // Map enriched data to place keys
-          response.data.forEach((tripPlace) => {
-            // Find the place index in the current day
-            const placeIndex = currentDay.places.findIndex(
-              (p) => p.name === tripPlace.name
-            );
-
-            if (placeIndex !== -1) {
-              const placeKey = `${selectedDay}-${placeIndex}`;
-
-              if (!enrichedPlaces[placeKey] && tripPlace.place) {
-                newEnrichedPlaces[placeKey] = {
-                  ...currentDay.places[placeIndex],
-                  rating:
-                    tripPlace.place.rating ||
-                    currentDay.places[placeIndex].rating,
-                  reviews_count:
-                    tripPlace.place.user_ratings_total ||
-                    currentDay.places[placeIndex].reviews_count,
-                  user_ratings_total:
-                    tripPlace.place.user_ratings_total ||
-                    currentDay.places[placeIndex].user_ratings_total,
-                  photos:
-                    tripPlace.place.photos
-                      ?.slice(0, 5)
-                      .map(
-                        (photo) =>
-                          photo.url || photo.url
-                      ) || [],
-                  latitude: tripPlace.place.latitude,
-                  longitude: tripPlace.place.longitude,
-                  price_level:
-                    tripPlace.place.price_level !== undefined
-                      ? tripPlace.place.price_level
-                      : currentDay.places[placeIndex].price_level,
-                  place_id:
-                    tripPlace.place.google_place_id ||
-                    currentDay.places[placeIndex].place_id,
-                };
-              }
-            }
-          });
-
-          // Batch update all enriched places at once
-          if (Object.keys(newEnrichedPlaces).length > 0) {
-            setEnrichedPlaces((prev) => ({ ...prev, ...newEnrichedPlaces }));
-          }
-
-          setEnrichedDays((prev) => {
-            const currentSet = prev instanceof Set ? prev : new Set();
-            return new Set([...currentSet, dayKey]);
-          });
-        }
-      } catch (error) {
-        console.error("Error enriching day places:", error);
-      } finally {
-        setLoadingDayPlaces(false);
-      }
-    };
-
-    enrichDayPlaces();
-  }, [tripData, selectedDay]);
-
   // Prepare markers data for Leaflet map
   useEffect(() => {
     if (!tripData) return;
@@ -766,14 +631,11 @@ export default function TripDetails() {
     // If no activity markers, fallback to places (backward compatibility)
     if (markers.length === 0 && currentDay.places) {
       currentDay.places.forEach((place, idx) => {
-        const placeKey = `${selectedDay}-${idx}`;
-        const enrichedPlace = enrichedPlaces[placeKey];
-
-        if (enrichedPlace?.latitude && enrichedPlace?.longitude) {
+        if (place.latitude && place.longitude) {
           markers.push({
-            id: placeKey,
-            lat: enrichedPlace.latitude,
-            lng: enrichedPlace.longitude,
+            id: `place-${selectedDay}-${idx}`,
+            lat: place.latitude,
+            lng: place.longitude,
             title: place.name,
             address: place.address,
             number: idx + 1,
@@ -783,7 +645,7 @@ export default function TripDetails() {
     }
 
     setMapMarkers(markers);
-  }, [tripData, selectedDay, enrichedPlaces]);
+  }, [tripData, selectedDay]);
 
   // Prepare city markers for the map
   useEffect(() => {
@@ -933,7 +795,7 @@ export default function TripDetails() {
     return () => {
       delete window.openPlaceDetails;
     };
-  }, [selectedDay, tripData, enrichedPlaces]);
+  }, [selectedDay, tripData]);
 
   const handleScrollClick = () => {
     if (isScrollDebounced) return;
@@ -1193,11 +1055,10 @@ export default function TripDetails() {
   const likesCount = tripData?.likes || 0;
 
   const imagesForDisplay = React.useMemo(() => {
-    if (activeTab === "photos" && placePhotos.length > 0) {
-      return placePhotos.map((p) => p.url);
-    }
-    return tripData?.images || [];
-  }, [activeTab, placePhotos, tripData?.images]);
+    return (tripData?.trip_images || [])
+      .map(img => img.placePhoto?.url || img.cityPhoto?.url)
+      .filter(url => url);
+  }, [tripData?.trip_images]);
 
   const commentCount = commentsData?.data?.length || 0;
 
@@ -1606,16 +1467,17 @@ export default function TripDetails() {
                 </div>
               )}
 
-              {/* Multiple Cities Scroller (only show if more than 1 city) */}
-              {cities && cities.length > 1 && (
-                <div className="flex items-center gap-1 text-xs min-w-0">
-                  <MapPin className="w-3 h-3 shrink-0 text-gray-500" />
-                  <div className="min-w-0 flex-1">
-                    <CitiesScroller
-                      cities={cities.slice(1)}
-                      className="text-xs text-gray-400"
-                    />
-                  </div>
+              {/* Tags */}
+              {tripData?.tags && tripData.tags.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {tripData.tags.map((tag, idx) => (
+                    <span
+                      key={idx}
+                      className="text-xs px-2 py-1 rounded-full bg-blue-600/20 text-blue-400 border border-blue-600/30"
+                    >
+                      #{tag}
+                    </span>
+                  ))}
                 </div>
               )}
 
@@ -1762,11 +1624,7 @@ export default function TripDetails() {
             {/* Trip cities are derived automatically from places; no manual manager UI */}
             {activeTab === "photos" && (
               <div ref={dragScrollRef} className="h-full p-4">
-                {isLoadingPhotos ? (
-                  <div className="flex items-center justify-center h-full">
-                    <div className="animate-spin rounded-full h-8 w-8 border-2 border-blue-500 border-t-transparent" />
-                  </div>
-                ) : imagesForDisplay.length > 0 ? (
+                {imagesForDisplay.length > 0 ? (
                   <>
                     <div className="relative aspect-[4/3] rounded-xl overflow-hidden mb-4">
                       {imageErrors.has(currentImageIndex) ? (
@@ -1912,20 +1770,12 @@ export default function TripDetails() {
 
                     <div className="px-4 pb-20">
                       <div className="space-y-3">
-                        {loadingDayPlaces && (
-                          <div className="flex items-center justify-center py-8">
-                            <div className="animate-spin rounded-full h-8 w-8 border-2 border-blue-500 border-t-transparent" />
-                          </div>
-                        )}
-
-                        {!loadingDayPlaces && currentDayPlaces.length > 0 ? (
+                        {currentDayPlaces.length > 0 ? (
                           currentDayPlaces.map((place, idx) => {
                             const placeCombinedId = `${selectedDay}-${idx}`;
                             const isSelected =
                               selectedPlaceId === placeCombinedId;
-                            const placeKey = `${selectedDay}-${idx}`;
-                            const displayPlace =
-                              enrichedPlaces[placeKey] || place;
+                            const displayPlace = place;
                             const priceInfo = getPriceRangeInfo(
                               displayPlace.price_level
                             );
@@ -1969,14 +1819,10 @@ export default function TripDetails() {
                                     <div className="flex items-center gap-2 flex-wrap">
                                       <div className="flex items-center gap-1">
                                         <span className="text-xs font-semibold text-yellow-500">
-                                          {displayPlace.rating?.toFixed(1) ||
-                                            "N/A"}
+                                          {displayPlace.rating || "N/A"}
                                         </span>
                                         <span className="text-xs text-gray-500">
-                                          (
-                                          {displayPlace.reviews_count?.toLocaleString() ||
-                                            "0"}
-                                          )
+                                          ({displayPlace.reviews_count ?? "N/A"})
                                         </span>
                                       </div>
 
@@ -2003,11 +1849,11 @@ export default function TripDetails() {
                               </button>
                             );
                           })
-                        ) : !loadingDayPlaces ? (
+                        ) : (
                           <div className="flex items-center justify-center h-24 text-center text-gray-500 py-8">
                             No places planned for this day.
                           </div>
-                        ) : null}
+                        )}
                       </div>
                     </div>
                   </div>
@@ -2092,28 +1938,34 @@ export default function TripDetails() {
                     <div className="border-t border-[#1F1F1F] pt-4">
                       <h3 className="font-semibold mb-3">Recent comments</h3>
                       <div className="space-y-3">
-                        {commentsData.data.slice(0, 3).map((c) => (
-                          <div key={c.id} className="flex gap-3 items-start">
-                            <UserAvatar
-                              src={c.commenter?.photo || c.commenter?.photo_url}
-                              name={c.commenter?.name}
-                              size="sm"
-                            />
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2">
-                                <div className="text-sm font-semibold">
-                                  {c.commenter?.name || "Anonymous"}
+                        {commentsData.data.slice(0, 3).map((c) => {
+                          const isCurrentUser = currentUser && c.commenter?.id === currentUser.id;
+                          const displayName = c.commenter?.full_name || c.commenter?.preferred_name || "Anonymous";
+
+                          return (
+                            <div key={c.id} className="flex gap-3 items-start">
+                              <UserAvatar
+                                src={c.commenter?.photo || c.commenter?.photo_url}
+                                name={displayName}
+                                size="sm"
+                              />
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2">
+                                  <div className="text-sm font-semibold">
+                                    {displayName}
+                                    {isCurrentUser && <span className="text-gray-400 font-normal"> (You)</span>}
+                                  </div>
+                                  <div className="text-xs text-gray-400">
+                                    {new Date(c.created_at).toLocaleDateString()}
+                                  </div>
                                 </div>
-                                <div className="text-xs text-gray-400">
-                                  {new Date(c.created_at).toLocaleDateString()}
+                                <div className="text-sm text-gray-200 mt-1">
+                                  {c.comment}
                                 </div>
-                              </div>
-                              <div className="text-sm text-gray-200 mt-1">
-                                {c.comment}
                               </div>
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                       <div className="mt-3">
                         <Button
@@ -2309,28 +2161,34 @@ export default function TripDetails() {
                   {commentsData &&
                   commentsData.data &&
                   commentsData.data.length > 0 ? (
-                    commentsData.data.map((c) => (
-                      <div key={c.id} className="flex gap-3 items-start">
-                        <UserAvatar
-                          src={c.commenter?.photo || c.commenter?.photo_url}
-                          name={c.commenter?.name}
-                          size="sm"
-                        />
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2">
-                            <div className="text-sm font-semibold">
-                              {c.commenter?.name || "Anonymous"}
+                    commentsData.data.map((c) => {
+                      const isCurrentUser = currentUser && c.commenter?.id === currentUser.id;
+                      const displayName = c.commenter?.full_name || c.commenter?.preferred_name || "Anonymous";
+
+                      return (
+                        <div key={c.id} className="flex gap-3 items-start">
+                          <UserAvatar
+                            src={c.commenter?.photo || c.commenter?.photo_url}
+                            name={displayName}
+                            size="sm"
+                          />
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <div className="text-sm font-semibold">
+                                {displayName}
+                                {isCurrentUser && <span className="text-gray-400 font-normal"> (You)</span>}
+                              </div>
+                              <div className="text-xs text-gray-400">
+                                {c.created_at ? new Date(c.created_at).toLocaleString() : "N/A"}
+                              </div>
                             </div>
-                            <div className="text-xs text-gray-400">
-                              {new Date(c.created_at).toLocaleString()}
+                            <div className="text-sm text-gray-200 mt-1">
+                              {c.comment}
                             </div>
-                          </div>
-                          <div className="text-sm text-gray-200 mt-1">
-                            {c.comment}
                           </div>
                         </div>
-                      </div>
-                    ))
+                      );
+                    })
                   ) : (
                     <div className="text-center text-gray-500 py-8">
                       No comments yet. Be the first to comment!

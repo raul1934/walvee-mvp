@@ -23,11 +23,17 @@ export default function TripItinerary({ trip, onPlaceClick }) {
   const daysScrollRef = useRef(null);
   const navigate = useNavigate();
 
+  // Sort itinerary by day number
+  const sortedItinerary = React.useMemo(() => {
+    if (!trip.itinerary) return [];
+    return [...trip.itinerary].sort((a, b) => (a.day || 0) - (b.day || 0));
+  }, [trip.itinerary]);
+
   React.useEffect(() => {
     // no-op: kept for potential side-effects in the future
   }, [selectedDay, trip]);
 
-  if (!trip.itinerary || trip.itinerary.length === 0) {
+  if (!sortedItinerary || sortedItinerary.length === 0) {
     return (
       <div className="bg-[#1A1B23] rounded-3xl overflow-hidden border border-[#2A2B35] h-full flex items-center justify-center">
         <div className="p-6 text-center text-gray-400">
@@ -37,8 +43,8 @@ export default function TripItinerary({ trip, onPlaceClick }) {
     );
   }
 
-  const currentDay = trip.itinerary[selectedDay];
-  const totalDays = trip.itinerary.length;
+  const currentDay = sortedItinerary[selectedDay];
+  const totalDays = sortedItinerary.length;
 
   const handlePlaceClick = (e, placeIndex) => {
     e.preventDefault();
@@ -93,7 +99,7 @@ export default function TripItinerary({ trip, onPlaceClick }) {
           className="flex-1 flex items-center gap-2 overflow-x-auto scrollbar-hide scroll-smooth"
           style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
         >
-          {trip.itinerary.map((day, idx) => (
+          {sortedItinerary.map((day, idx) => (
             <button
               key={idx}
               onClick={(e) => {
@@ -170,11 +176,11 @@ export default function TripItinerary({ trip, onPlaceClick }) {
                       {place.rating > 0 && (
                         <div className="flex items-center gap-1">
                           <span className="text-xs font-semibold text-yellow-500">
-                            {place.rating?.toFixed(1)}
+                            {place.rating ?? "N/A"}
                           </span>
                           {place.reviews_count > 0 && (
                             <span className="text-xs text-gray-500">
-                              ({place.reviews_count?.toLocaleString()})
+                              ({place.reviews_count ?? "N/A"})
                             </span>
                           )}
                         </div>

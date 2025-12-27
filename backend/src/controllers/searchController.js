@@ -183,6 +183,7 @@ const searchOverlay = async (req, res, next) => {
           {
             model: CityPhoto,
             as: "photos",
+            attributes: ["id", "url"],
             limit: 1,
             order: [["photo_order", "ASC"]],
             required: false,
@@ -364,8 +365,8 @@ const searchOverlay = async (req, res, next) => {
         countryId: city.country?.id,
         countryCode: city.country?.code,
         state: city.state,
-        // Ensure image URL is absolute by prefixing backend URL when needed
-        image: getFullImageUrl(city.photos?.[0]?.url),
+        // City photo URL
+        image: city.photos?.[0]?.url || null,
         google_maps_id: city.google_maps_id,
         tripsCount: parseInt(city.dataValues.trip_count || 0),
       }));
@@ -440,7 +441,7 @@ const searchOverlay = async (req, res, next) => {
         {
           model: TripImage,
           as: "images",
-          attributes: ["id", "place_photo_id", "city_photo_id", "is_cover", "image_order"],
+          attributes: ["id", "place_photo_id", "city_photo_id", "image_order"],
           include: [
             {
               model: PlacePhoto,
@@ -454,7 +455,7 @@ const searchOverlay = async (req, res, next) => {
             },
           ],
           order: [["image_order", "ASC"]],
-          limit: 1, // Only get the first image (cover)
+          limit: 1, // Only get the first image (primary/cover)
         },
       ],
       distinct: true,
@@ -495,9 +496,9 @@ const searchOverlay = async (req, res, next) => {
       if (trip.images && trip.images.length > 0) {
         const firstImage = trip.images[0];
         if (firstImage.placePhoto) {
-          imageUrl = getFullImageUrl(firstImage.placePhoto.url);
+          imageUrl = firstImage.placePhoto.url;
         } else if (firstImage.cityPhoto) {
-          imageUrl = getFullImageUrl(firstImage.cityPhoto.url);
+          imageUrl = firstImage.cityPhoto.url;
         }
       }
 
@@ -545,6 +546,7 @@ const searchOverlay = async (req, res, next) => {
         {
           model: PlacePhoto,
           as: "photos",
+          attributes: ["id", "url"],
           limit: 1,
           order: [["photo_order", "ASC"]],
           required: false,
@@ -687,6 +689,7 @@ const searchOverlay = async (req, res, next) => {
             {
               model: PlacePhoto,
               as: "photos",
+              attributes: ["id", "url"],
               limit: 1,
               order: [["photo_order", "ASC"]],
               required: false,

@@ -1704,17 +1704,8 @@ export default function InspirePrompt() {
   };
 
   return (
-    <div className="inspire-container">
+    <div className="h-screen flex flex-col bg-[#121518] relative overflow-hidden pt-16 inspire-container">
       <style>{`
-        .inspire-container {
-          height: 100vh;
-          display: flex;
-          flex-direction: column;
-          background: #121518;
-          position: relative;
-          overflow: hidden;
-        }
-
         .inspire-container::before {
           content: '';
           position: absolute;
@@ -1723,25 +1714,12 @@ export default function InspirePrompt() {
           pointer-events: none;
         }
 
-        /* City tabs container */
-        .city-tabs-container {
-          position: sticky;
-          top: 64px;
-          left: 0;
-          right: 0;
-          z-index: 30;
-          background: #0A0B0F;
-          border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-          padding: 12px 16px;
-          display: flex;
-          gap: 8px;
-          overflow-x: auto;
+        /* Scrollbar hiding utility */
+        .scrollbar-hide {
           scrollbar-width: none;
           -ms-overflow-style: none;
-          flex-shrink: 0;
         }
-
-        .city-tabs-container::-webkit-scrollbar {
+        .scrollbar-hide::-webkit-scrollbar {
           display: none;
         }
 
@@ -1812,21 +1790,6 @@ export default function InspirePrompt() {
           background: rgba(239, 68, 68, 0.3);
           border-color: rgba(239, 68, 68, 0.5);
           transform: scale(1.1);
-        }
-
-        /* Main layout */
-        .inspire-main-layout {
-          display: flex;
-          height: calc(100vh - 96px);
-          margin-top: 64px;
-          position: relative;
-          width: 100%;
-        }
-
-        /* When city tabs are visible, add extra margin */
-        .inspire-main-layout.with-city-tabs {
-          margin-top: 64px;
-          height: calc(100vh - 64px);
         }
 
         /* Places sidebar */
@@ -2642,15 +2605,6 @@ export default function InspirePrompt() {
         }
 
         @media (max-width: 768px) {
-          .city-tabs-container {
-            padding: 8px 16px;
-          }
-
-          .inspire-main-layout {
-            margin-top: 64px;
-            height: calc(100vh - 96px);
-          }
-
           .content-scroll-area {
             padding: 16px 16px;
           }
@@ -2663,7 +2617,7 @@ export default function InspirePrompt() {
 
       {/* City Tabs - with Main Chat */}
       {(cityTabs.length > 0 || messages.length > 0) && (
-        <div className="city-tabs-container">
+        <div className="bg-[#0A0B0F] border-b border-white/[0.08] px-4 py-2 md:py-3 flex gap-2 overflow-x-auto scrollbar-hide flex-shrink-0">
           {/* Main Chat Tab - Always first */}
           <button
             className={`city-tab main-chat ${
@@ -2722,11 +2676,7 @@ export default function InspirePrompt() {
       )}
 
       {/* Main Layout with Sidebar (sidebar moved inside content area for proper stacking) */}
-      <div
-        className={`inspire-main-layout ${
-          cityTabs.length > 0 || messages.length > 0 ? "with-city-tabs" : ""
-        }`}
-      >
+      <div className="flex flex-1 min-h-0 relative w-full">
         {/* Fixed Places Sidebar (left, non-scrolling on desktop) */}
         {activeCity && (
           <PlacesSidebar
@@ -2823,7 +2773,7 @@ export default function InspirePrompt() {
                 )}
 
                 {/* State: Conversation */}
-                {messages.length > 0 && (
+                {(messages.length > 0 || isLoadingResponse) && (
                   <motion.div
                     key="conversation"
                     initial={{ opacity: 0 }}

@@ -40,6 +40,25 @@ const initGemini = () => {
   return new GoogleGenerativeAI(apiKey);
 };
 
+// Helper function to robustly parse JSON from LLM responses
+const parseJSONResponse = (text) => {
+  try {
+    return JSON.parse(text);
+  } catch (parseError) {
+    // Try to extract JSON from text (sometimes LLM wraps JSON in conversational text)
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      try {
+        return JSON.parse(jsonMatch[0]);
+      } catch (extractError) {
+        throw new Error(`Failed to parse LLM response as JSON. Response: ${text.substring(0, 200)}...`);
+      }
+    } else {
+      throw new Error(`LLM returned non-JSON response: ${text.substring(0, 200)}...`);
+    }
+  }
+};
+
 // Default Gemini model names (configurable via .env)
 const GEMINI_MODEL_DEFAULT =
   process.env.GEMINI_MODEL_DEFAULT || "gemini-2.5-flash";
@@ -160,7 +179,7 @@ exports.getRecommendations = async (req, res) => {
     const result = await geminiModel.generateContent(requestConfig);
     const text = result.response.text();
 
-    let parsedResponse = JSON.parse(text);
+    let parsedResponse = parseJSONResponse(text);
 
     console.log("[Inspire] Raw recommendations response:", parsedResponse);
 
@@ -407,16 +426,10 @@ exports.organizeItinerary = async (req, res) => {
       language
     );
 
-    // Get schema with google_maps_id
-    const responseSchema = promptService.getOrganizeItinerarySchema();
-
     // Call Gemini with Maps Grounding for proximity/distance understanding
+    // Note: Google Maps grounding doesn't support JSON response format, so we use text mode
     const modelConfig = {
       model: GEMINI_MODEL_ORGANIZE,
-      generationConfig: {
-        responseMimeType: "application/json",
-        responseSchema,
-      },
     };
 
     const geminiModel = genAI.getGenerativeModel(modelConfig);
@@ -440,7 +453,7 @@ exports.organizeItinerary = async (req, res) => {
     const result = await geminiModel.generateContent(requestConfig);
     const text = result.response.text();
 
-    let parsedResponse = JSON.parse(text);
+    let parsedResponse = parseJSONResponse(text);
 
     // Validate and enrich Place IDs - flatten all places from all days
     const allPlaces = parsedResponse.itinerary.flatMap(
@@ -470,11 +483,13 @@ exports.organizeItinerary = async (req, res) => {
       );
 
       // Delete existing itinerary days for this specific city only
+      // Use force: true to hard delete (bypass paranoid mode) to avoid unique constraint violations
       const deletedCount = await TripItineraryDay.destroy({
         where: {
           trip_id: trip_id,
           city_id: city_id,
         },
+        force: true,
       });
 
       console.log(
@@ -545,6 +560,12 @@ exports.organizeItinerary = async (req, res) => {
     return res.json(buildSuccessResponse(parsedResponse));
   } catch (error) {
     console.error("[Inspire] organizeItinerary error:", error);
+    console.error("[Inspire] organizeItinerary error details:", {
+      message: error.message,
+      stack: error.stack,
+      name: error.name,
+      response: error.response,
+    });
     return res
       .status(500)
       .json(
@@ -679,7 +700,7 @@ exports.call = async (req, res) => {
       const responseData = result.response;
       const text = responseData.text();
 
-      let parsedResponse = JSON.parse(text);
+      let parsedResponse = parseJSONResponse(text);
 
       return res.json(buildSuccessResponse(parsedResponse));
     }
@@ -709,7 +730,7 @@ exports.call = async (req, res) => {
     let parsedResponse = text;
     if (schema_type) {
       try {
-        parsedResponse = JSON.parse(text);
+        parsedResponse = parseJSONResponse(text);
       } catch (err) {
         console.warn(
           "[inspirePrompt] Failed to parse JSON response:",
@@ -888,7 +909,7 @@ exports.modifyTrip = async (req, res) => {
     const responseData = result.response;
     const text = responseData.text();
 
-    let parsedResponse = JSON.parse(text);
+    let parsedResponse = parseJSONResponse(text);
 
     return res.json(buildSuccessResponse(parsedResponse));
   } catch (error) {

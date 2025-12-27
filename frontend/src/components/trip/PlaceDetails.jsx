@@ -185,7 +185,7 @@ export default function PlaceDetails({
   const [isLoadingAiReview, setIsLoadingAiReview] = useState(false);
 
   const [googleRatingsTotal, setGoogleRatingsTotal] = useState(
-    enrichedPlace.user_ratings_total || enrichedPlace.reviews_count || 0
+    enrichedPlace?.user_ratings_total || enrichedPlace?.reviews_count || 0
   );
 
   const [expandedSections, setExpandedSections] = useState({
@@ -517,6 +517,7 @@ export default function PlaceDetails({
               <div>
                 <h4 className="font-semibold text-white text-sm">
                   {review.author_name}
+                  {review.isOwn && <span className="text-gray-400 font-normal"> (You)</span>}
                 </h4>
                 {priceOpinionData && (
                   <div className="flex items-center gap-1.5 mt-1">
@@ -884,10 +885,10 @@ export default function PlaceDetails({
                 ))}
               </div>
               <span className="text-sm font-semibold text-white">
-                {place.rating ? parseFloat(place.rating).toFixed(1) : "N/A"}
+                {place.rating || "N/A"}
               </span>
               <span className="text-sm text-gray-500">
-                ({googleRatingsTotal.toLocaleString()} reviews)
+                ({googleRatingsTotal ?? "N/A"} reviews)
               </span>
             </div>
           )}

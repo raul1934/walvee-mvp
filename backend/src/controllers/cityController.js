@@ -221,6 +221,7 @@ const searchCities = async (req, res, next) => {
         {
           model: CityPhoto,
           as: "photos",
+          attributes: ["id", "url"],
           required: false,
           limit: 1,
           order: [["photo_order", "ASC"]],
@@ -668,9 +669,7 @@ const getCityTrips = async (req, res, next) => {
                     {
                       model: PlacePhoto,
                       as: "photos",
-                      attributes: [
-                                                                                                "photo_order",
-                      ],
+                      attributes: ["url", "photo_order"],
                       order: [["photo_order", "ASC"]],
                     },
                   ],
@@ -698,7 +697,7 @@ const getCityTrips = async (req, res, next) => {
         {
           model: TripImage,
           as: "images",
-          attributes: ["id", "place_photo_id", "city_photo_id", "is_cover", "image_order"],
+          attributes: ["id", "place_photo_id", "city_photo_id", "image_order"],
           include: [
             {
               model: PlacePhoto,
@@ -833,20 +832,30 @@ const getCityTrips = async (req, res, next) => {
       paginatedTrips.map(async (trip) => {
         const cities = await extractCitiesWithIds(trip);
 
-        // Extract cover image from trip_images
+        // Extract cover image from trip_images (first image)
         let coverImageUrl = null;
         if (trip.images && trip.images.length > 0) {
-          const coverImage = trip.images.find((img) => img.is_cover) || trip.images[0];
+          const coverImage = trip.images[0]; // First image is the cover
           if (coverImage.placePhoto?.url) {
-            coverImageUrl = require("../utils/helpers").getFullImageUrl(
-              coverImage.placePhoto.url
-            );
+            coverImageUrl = coverImage.placePhoto.url;
           } else if (coverImage.cityPhoto?.url) {
-            coverImageUrl = require("../utils/helpers").getFullImageUrl(
-              coverImage.cityPhoto.url
-            );
+            coverImageUrl = coverImage.cityPhoto.url;
           }
         }
+
+        // Format trip_images array
+        const tripImages = trip.images
+          ? trip.images
+              .map((img) => ({
+                id: img.id,
+                place_photo_id: img.place_photo_id,
+                city_photo_id: img.city_photo_id,
+                image_order: img.image_order,
+                placePhoto: img.placePhoto ? { url: img.placePhoto.url } : null,
+                cityPhoto: img.cityPhoto ? { url: img.cityPhoto.url } : null,
+              }))
+              .sort((a, b) => (a.image_order || 0) - (b.image_order || 0))
+          : [];
 
         return {
           id: trip.id,
@@ -860,6 +869,7 @@ const getCityTrips = async (req, res, next) => {
           difficulty_level: trip.difficulty_level,
           trip_type: trip.trip_type,
           cover_image: coverImageUrl,
+          trip_images: tripImages,
           author_id: trip.author_id,
           destination_lat: trip.destination_lat,
           destination_lng: trip.destination_lng,
@@ -872,11 +882,10 @@ const getCityTrips = async (req, res, next) => {
           author: trip.author
             ? {
                 id: trip.author.id,
-                name:
-                  trip.author.preferred_name ||
-                  trip.author.full_name ||
-                  trip.author.email?.split("@")[0],
-                photo: trip.author.photo_url,
+                full_name: trip.author.full_name,
+                preferred_name: trip.author.preferred_name,
+                photo_url: trip.author.photo_url,
+                email: trip.author.email,
               }
             : null,
           tags: trip.tags?.map((t) => t.tag) || [],
@@ -901,16 +910,10 @@ const getCityTrips = async (req, res, next) => {
                         price_level: a.place.price_level,
                         types: a.place.types || [],
                         description: a.description || "",
-                        photo: a.place.photos?.[0]
-                          ? require("../utils/helpers").getFullImageUrl(
-                              a.place.photos[0].url
-                            )
-                          : null,
+                        photo: a.place.photos?.[0]?.url || null,
                         photos: a.place.photos
                           ? a.place.photos.map((p) => ({
-                              url: require("../utils/helpers").getFullImageUrl(
-                                p.url
-                              ),
+                              url: p.url,
                             }))
                           : [],
                       }))
@@ -1012,6 +1015,7 @@ const getSuggestedCitiesByCountry = async (req, res, next) => {
         {
           model: CityPhoto,
           as: "photos",
+          attributes: ["id", "url"],
           required: false,
           limit: 1,
           order: [["photo_order", "ASC"]],

@@ -44,11 +44,13 @@ export default React.memo(
 
     // Determine valid images - filter out broken ones and provide a fallback if none exist
     const validImages = React.useMemo(() => {
-      const sourceImages = trip.images || [];
+      const sourceImages = (trip.trip_images || [])
+        .map(img => img.placePhoto?.url || img.cityPhoto?.url)
+        .filter(url => url);
 
       // Filter out any null/undefined entries and those marked as erroneous
       return sourceImages.filter((img, idx) => img && !imageErrors.has(idx));
-    }, [trip.images, imageErrors]);
+    }, [trip.trip_images, imageErrors]);
 
     const hasValidImages = validImages.length > 0;
 
@@ -219,9 +221,9 @@ export default React.memo(
       <>
         <Link
           to={`${createPageUrl("TripDetails")}/${trip.id}`}
-          className="block mb-8"
+          className="block mb-8 h-full"
         >
-          <div className="bg-[#1A1B23] rounded-3xl overflow-hidden border border-[#2A2B35] hover:border-blue-500/30 transition-all duration-300">
+          <div className="bg-[#1A1B23] rounded-3xl overflow-hidden border border-[#2A2B35] hover:border-blue-500/30 transition-all duration-300 h-full flex flex-col">
             {/* User Info Header */}
             <div className="flex items-center justify-between p-4 border-b border-[#2A2B35]">
               <div className="flex items-center gap-3">
@@ -241,7 +243,9 @@ export default React.memo(
                       format(new Date(trip.start_date), "dd MMM yyyy", {
                         locale: pt,
                       })}{" "}
-                    • {trip.duration_days} days
+                    {(trip.duration_days || trip.itinerary?.length) && (
+                      <>• {trip.duration_days || trip.itinerary?.length} days</>
+                    )}
                   </p>
                 </div>
               </div>
@@ -319,7 +323,7 @@ export default React.memo(
             </div>
 
             {/* Title, Location and Description */}
-            <div className="p-4">
+            <div className="p-4 flex-1 flex flex-col">
               <h3 className="text-lg font-bold text-white mb-2 line-clamp-2">
                 {trip.title}
               </h3>
@@ -381,7 +385,7 @@ export default React.memo(
               </p>
 
               {/* Actions Footer with KPIs */}
-              <div className="flex items-center justify-between pt-3 border-t border-[#2A2B35]">
+              <div className="flex items-center justify-between pt-3 border-t border-[#2A2B35] mt-auto">
                 <div className="flex items-center gap-6">
                   {/* Like with ThumbsUp */}
                   <button

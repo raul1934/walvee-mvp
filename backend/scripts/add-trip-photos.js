@@ -79,12 +79,6 @@ async function main() {
       );
       let order = (maxOrderRes[0].max_order || -1) + 1;
 
-      const [coverRes] = await connection.query(
-        "SELECT COUNT(*) as cnt FROM trip_images WHERE trip_id = ? AND is_cover = 1",
-        [trip.id]
-      );
-      const hasCover = coverRes[0].cnt > 0;
-
       const toInsert = PER_TRIP - existingCount;
       const imagesToInsert = [];
 
@@ -124,23 +118,20 @@ async function main() {
 
       // Insert gathered images up to `toInsert`
       for (const img of imagesToInsert.slice(0, toInsert)) {
-        const isCover =
-          !hasCover && order === maxOrderRes[0].max_order + 1 ? 1 : 0;
         const params = [
           trip.id,
           img.place_photo_id || null,
           img.city_photo_id || null,
-          isCover,
           order,
         ];
-        const sql = `INSERT INTO trip_images (id, trip_id, place_photo_id, city_photo_id, is_cover, image_order, created_at) VALUES (UUID(), ?, ?, ?, ?, ?, NOW())`;
+        const sql = `INSERT INTO trip_images (id, trip_id, place_photo_id, city_photo_id, image_order, created_at) VALUES (UUID(), ?, ?, ?, ?, NOW())`;
         if (DRY_RUN) {
           console.log(
             `    ↳ [DRY] Would insert: trip=${trip.id}, place_photo_id=${
               img.place_photo_id || ""
             }, city_photo_id=${
               img.city_photo_id || ""
-            }, is_cover=${isCover}, order=${order}`
+            }, order=${order}`
           );
         } else {
           await connection.query(sql, params);

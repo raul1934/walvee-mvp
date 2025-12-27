@@ -232,10 +232,10 @@ export default function SearchOverlay({
                     <div>
                       {activeFilter === "all" && (
                         <div className="flex items-center gap-2 mb-3 px-2">
-                          {cityBanner && cityBanner.images?.[0] ? (
+                          {cityBanner && (cityBanner.photos?.[0]?.url || cityBanner.image_url) ? (
                             <div className="w-4 h-4 rounded overflow-hidden shrink-0">
                               <img
-                                src={cityBanner.images[0]}
+                                src={cityBanner.photos?.[0]?.url || cityBanner.image_url}
                                 alt={cityBanner.name}
                                 className="w-full h-full object-cover"
                                 onError={(e) =>
@@ -269,10 +269,10 @@ export default function SearchOverlay({
                     <div>
                       {activeFilter === "all" && (
                         <div className="flex items-center gap-2 mb-3 px-2">
-                          {results?.trips?.[0]?.images?.[0] ? (
+                          {(results?.trips?.[0]?.trip_images?.[0]?.placePhoto?.url || results?.trips?.[0]?.trip_images?.[0]?.cityPhoto?.url) ? (
                             <div className="w-4 h-4 rounded overflow-hidden shrink-0">
                               <img
-                                src={results.trips[0].images[0]}
+                                src={results.trips[0].trip_images[0].placePhoto?.url || results.trips[0].trip_images[0].cityPhoto?.url}
                                 alt={results.trips[0].title || "trip"}
                                 className="w-full h-full object-cover"
                                 onError={(e) =>

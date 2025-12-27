@@ -148,7 +148,7 @@ export default function CityFavorites({
                       <div className="flex items-center gap-1">
                         <Star className="w-3 h-3 fill-yellow-500 text-yellow-500" />
                         <span className="text-xs font-semibold text-yellow-500">
-                          {rating.toFixed(1)}
+                          {rating ?? "N/A"}
                         </span>
                       </div>
                     )}

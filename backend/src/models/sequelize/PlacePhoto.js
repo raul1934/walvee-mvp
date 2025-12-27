@@ -1,5 +1,6 @@
 const { DataTypes } = require("sequelize");
 const { sequelize } = require("../../database/sequelize");
+const { getFullImageUrl } = require("../../utils/helpers");
 
 const PlacePhoto = sequelize.define(
   "PlacePhoto",
@@ -25,6 +26,10 @@ const PlacePhoto = sequelize.define(
     url: {
       type: DataTypes.STRING(1000),
       comment: "Photo URL",
+      get() {
+        const rawValue = this.getDataValue("url");
+        return getFullImageUrl(rawValue);
+      },
     },
     attribution: {
       type: DataTypes.TEXT,

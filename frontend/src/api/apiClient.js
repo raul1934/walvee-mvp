@@ -232,6 +232,7 @@ export const endpoints = {
     removeCity: (tripId, cityId) => `/trips/${tripId}/cities/${cityId}`,
     saveItinerary: (id) => `/trips/${id}/itinerary`,
     publish: (id) => `/trips/${id}/publish`,
+    availableImages: (id) => `/trips/${id}/available-images`,
   },
 
   // Trip Likes

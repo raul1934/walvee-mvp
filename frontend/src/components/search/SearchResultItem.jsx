@@ -76,11 +76,11 @@ export default function SearchResultItem({ result, onClose, onPlaceClick }) {
         className="flex items-center gap-4 p-4 hover:bg-[#1A1B23] rounded-xl transition-colors group"
       >
         <div className="w-16 h-16 rounded-xl overflow-hidden bg-[#0D0D0D] shrink-0">
-          {!result.images[0] || imageError ? (
+          {!(result.trip_images?.[0]?.placePhoto?.url || result.trip_images?.[0]?.cityPhoto?.url) || imageError ? (
             <ImagePlaceholder type="image" />
           ) : (
             <img
-              src={result.images[0]}
+              src={result.trip_images[0].placePhoto?.url || result.trip_images[0].cityPhoto?.url}
               alt={result.title}
               className="w-full h-full object-cover group-hover:scale-110 transition-transform"
               onError={() => setImageError(true)}
@@ -150,7 +150,7 @@ export default function SearchResultItem({ result, onClose, onPlaceClick }) {
               <div className="flex items-center gap-1 text-xs">
                 <Star className="w-3 h-3 fill-yellow-500 text-yellow-500" />
                 <span className="text-yellow-500 font-semibold">
-                  {Number(result.rating).toFixed(1)}
+                  {result.rating ?? "N/A"}
                 </span>
               </div>
             )}

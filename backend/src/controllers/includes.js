@@ -37,6 +37,7 @@ exports.INCLUDE_PLACE_FULL = {
     {
       model: PlacePhoto,
       as: "photos",
+      attributes: ["id", "url", "photo_order"],
       limit: 3,
       separate: true,
       order: [["photo_order", "ASC"]]
@@ -67,6 +68,7 @@ exports.INCLUDE_TRIP_CITIES = {
     {
       model: CityPhoto,
       as: "photos",
+      attributes: ["id", "url", "photo_order"],
       limit: 3,
       separate: true,
       order: [["photo_order", "ASC"]]

@@ -40,7 +40,7 @@ export default function CityTripGrid({ trips, isLoading, currentUserId }) {
     <div className="container mx-auto px-6">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {trips.map((trip) => {
-          const mainImage = trip.images?.[0] || trip.image_url;
+          const mainImage = trip.trip_images?.[0]?.placePhoto?.url || trip.trip_images?.[0]?.cityPhoto?.url || trip.image_url;
           const hasImageError = imageErrors.has(trip.id);
           const cities = getTripCities(trip);
 
