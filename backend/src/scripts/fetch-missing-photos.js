@@ -2,6 +2,7 @@ const { City, Place, CityPhoto, PlacePhoto } = require("../models/sequelize");
 const {
   getCityDetailsWithPhotos,
   getPlaceDetailsWithPhotos,
+  getPhotoUrl,
 } = require("../services/googleMapsService");
 const { sequelize } = require("../database/sequelize");
 const axios = require("axios");
@@ -102,40 +103,23 @@ async function fetchMissingCityPhotos() {
           const photoPromises = cityDetails.photos
             .slice(0, 5)
             .map(async (photo, index) => {
-              const ext = getFileExtension(photo.url_small || ".jpg");
+              const ext = getFileExtension(getPhotoUrl(photo.photo_reference, 800) || ".jpg");
 
               // Download three sizes
-              const smallPath = path.join(cityDir, `${index}_small${ext}`);
-              const mediumPath = path.join(cityDir, `${index}_medium${ext}`);
-              const largePath = path.join(cityDir, `${index}_large${ext}`);
-
+                                          
               const [smallResult, mediumResult, largeResult] =
                 await Promise.all([
-                  downloadImage(photo.url_small, smallPath),
-                  downloadImage(photo.url_medium, mediumPath),
-                  downloadImage(photo.url_large, largePath),
+                  downloadImage(getPhotoUrl(photo.photo_reference, 800), smallPath),
+                  downloadImage(getPhotoUrl(photo.photo_reference, 800), mediumPath),
+                  downloadImage(getPhotoUrl(photo.photo_reference, 800), largePath),
                 ]);
 
-              // Only create DB record if at least one size downloaded successfully
-              if (
-                smallResult.success ||
-                mediumResult.success ||
-                largeResult.success
-              ) {
+              // Only create DB record if download was successful
+              if (result.success) {
                 return CityPhoto.create({
                   city_id: city.id,
                   google_photo_reference: photo.photo_reference,
-                  url_small: smallResult.success
-                    ? `/images/cities/${city.id}/${index}_small${ext}`
-                    : null,
-                  url_medium: mediumResult.success
-                    ? `/images/cities/${city.id}/${index}_medium${ext}`
-                    : null,
-                  url_large: largeResult.success
-                    ? `/images/cities/${city.id}/${index}_large${ext}`
-                    : null,
-                  width: photo.width,
-                  height: photo.height,
+                  url: `/images/cities/${city.id}/${index}${ext}`,
                   attribution: photo.html_attributions
                     ? photo.html_attributions.join(", ")
                     : null,
@@ -206,40 +190,23 @@ async function fetchMissingPlacePhotos() {
           const photoPromises = placeDetails.photos
             .slice(0, 10)
             .map(async (photo, index) => {
-              const ext = getFileExtension(photo.url_small || ".jpg");
+              const ext = getFileExtension(getPhotoUrl(photo.photo_reference, 800) || ".jpg");
 
               // Download three sizes
-              const smallPath = path.join(placeDir, `${index}_small${ext}`);
-              const mediumPath = path.join(placeDir, `${index}_medium${ext}`);
-              const largePath = path.join(placeDir, `${index}_large${ext}`);
-
+                                          
               const [smallResult, mediumResult, largeResult] =
                 await Promise.all([
-                  downloadImage(photo.url_small, smallPath),
-                  downloadImage(photo.url_medium, mediumPath),
-                  downloadImage(photo.url_large, largePath),
+                  downloadImage(getPhotoUrl(photo.photo_reference, 800), smallPath),
+                  downloadImage(getPhotoUrl(photo.photo_reference, 800), mediumPath),
+                  downloadImage(getPhotoUrl(photo.photo_reference, 800), largePath),
                 ]);
 
               // Only create DB record if at least one size downloaded successfully
-              if (
-                smallResult.success ||
-                mediumResult.success ||
-                largeResult.success
-              ) {
+              if (result.success) {
                 return PlacePhoto.create({
                   place_id: place.id,
                   google_photo_reference: photo.photo_reference,
-                  url_small: smallResult.success
-                    ? `/images/places/${place.id}/${index}_small${ext}`
-                    : null,
-                  url_medium: mediumResult.success
-                    ? `/images/places/${place.id}/${index}_medium${ext}`
-                    : null,
-                  url_large: largeResult.success
-                    ? `/images/places/${place.id}/${index}_large${ext}`
-                    : null,
-                  width: photo.width,
-                  height: photo.height,
+                  url: `/images/places/${place.id}/${index}${ext}`,
                   attribution: photo.html_attributions
                     ? photo.html_attributions.join(", ")
                     : null,

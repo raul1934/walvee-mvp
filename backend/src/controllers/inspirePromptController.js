@@ -127,28 +127,23 @@ exports.getRecommendations = async (req, res) => {
       language
     );
 
-    // Get schema with google_maps_id
-    const responseSchema = promptService.getRecommendationsSchema();
-
     // Call Gemini with Maps Grounding
+    // NOTE: Google Maps Grounding does NOT support application/json response format
+    // We must use text mode and parse JSON manually from the prompt instructions
     const modelConfig = {
       model: GEMINI_MODEL_RECOMMENDATIONS,
-      generationConfig: {
-        responseMimeType: "application/json",
-        responseSchema,
-      },
     };
 
     const geminiModel = genAI.getGenerativeModel(modelConfig);
 
-    // Build request with optional Maps Grounding
+    // Build request with Maps Grounding (always enabled for place validation)
     const requestConfig = {
       contents: [{ role: "user", parts: [{ text: systemPrompt }] }],
+      tools: [{ googleMaps: { enableWidget: true } }],
     };
 
-    // Add Google Maps Grounding if city location is available
+    // Add location context if available for better proximity-based recommendations
     if (cityLocation && cityLocation.latitude && cityLocation.longitude) {
-      requestConfig.tools = [{ googleMaps: { enableWidget: true } }];
       requestConfig.toolConfig = {
         retrievalConfig: {
           latLng: {
@@ -157,7 +152,9 @@ exports.getRecommendations = async (req, res) => {
           }
         }
       };
-      console.log('[Inspire] Maps Grounding enabled with location:', cityLocation);
+      console.log('[Inspire] Maps Grounding enabled WITH location:', cityLocation);
+    } else {
+      console.log('[Inspire] Maps Grounding enabled WITHOUT location (using query context)');
     }
 
     const result = await geminiModel.generateContent(requestConfig);
@@ -166,6 +163,16 @@ exports.getRecommendations = async (req, res) => {
     let parsedResponse = JSON.parse(text);
 
     console.log("[Inspire] Raw recommendations response:", parsedResponse);
+
+    // DEBUG: Log full result structure to diagnose grounding
+    console.log('[Inspire] Grounding diagnostic:', {
+      hasCandidates: !!result.response.candidates,
+      candidatesLength: result.response.candidates?.length || 0,
+      hasGroundingMetadata: !!result.response.candidates?.[0]?.groundingMetadata,
+      groundingMetadataKeys: result.response.candidates?.[0]?.groundingMetadata ? Object.keys(result.response.candidates[0].groundingMetadata) : [],
+      requestHadTools: !!requestConfig.tools,
+      requestHadToolConfig: !!requestConfig.toolConfig
+    });
 
     // Extract grounding metadata if available
     const groundingMetadata = result.response.candidates?.[0]?.groundingMetadata;
@@ -493,10 +500,7 @@ exports.organizeItinerary = async (req, res) => {
 
             // Find place_id if google_place_id provided
             let placeId = null;
-            if (
-              place.google_place_id &&
-              place.google_place_id !== "MANUAL_ENTRY_REQUIRED"
-            ) {
+            if (place.google_place_id) {
               const placeRecord = await Place.findOne({
                 where: { google_place_id: place.google_place_id },
               });

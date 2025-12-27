@@ -285,11 +285,7 @@ const searchPlaces = async (req, res, next) => {
         PlacePhoto.create({
           place_id: newPlace.id,
           google_photo_reference: photo.photo_reference,
-          url_small: photo.url_small,
-          url_medium: photo.url_medium,
-          url_large: photo.url_large,
-          width: photo.width,
-          height: photo.height,
+          url: photo.url,
           attribution: photo.html_attributions?.[0] || null,
           photo_order: idx,
         }).catch((err) => {
@@ -414,11 +410,7 @@ const getTripPlacesEnriched = async (req, res, next) => {
                     PlacePhoto.create({
                       place_id: place.id,
                       google_photo_reference: photo.photo_reference,
-                      url_small: photo.url_small,
-                      url_medium: photo.url_medium,
-                      url_large: photo.url_large,
-                      width: photo.width,
-                      height: photo.height,
+                      url: photo.url,
                       attribution: photo.html_attributions?.[0] || null,
                       photo_order: idx,
                     }).catch(() => null)
@@ -526,9 +518,7 @@ const getPlaceById = async (req, res, next) => {
       photos:
         place.photos?.map((photo) => ({
           ...photo.toJSON(),
-          url_small: getFullImageUrl(photo.url_small),
-          url_medium: getFullImageUrl(photo.url_medium),
-          url_large: getFullImageUrl(photo.url_large),
+          url: getFullImageUrl(photo.url),
         })) || [],
     };
 

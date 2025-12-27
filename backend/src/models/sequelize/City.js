@@ -45,6 +45,7 @@ const City = sequelize.define(
   },
   {
     tableName: "cities",
+    paranoid: true,
     timestamps: true,
     indexes: [
       { fields: ["country_id"] },

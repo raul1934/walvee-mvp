@@ -191,7 +191,7 @@ const isCityInTabs = (cityName, existingTabs) => {
  *    - type === 'place'/'activity'/'business'/'lugar'/'atividade'/'negócio' → FALSE (it's a place)
  *
  * 2. PRIORITY 2: Check for google_place_id
- *    - Has google_place_id (and not "MANUAL_ENTRY_REQUIRED") → FALSE (cities don't have google_place_id, only specific places do)
+ *    - Has google_place_id → FALSE (cities don't have google_place_id, only specific places do)
  *
  * 3. PRIORITY 3: Check name for place keywords
  *    - Contains: park, museum, beach, restaurant, avenue, etc. → FALSE
@@ -232,12 +232,10 @@ const isCityRecommendation = (rec) => {
   // ==========================================
   // PRIORITY 2: Check for google_place_id
   // Cities don't have google_place_id. Specific places do.
-  // Ignore "MANUAL_ENTRY_REQUIRED" as it's not a valid Place ID
+  // With Maps Grounding, all Place IDs are valid
   // ==========================================
   const hasValidGooglePlaceId =
-    rec.google_place_id &&
-    rec.google_place_id.length > 0 &&
-    rec.google_place_id !== "MANUAL_ENTRY_REQUIRED";
+    rec.google_place_id && rec.google_place_id.length > 0;
   if (hasValidGooglePlaceId) {
     return false;
   }
@@ -692,7 +690,7 @@ export default function InspirePrompt() {
     return () => {
       cancelled = true;
     };
-  }, [tripId, activeCity, cityTabs]);
+  }, [tripId, activeCity]);
 
   // Initial focus on input
   useEffect(() => {
@@ -1570,11 +1568,19 @@ export default function InspirePrompt() {
         }
       }
 
-      // Build simple conversation history array
-      const conversationHistory = filteredMessages.map((m) => ({
-        role: m.role,
-        content: m.content,
-      }));
+      // Build conversation history array including the current user message
+      // Note: We explicitly add the current message because filteredMessages
+      // won't include it yet (React state updates are asynchronous)
+      const conversationHistory = [
+        ...filteredMessages.map((m) => ({
+          role: m.role,
+          content: m.content,
+        })),
+        {
+          role: "user",
+          content: currentInput,
+        },
+      ];
 
       // Call new recommendations endpoint with trip_id for auto-save
       const response = await getRecommendations({

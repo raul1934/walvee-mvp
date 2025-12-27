@@ -34,7 +34,7 @@ const getHomeTrips = async (req, res) => {
     try {
       trips = await Trip.findAll({
         where: { is_draft: false },
-        order: sequelize.random(),
+        order: sequelize.literal('RAND()'),
         limit: parseInt(limit),
         attributes: [
           "id",
@@ -67,7 +67,7 @@ const getHomeTrips = async (req, res) => {
               {
                 model: CityPhoto,
                 as: "photos",
-                attributes: ["url_small", "url_medium", "url_large"],
+                attributes: ["url"],
                 limit: 3,
               },
             ],
@@ -106,7 +106,7 @@ const getHomeTrips = async (req, res) => {
                       {
                         model: PlacePhoto,
                         as: "photos",
-                        attributes: ["url_small", "url_medium", "url_large"],
+                        attributes: ["url"],
                         limit: 3,
                       },
                       INCLUDE_CITY_WITH_COUNTRY,
@@ -125,12 +125,12 @@ const getHomeTrips = async (req, res) => {
               {
                 model: PlacePhoto,
                 as: "placePhoto",
-                attributes: ["url_small", "url_medium", "url_large"],
+                attributes: ["url"],
               },
               {
                 model: CityPhoto,
                 as: "cityPhoto",
-                attributes: ["url_small", "url_medium", "url_large"],
+                attributes: ["url"],
               },
             ],
             order: [["image_order", "ASC"]],
@@ -147,7 +147,7 @@ const getHomeTrips = async (req, res) => {
 
       trips = await Trip.findAll({
         where: { is_draft: false },
-        order: sequelize.random(),
+        order: sequelize.literal('RAND()'),
         limit: parseInt(limit),
         attributes: [
           "id",
@@ -174,7 +174,7 @@ const getHomeTrips = async (req, res) => {
               {
                 model: CityPhoto,
                 as: "photos",
-                attributes: ["url_small", "url_medium", "url_large"],
+                attributes: ["url"],
                 limit: 3,
               },
             ],
@@ -213,7 +213,7 @@ const getHomeTrips = async (req, res) => {
                       {
                         model: PlacePhoto,
                         as: "photos",
-                        attributes: ["url_small", "url_medium", "url_large"],
+                        attributes: ["url"],
                         limit: 3,
                       },
                       INCLUDE_CITY_WITH_COUNTRY,
@@ -233,12 +233,12 @@ const getHomeTrips = async (req, res) => {
               {
                 model: PlacePhoto,
                 as: "placePhoto",
-                attributes: ["url_small", "url_medium", "url_large"],
+                attributes: ["url"],
               },
               {
                 model: CityPhoto,
                 as: "cityPhoto",
-                attributes: ["url_small", "url_medium", "url_large"],
+                attributes: ["url"],
               },
             ],
             order: [["image_order", "ASC"]],
@@ -289,9 +289,9 @@ const getHomeTrips = async (req, res) => {
 
           // Get the photo URL from either place photo or city photo
           if (tripImage.placePhoto) {
-            imageUrl = tripImage.placePhoto.url_medium;
+            imageUrl = tripImage.placePhoto.url;
           } else if (tripImage.cityPhoto) {
-            imageUrl = tripImage.cityPhoto.url_medium;
+            imageUrl = tripImage.cityPhoto.url;
           }
 
           if (imageUrl) {
@@ -310,7 +310,7 @@ const getHomeTrips = async (req, res) => {
         destinationObj = {
           id: c.id,
           name: `${c.name}${c.country?.name ? `, ${c.country.name}` : ""}`,
-          photo: getFullImageUrl(c.photos?.[0]?.url_medium),
+          photo: getFullImageUrl(c.photos?.[0]?.url),
         };
       } else if (trip.destination) {
         destinationObj = { name: trip.destination };
@@ -358,7 +358,7 @@ const getHomeTrips = async (req, res) => {
                       types: [],
                       description: a.description || "",
                       photo: a.place.photos?.[0]
-                        ? getFullImageUrl(a.place.photos[0].url_medium)
+                        ? getFullImageUrl(a.place.photos[0].url)
                         : null,
                     }))
                 : [],
@@ -448,7 +448,7 @@ const getHomeCities = async (req, res) => {
         {
           model: CityPhoto,
           as: "photos",
-          attributes: ["url_small", "url_medium", "url_large"],
+          attributes: ["url"],
           limit: 1,
           order: [["photo_order", "ASC"]],
           required: true, // Only cities with photos
@@ -472,10 +472,10 @@ const getHomeCities = async (req, res) => {
       country_code: city.country?.code,
       google_maps_id: city.google_maps_id,
       trip_count: parseInt(city.dataValues.trip_count || 0),
-      photo: getFullImageUrl(city.photos?.[0]?.url_medium),
-      city_image: getFullImageUrl(city.photos?.[0]?.url_medium),
-      photo_small: getFullImageUrl(city.photos?.[0]?.url_small),
-      photo_large: getFullImageUrl(city.photos?.[0]?.url_large),
+      photo: getFullImageUrl(city.photos?.[0]?.url),
+      city_image: getFullImageUrl(city.photos?.[0]?.url),
+      photo_small: getFullImageUrl(city.photos?.[0]?.url),
+      photo_large: getFullImageUrl(city.photos?.[0]?.url),
     }));
 
     return res.json(

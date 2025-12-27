@@ -41,12 +41,12 @@ const getUserFavorites = async (req, res, next) => {
                 {
                   model: PlacePhoto,
                   as: "placePhoto",
-                  attributes: ["url_small", "url_medium", "url_large"],
+                  attributes: ["url"],
                 },
                 {
                   model: CityPhoto,
                   as: "cityPhoto",
-                  attributes: ["url_small", "url_medium", "url_large"],
+                  attributes: ["url"],
                 },
               ],
               order: [["image_order", "ASC"]],

@@ -43,12 +43,12 @@ const getDerivations = async (req, res, next) => {
                   {
                     model: PlacePhoto,
                     as: "placePhoto",
-                    attributes: ["url_small", "url_medium", "url_large"],
+                    attributes: ["url"],
                   },
                   {
                     model: CityPhoto,
                     as: "cityPhoto",
-                    attributes: ["url_small", "url_medium", "url_large"],
+                    attributes: ["url"],
                   },
                 ],
                 where: { is_cover: true },
@@ -70,12 +70,12 @@ const getDerivations = async (req, res, next) => {
                   {
                     model: PlacePhoto,
                     as: "placePhoto",
-                    attributes: ["url_small", "url_medium", "url_large"],
+                    attributes: ["url"],
                   },
                   {
                     model: CityPhoto,
                     as: "cityPhoto",
-                    attributes: ["url_small", "url_medium", "url_large"],
+                    attributes: ["url"],
                   },
                 ],
                 where: { is_cover: true },

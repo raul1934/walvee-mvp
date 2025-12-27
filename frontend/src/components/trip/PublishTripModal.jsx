@@ -42,7 +42,7 @@ function SortablePhotoItem({ photo, onRemove }) {
       className="relative group bg-gray-800 rounded-lg overflow-hidden border-2 border-gray-700 hover:border-blue-500 transition-colors"
     >
       <img
-        src={photo.url_medium || photo.url_small}
+        src={photo.url}
         alt={photo.name || "Trip photo"}
         className="w-full h-32 object-cover"
       />
@@ -393,7 +393,7 @@ export default function PublishTripModal({
                           }`}
                         >
                           <img
-                            src={photo.url_medium || photo.url_small}
+                            src={photo.url}
                             alt={photo.name || "Photo"}
                             className="w-full h-32 object-cover"
                           />

@@ -123,7 +123,7 @@ const searchCities = async (req, res, next) => {
         placesCount: parseInt(city.dataValues.placesCount) || 0,
         image:
           city.photos && city.photos.length > 0
-            ? city.photos[0].url_medium || city.photos[0].url_small
+            ? city.photos[0].url || city.photos[0].url
             : null,
       }));
       return res.json(buildSuccessResponse(formattedCities));
@@ -266,7 +266,7 @@ const searchCities = async (req, res, next) => {
       placesCount: parseInt(city.dataValues.placesCount) || 0,
       image:
         city.photos && city.photos.length > 0
-          ? city.photos[0].url_medium || city.photos[0].url_small
+          ? city.photos[0].url || city.photos[0].url
           : null,
     }));
 
@@ -669,10 +669,7 @@ const getCityTrips = async (req, res, next) => {
                       model: PlacePhoto,
                       as: "photos",
                       attributes: [
-                        "url_small",
-                        "url_medium",
-                        "url_large",
-                        "photo_order",
+                                                                                                "photo_order",
                       ],
                       order: [["photo_order", "ASC"]],
                     },
@@ -706,12 +703,12 @@ const getCityTrips = async (req, res, next) => {
             {
               model: PlacePhoto,
               as: "placePhoto",
-              attributes: ["url_small", "url_medium", "url_large"],
+              attributes: ["url"],
             },
             {
               model: CityPhoto,
               as: "cityPhoto",
-              attributes: ["url_small", "url_medium", "url_large"],
+              attributes: ["url"],
             },
           ],
           required: false,
@@ -840,13 +837,13 @@ const getCityTrips = async (req, res, next) => {
         let coverImageUrl = null;
         if (trip.images && trip.images.length > 0) {
           const coverImage = trip.images.find((img) => img.is_cover) || trip.images[0];
-          if (coverImage.placePhoto?.url_medium) {
+          if (coverImage.placePhoto?.url) {
             coverImageUrl = require("../utils/helpers").getFullImageUrl(
-              coverImage.placePhoto.url_medium
+              coverImage.placePhoto.url
             );
-          } else if (coverImage.cityPhoto?.url_medium) {
+          } else if (coverImage.cityPhoto?.url) {
             coverImageUrl = require("../utils/helpers").getFullImageUrl(
-              coverImage.cityPhoto.url_medium
+              coverImage.cityPhoto.url
             );
           }
         }
@@ -906,23 +903,14 @@ const getCityTrips = async (req, res, next) => {
                         description: a.description || "",
                         photo: a.place.photos?.[0]
                           ? require("../utils/helpers").getFullImageUrl(
-                              a.place.photos[0].url_medium
+                              a.place.photos[0].url
                             )
                           : null,
                         photos: a.place.photos
                           ? a.place.photos.map((p) => ({
-                              url_small:
-                                require("../utils/helpers").getFullImageUrl(
-                                  p.url_small
-                                ),
-                              url_medium:
-                                require("../utils/helpers").getFullImageUrl(
-                                  p.url_medium
-                                ),
-                              url_large:
-                                require("../utils/helpers").getFullImageUrl(
-                                  p.url_large
-                                ),
+                              url: require("../utils/helpers").getFullImageUrl(
+                                p.url
+                              ),
                             }))
                           : [],
                       }))
@@ -1056,7 +1044,7 @@ const getSuggestedCitiesByCountry = async (req, res, next) => {
       tripsCount: parseInt(city.dataValues.trip_count) || 0,
       image:
         city.photos && city.photos.length > 0
-          ? city.photos[0].url_medium || city.photos[0].url_small
+          ? city.photos[0].url || city.photos[0].url
           : null,
     }));
 

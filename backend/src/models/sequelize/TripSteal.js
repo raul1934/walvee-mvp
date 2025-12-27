@@ -44,6 +44,7 @@ const TripSteal = sequelize.define(
   },
   {
     tableName: "trip_steals",
+    paranoid: true,
     indexes: [
       { fields: ["original_trip_id"] },
       { fields: ["new_trip_id"] },

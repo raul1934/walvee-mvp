@@ -967,8 +967,8 @@ export default function TripEditor() {
                     activity.place.photos.length > 0 ? (
                       <img
                         src={
-                          activity.place.photos[0].url_small ||
-                          activity.place.photos[0].url_medium
+                          activity.place.photos[0].url ||
+                          activity.place.photos[0].url
                         }
                         alt={activity.place.name}
                         className="w-12 h-12 rounded object-cover"
@@ -1351,7 +1351,7 @@ export default function TripEditor() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0A0B0F] text-white overflow-x-hidden pt-16">
+    <div className="h-screen bg-[#0A0B0F] text-white overflow-hidden pt-16">
       <style>{`
         body {
           overflow: hidden;
@@ -1363,6 +1363,32 @@ export default function TripEditor() {
           min-height: calc(100vh - 4rem);
           max-height: calc(100vh - 4rem);
         }
+
+        /* Custom visible scrollbar for vertical scrolling */
+        .trip-editor-scroll::-webkit-scrollbar {
+          width: 8px;
+        }
+
+        .trip-editor-scroll::-webkit-scrollbar-track {
+          background: transparent;
+        }
+
+        .trip-editor-scroll::-webkit-scrollbar-thumb {
+          background: rgba(255, 255, 255, 0.15);
+          border-radius: 4px;
+        }
+
+        .trip-editor-scroll::-webkit-scrollbar-thumb:hover {
+          background: rgba(255, 255, 255, 0.25);
+        }
+
+        /* Firefox support */
+        .trip-editor-scroll {
+          scrollbar-width: thin;
+          scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+        }
+
+        /* Hide scrollbars for horizontal tab navigation */
         .scrollbar-hide::-webkit-scrollbar {
           display: none;
         }
@@ -1529,7 +1555,7 @@ export default function TripEditor() {
         {/* Left Column - Form */}
         <aside className="bg-[#0A0B0F] border-r border-[#1F1F1F] flex flex-col overflow-hidden min-h-0">
           {/* Scrollable Form Content */}
-          <div className="flex-1 overflow-y-auto scrollbar-hide space-y-4">
+          <div className="flex-1 overflow-y-auto trip-editor-scroll space-y-4">
             {/* Basic Info Tab */}
             {activeTab === "basic" && (
               <>
@@ -1614,7 +1640,7 @@ export default function TripEditor() {
                     Trip Details
                   </h2>
 
-                  <div className="max-h-[calc(100vh-12rem)] overflow-y-auto pr-2">
+                  <div className="pr-2">
                     <div className="space-y-4">
                       <div>
                         <Label
@@ -1880,7 +1906,7 @@ export default function TripEditor() {
                 </div>
 
                 {/* Cities List */}
-                <div className="flex-1 overflow-y-auto scrollbar-hide">
+                <div className="flex-1 overflow-y-auto trip-editor-scroll">
                   <div className="px-4 pb-20">
                     {formData.cities.length > 0 ? (
                       <DndContext
@@ -2496,7 +2522,7 @@ export default function TripEditor() {
             </div>
 
             {/* Results Section */}
-            <div className="flex-1 overflow-y-auto scrollbar-hide">
+            <div className="flex-1 overflow-y-auto trip-editor-scroll">
               {!showCityDropdown && !citySearchQuery && (
                 <div className="px-6 py-12 text-center">
                   <p className="text-gray-500 text-sm">
@@ -2617,7 +2643,7 @@ export default function TripEditor() {
             </div>
 
             {/* Places List */}
-            <div className="flex-1 overflow-y-auto scrollbar-hide">
+            <div className="flex-1 overflow-y-auto trip-editor-scroll">
               {(() => {
                 // Get places to show: if user is searching globally, use the global results;
                 // otherwise, use preloaded city places (per-city lists).
@@ -2698,8 +2724,8 @@ export default function TripEditor() {
                           {place.photos && place.photos.length > 0 ? (
                             <img
                               src={
-                                place.photos[0].url_small ||
-                                place.photos[0].url_medium
+                                place.photos[0].url ||
+                                place.photos[0].url
                               }
                               alt={place.name}
                               className="w-16 h-16 rounded-lg object-cover"

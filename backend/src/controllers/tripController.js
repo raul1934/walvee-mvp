@@ -113,7 +113,7 @@ const getTrips = async (req, res, next) => {
               {
                 model: PlacePhoto,
                 as: "photos",
-                attributes: ["url_small", "url_medium", "url_large", "photo_order"],
+                attributes: ["photo_order"],
                 order: [["photo_order", "ASC"]],
               },
             ],
@@ -167,10 +167,7 @@ const getTrips = async (req, res, next) => {
                     model: PlacePhoto,
                     as: "photos",
                     attributes: [
-                      "url_small",
-                      "url_medium",
-                      "url_large",
-                      "photo_order",
+                                                                                        "photo_order",
                     ],
                     order: [["photo_order", "ASC"]],
                   },
@@ -308,7 +305,7 @@ const getTripById = async (req, res, next) => {
             {
               model: CityPhoto,
               as: "photos",
-              attributes: ["id", "url_small", "url_medium", "url_large"],
+              attributes: ["id", ],
             },
           ],
         },
@@ -347,7 +344,7 @@ const getTripById = async (req, res, next) => {
                 {
                   model: PlacePhoto,
                   as: "photos",
-                  attributes: ["id", "url_small", "url_medium", "url_large", "photo_order"],
+                  attributes: ["id", "photo_order"],
                   order: [["photo_order", "ASC"]],
                 },
               ],
@@ -389,7 +386,7 @@ const getTripById = async (req, res, next) => {
                     {
                       model: PlacePhoto,
                       as: "photos",
-                      attributes: ["url_small", "url_medium", "url_large"],
+                      attributes: ["url"],
                       limit: 3,
                     },
                   ],
@@ -426,12 +423,12 @@ const getTripById = async (req, res, next) => {
             {
               model: PlacePhoto,
               as: "placePhoto",
-              attributes: ["id", "url_small", "url_medium", "url_large"],
+              attributes: ["id", ],
             },
             {
               model: CityPhoto,
               as: "cityPhoto",
-              attributes: ["id", "url_small", "url_medium", "url_large"],
+              attributes: ["id", ],
             },
           ],
           order: [["image_order", "ASC"]],
@@ -612,10 +609,7 @@ const createTrip = async (req, res, next) => {
                       model: PlacePhoto,
                       as: "photos",
                       attributes: [
-                        "url_small",
-                        "url_medium",
-                        "url_large",
-                        "photo_order",
+                                                                                                "photo_order",
                       ],
                       order: [["photo_order", "ASC"]],
                     },
@@ -787,10 +781,7 @@ const updateTrip = async (req, res, next) => {
                       model: PlacePhoto,
                       as: "photos",
                       attributes: [
-                        "url_small",
-                        "url_medium",
-                        "url_large",
-                        "photo_order",
+                                                                                                "photo_order",
                       ],
                       order: [["photo_order", "ASC"]],
                     },
@@ -856,10 +847,10 @@ async function formatTripResponse(trip) {
   // Add trip images first (ordered by image_order)
   if (tripData.images && tripData.images.length > 0) {
     tripData.images.forEach((tripImage) => {
-      if (tripImage.placePhoto?.url_medium) {
-        images.push(getFullImageUrl(tripImage.placePhoto.url_medium));
-      } else if (tripImage.cityPhoto?.url_medium) {
-        images.push(getFullImageUrl(tripImage.cityPhoto.url_medium));
+      if (tripImage.placePhoto?.url) {
+        images.push(getFullImageUrl(tripImage.placePhoto.url));
+      } else if (tripImage.cityPhoto?.url) {
+        images.push(getFullImageUrl(tripImage.cityPhoto.url));
       }
     });
   }
@@ -869,7 +860,7 @@ async function formatTripResponse(trip) {
     tripData.cities.forEach((city) => {
       if (city.photos) {
         city.photos.forEach((photo) => {
-          if (photo.url_medium) images.push(getFullImageUrl(photo.url_medium));
+          if (photo.url) images.push(getFullImageUrl(photo.url));
         });
       }
     });
@@ -884,8 +875,8 @@ async function formatTripResponse(trip) {
           if (activity.place?.photos && !addedPlaceIds.has(activity.place.id)) {
             addedPlaceIds.add(activity.place.id);
             activity.place.photos.forEach((photo) => {
-              if (photo.url_medium) {
-                images.push(getFullImageUrl(photo.url_medium));
+              if (photo.url) {
+                images.push(getFullImageUrl(photo.url));
               }
             });
           }
@@ -1020,16 +1011,12 @@ async function formatTripResponse(trip) {
           image_order: img.image_order,
           placePhoto: img.placePhoto
             ? {
-                url_small: getFullImageUrl(img.placePhoto.url_small),
-                url_medium: getFullImageUrl(img.placePhoto.url_medium),
-                url_large: getFullImageUrl(img.placePhoto.url_large),
+                url: getFullImageUrl(img.placePhoto.url),
               }
             : null,
           cityPhoto: img.cityPhoto
             ? {
-                url_small: getFullImageUrl(img.cityPhoto.url_small),
-                url_medium: getFullImageUrl(img.cityPhoto.url_medium),
-                url_large: getFullImageUrl(img.cityPhoto.url_large),
+                url: getFullImageUrl(img.cityPhoto.url),
               }
             : null,
         }))
@@ -1079,9 +1066,7 @@ async function formatTripResponse(trip) {
                 city_id: p.place.city_id,
                 photos: p.place.photos
                   ? p.place.photos.map((photo) => ({
-                      url_small: getFullImageUrl(photo.url_small),
-                      url_medium: getFullImageUrl(photo.url_medium),
-                      url_large: getFullImageUrl(photo.url_large),
+                      url: getFullImageUrl(photo.url),
                       photo_order: photo.photo_order,
                     }))
                   : [],
@@ -1107,13 +1092,11 @@ async function formatTripResponse(trip) {
                   types: a.place.types || [],
                   description: a.description || "",
                   photo: a.place.photos?.[0]
-                    ? getFullImageUrl(a.place.photos[0].url_medium)
+                    ? getFullImageUrl(a.place.photos[0].url)
                     : null,
                   photos: a.place.photos
                     ? a.place.photos.map((p) => ({
-                        url_small: getFullImageUrl(p.url_small),
-                        url_medium: getFullImageUrl(p.url_medium),
-                        url_large: getFullImageUrl(p.url_large),
+                        url: getFullImageUrl(p.url),
                       }))
                     : [],
                 }))
@@ -1242,12 +1225,12 @@ const getTripDerivations = async (req, res, next) => {
                 {
                   model: PlacePhoto,
                   as: "placePhoto",
-                  attributes: ["url_small", "url_medium", "url_large"],
+                  attributes: ["url"],
                 },
                 {
                   model: CityPhoto,
                   as: "cityPhoto",
-                  attributes: ["url_small", "url_medium", "url_large"],
+                  attributes: ["url"],
                 },
               ],
               where: { is_cover: true },
@@ -1271,10 +1254,10 @@ const getTripDerivations = async (req, res, next) => {
       let coverImageUrl = null;
       if (steal.newTrip?.images && steal.newTrip.images.length > 0) {
         const coverImage = steal.newTrip.images[0];
-        if (coverImage.placePhoto?.url_medium) {
-          coverImageUrl = getFullImageUrl(coverImage.placePhoto.url_medium);
-        } else if (coverImage.cityPhoto?.url_medium) {
-          coverImageUrl = getFullImageUrl(coverImage.cityPhoto.url_medium);
+        if (coverImage.placePhoto?.url) {
+          coverImageUrl = getFullImageUrl(coverImage.placePhoto.url);
+        } else if (coverImage.cityPhoto?.url) {
+          coverImageUrl = getFullImageUrl(coverImage.cityPhoto.url);
         }
       }
 
@@ -1385,7 +1368,7 @@ const addPlaceToTrip = async (req, res, next) => {
     // or a Place UUID (existing Place.id). If Google Place ID not present in DB, create a new Place record.
     let placeRecord = null;
 
-    if (place_id && place_id !== "MANUAL_ENTRY_REQUIRED") {
+    if (place_id) {
       const isUuid = typeof place_id === "string" && /^[0-9a-fA-F\-]{36}$/.test(place_id);
       if (isUuid) {
         // Provided a Place.id

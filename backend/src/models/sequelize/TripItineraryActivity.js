@@ -35,7 +35,7 @@ const TripItineraryActivity = sequelize.define(
       defaultValue: 0,
     },
     place_id: {
-      type: DataTypes.INTEGER,
+      type: DataTypes.UUID,
       allowNull: true,
       references: {
         model: "places",
@@ -46,6 +46,7 @@ const TripItineraryActivity = sequelize.define(
   },
   {
     tableName: "trip_itinerary_activities",
+    paranoid: true,
     timestamps: true,
     updatedAt: false,
     indexes: [{ fields: ["itinerary_day_id"] }, { fields: ["activity_order"] }, { fields: ["place_id"] }],

@@ -371,9 +371,9 @@ export default function PlaceDetails({
         if (typeof photo === "object") {
           return (
             photo.url ||
-            photo.url_medium ||
-            photo.url_large ||
-            photo.url_small ||
+            photo.url ||
+            photo.url ||
+            photo.url ||
             photo.photo_url ||
             photo.photo ||
             photo.src ||

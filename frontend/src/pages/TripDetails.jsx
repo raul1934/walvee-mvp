@@ -103,6 +103,8 @@ export default function TripDetails() {
     retry: 1,
     staleTime: 10 * 60 * 1000,
     cacheTime: 30 * 60 * 1000,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
   });
 
   // Trip comments
@@ -141,7 +143,8 @@ export default function TripDetails() {
     onSuccess: () => {
       setNewComment("");
       refetchComments();
-      queryClient.invalidateQueries(["trip", tripId]);
+      // No need to invalidate the entire trip query when posting a comment
+      // queryClient.invalidateQueries(["trip", tripId]);
     },
   });
 
@@ -449,8 +452,15 @@ export default function TripDetails() {
         })
       );
 
-      // Invalidate trip query to refresh like count
-      await queryClient.invalidateQueries(["trip", tripId]);
+      // Update trip data optimistically instead of invalidating
+      queryClient.setQueryData(["trip", tripId], (old) => {
+        if (!old) return old;
+        return {
+          ...old,
+          likes: (old.likes || 0) + 1,
+          currentUserLiked: true,
+        };
+      });
     },
   });
 
@@ -529,8 +539,15 @@ export default function TripDetails() {
         })
       );
 
-      // Invalidate trip query to refresh like count
-      await queryClient.invalidateQueries(["trip", tripId]);
+      // Update trip data optimistically instead of invalidating
+      queryClient.setQueryData(["trip", tripId], (old) => {
+        if (!old) return old;
+        return {
+          ...old,
+          likes: Math.max((old.likes || 1) - 1, 0),
+          currentUserLiked: false,
+        };
+      });
     },
   });
 
@@ -599,7 +616,7 @@ export default function TripDetails() {
               const photos = tripPlace.place.photos
                 .slice(0, 3)
                 .map((photo) => ({
-                  url: photo.url_medium || photo.url_large || photo.url_small,
+                  url: photo.url || photo.url,
                   placeName: tripPlace.name,
                 }));
               allPhotos.push(...photos);
@@ -672,7 +689,7 @@ export default function TripDetails() {
                       ?.slice(0, 5)
                       .map(
                         (photo) =>
-                          photo.url_medium || photo.url_large || photo.url_small
+                          photo.url || photo.url
                       ) || [],
                   latitude: tripPlace.place.latitude,
                   longitude: tripPlace.place.longitude,
@@ -984,7 +1001,7 @@ export default function TripDetails() {
           // Update with full photo URLs from backend
           const fullPhotos = data.data.photos
             .map(
-              (photo) => photo.url_medium || photo.url_large || photo.url_small
+              (photo) => photo.url || photo.url
             )
             .filter(Boolean);
 
@@ -1465,7 +1482,7 @@ export default function TripDetails() {
       `}</style>
 
       <div className="trip-layout">
-        <aside className="column-left bg-[#0A0B0F] border-r border-[#1F1F1F] flex flex-col overflow-hidden">
+        <aside className="column-left bg-[#0A0B0F] border-r border-[#1F1F1F] flex flex-col overflow-hidden min-h-0">
           <div ref={headerRef} className="p-4 border-b border-[#1F1F1F]">
             <Link
               to={createPageUrl("Home")}
@@ -1740,7 +1757,7 @@ export default function TripDetails() {
 
           <div
             ref={scrollRef}
-            className="flex-1 overflow-y-auto scrollbar-hide"
+            className="flex-1 min-h-0 overflow-y-auto scrollbar-hide"
           >
             {/* Trip cities are derived automatically from places; no manual manager UI */}
             {activeTab === "photos" && (

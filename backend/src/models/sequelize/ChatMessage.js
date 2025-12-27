@@ -5,12 +5,12 @@ const ChatMessage = sequelize.define(
   "ChatMessage",
   {
     id: {
-      type: DataTypes.CHAR(36),
+      type: DataTypes.UUID,
       defaultValue: DataTypes.UUIDV4,
       primaryKey: true,
     },
     trip_id: {
-      type: DataTypes.CHAR(36),
+      type: DataTypes.UUID,
       allowNull: false,
       references: {
         model: "trips",
@@ -30,7 +30,7 @@ const ChatMessage = sequelize.define(
       allowNull: true,
     },
     city_id: {
-      type: DataTypes.CHAR(36),
+      type: DataTypes.UUID,
       allowNull: true,
       references: {
         model: "cities",
@@ -51,6 +51,7 @@ const ChatMessage = sequelize.define(
   },
   {
     tableName: "chat_messages",
+    paranoid: true,
     indexes: [
       { fields: ["trip_id", "timestamp"] },
       { fields: ["trip_id", "city_id"] }, // New index for city_id lookups

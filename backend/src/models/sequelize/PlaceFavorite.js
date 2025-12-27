@@ -5,12 +5,12 @@ const PlaceFavorite = sequelize.define(
   "PlaceFavorite",
   {
     id: {
-      type: DataTypes.CHAR(36),
+      type: DataTypes.UUID,
       defaultValue: DataTypes.UUIDV4,
       primaryKey: true,
     },
     place_id: {
-      type: DataTypes.INTEGER,
+      type: DataTypes.UUID,
       allowNull: false,
       references: {
         model: "places",
@@ -18,7 +18,7 @@ const PlaceFavorite = sequelize.define(
       },
     },
     user_id: {
-      type: DataTypes.CHAR(36),
+      type: DataTypes.UUID,
       allowNull: false,
       references: {
         model: "users",
@@ -28,6 +28,7 @@ const PlaceFavorite = sequelize.define(
   },
   {
     tableName: "place_favorites",
+    paranoid: true,
     timestamps: true,
     updatedAt: false,
     charset: "utf8mb4",

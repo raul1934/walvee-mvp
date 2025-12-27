@@ -68,10 +68,10 @@ export default function CityTopPlaces({
               >
                 {/* Place Image - reduced aspect ratio */}
                 <div className="relative aspect-[16/9] overflow-hidden bg-gradient-to-br from-purple-600/20 to-pink-600/20">
-                  {place.photo?.url_medium || place.photos?.[0]?.url_medium ? (
+                  {place.photo?.url || place.photos?.[0]?.url ? (
                     <img
                       src={
-                        place.photo?.url_medium || place.photos?.[0]?.url_medium
+                        place.photo?.url || place.photos?.[0]?.url
                       }
                       alt={place.name}
                       className="w-full h-full object-cover"

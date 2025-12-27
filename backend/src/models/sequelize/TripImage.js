@@ -5,12 +5,12 @@ const TripImage = sequelize.define(
   "TripImage",
   {
     id: {
-      type: DataTypes.CHAR(36),
+      type: DataTypes.UUID,
       defaultValue: DataTypes.UUIDV4,
       primaryKey: true,
     },
     trip_id: {
-      type: DataTypes.CHAR(36),
+      type: DataTypes.UUID,
       allowNull: false,
       references: {
         model: "trips",
@@ -18,7 +18,7 @@ const TripImage = sequelize.define(
       },
     },
     place_photo_id: {
-      type: DataTypes.CHAR(36),
+      type: DataTypes.UUID,
       allowNull: true,
       references: {
         model: "place_photos",
@@ -26,7 +26,7 @@ const TripImage = sequelize.define(
       },
     },
     city_photo_id: {
-      type: DataTypes.CHAR(36),
+      type: DataTypes.UUID,
       allowNull: true,
       references: {
         model: "city_photos",
@@ -45,6 +45,7 @@ const TripImage = sequelize.define(
   },
   {
     tableName: "trip_images",
+    paranoid: true,
     timestamps: true,
     updatedAt: false,
     indexes: [

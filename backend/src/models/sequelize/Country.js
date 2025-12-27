@@ -34,6 +34,7 @@ const Country = sequelize.define(
   },
   {
     tableName: "countries",
+    paranoid: true,
     timestamps: true,
     indexes: [
       { fields: ["code"] },

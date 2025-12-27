@@ -23,6 +23,7 @@ const Follow = sequelize.define(
   },
   {
     tableName: "user_follow",
+    paranoid: true,
     timestamps: true,
     indexes: [
       { fields: ["followee_id"] },

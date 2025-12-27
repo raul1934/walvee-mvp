@@ -68,6 +68,7 @@ const Place = sequelize.define(
   },
   {
     tableName: "places",
+    paranoid: true,
     timestamps: true,
     indexes: [
       { fields: ["google_place_id"] },

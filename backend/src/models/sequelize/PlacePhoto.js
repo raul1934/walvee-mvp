@@ -22,23 +22,9 @@ const PlacePhoto = sequelize.define(
       allowNull: false,
       comment: "Google Maps photo reference",
     },
-    url_small: {
+    url: {
       type: DataTypes.STRING(1000),
-      comment: "Photo URL with maxWidth: 400",
-    },
-    url_medium: {
-      type: DataTypes.STRING(1000),
-      comment: "Photo URL with maxWidth: 800",
-    },
-    url_large: {
-      type: DataTypes.STRING(1000),
-      comment: "Photo URL with maxWidth: 1600",
-    },
-    width: {
-      type: DataTypes.INTEGER,
-    },
-    height: {
-      type: DataTypes.INTEGER,
+      comment: "Photo URL",
     },
     attribution: {
       type: DataTypes.TEXT,
@@ -52,6 +38,7 @@ const PlacePhoto = sequelize.define(
   },
   {
     tableName: "place_photos",
+    paranoid: true,
     timestamps: true,
     updatedAt: false,
     indexes: [

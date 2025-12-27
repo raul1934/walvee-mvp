@@ -10,7 +10,7 @@ const CityReview = sequelize.define(
       primaryKey: true,
     },
     city_id: {
-      type: DataTypes.INTEGER,
+      type: DataTypes.UUID,
       allowNull: false,
       references: {
         model: "cities",
@@ -52,6 +52,7 @@ const CityReview = sequelize.define(
   },
   {
     tableName: "city_reviews",
+    paranoid: true,
     timestamps: true,
     indexes: [
       { fields: ["city_id"] },

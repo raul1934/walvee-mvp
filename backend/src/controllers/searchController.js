@@ -324,11 +324,7 @@ const searchOverlay = async (req, res, next) => {
                     return {
                       city_id: newCity.id,
                       google_photo_reference: photo.photo_reference,
-                      url_small: `/images/cities/${newCity.id}/${index}_small.jpg`,
-                      url_medium: `/images/cities/${newCity.id}/${index}_medium.jpg`,
-                      url_large: `/images/cities/${newCity.id}/${index}_large.jpg`,
-                      width: photo.width,
-                      height: photo.height,
+                      url: `/images/cities/${newCity.id}/${index}.jpg`,
                       attribution: photo.html_attributions?.join("; "),
                       photo_order: index,
                     };
@@ -369,7 +365,7 @@ const searchOverlay = async (req, res, next) => {
         countryCode: city.country?.code,
         state: city.state,
         // Ensure image URL is absolute by prefixing backend URL when needed
-        image: getFullImageUrl(city.photos?.[0]?.url_medium),
+        image: getFullImageUrl(city.photos?.[0]?.url),
         google_maps_id: city.google_maps_id,
         tripsCount: parseInt(city.dataValues.trip_count || 0),
       }));
@@ -449,12 +445,12 @@ const searchOverlay = async (req, res, next) => {
             {
               model: PlacePhoto,
               as: "placePhoto",
-              attributes: ["url_small", "url_medium", "url_large"],
+              attributes: ["url"],
             },
             {
               model: CityPhoto,
               as: "cityPhoto",
-              attributes: ["url_small", "url_medium", "url_large"],
+              attributes: ["url"],
             },
           ],
           order: [["image_order", "ASC"]],
@@ -499,9 +495,9 @@ const searchOverlay = async (req, res, next) => {
       if (trip.images && trip.images.length > 0) {
         const firstImage = trip.images[0];
         if (firstImage.placePhoto) {
-          imageUrl = getFullImageUrl(firstImage.placePhoto.url_medium);
+          imageUrl = getFullImageUrl(firstImage.placePhoto.url);
         } else if (firstImage.cityPhoto) {
-          imageUrl = getFullImageUrl(firstImage.cityPhoto.url_medium);
+          imageUrl = getFullImageUrl(firstImage.cityPhoto.url);
         }
       }
 
@@ -666,11 +662,7 @@ const searchOverlay = async (req, res, next) => {
                   return {
                     place_id: newPlace.id,
                     google_photo_reference: photo.photo_reference,
-                    url_small: `/images/places/${newPlace.id}/${index}_small.jpg`,
-                    url_medium: `/images/places/${newPlace.id}/${index}_medium.jpg`,
-                    url_large: `/images/places/${newPlace.id}/${index}_large.jpg`,
-                    width: photo.width,
-                    height: photo.height,
+                    url: `/images/places/${newPlace.id}/${index}.jpg`,
                     attribution: photo.html_attributions?.join("; "),
                     photo_order: index,
                   };
@@ -728,7 +720,7 @@ const searchOverlay = async (req, res, next) => {
       rating: place.rating,
       price_level: place.price_level,
       types: place.types,
-      image: place.photos?.[0]?.url_medium || null,
+      image: place.photos?.[0]?.url || null,
       latitude: place.latitude,
       longitude: place.longitude,
     }));

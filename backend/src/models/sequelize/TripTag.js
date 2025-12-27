@@ -24,6 +24,7 @@ const TripTag = sequelize.define(
   },
   {
     tableName: "trip_tags",
+    paranoid: true,
     timestamps: true,
     updatedAt: false,
     indexes: [{ fields: ["trip_id"] }, { fields: ["tag"] }],

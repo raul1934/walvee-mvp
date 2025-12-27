@@ -28,6 +28,7 @@ const TripLike = sequelize.define(
   },
   {
     tableName: "trip_likes",
+    paranoid: true,
     timestamps: true,
     updatedAt: false,
     indexes: [

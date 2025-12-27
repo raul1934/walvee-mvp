@@ -68,6 +68,7 @@ const User = sequelize.define(
   },
   {
     tableName: "users",
+    paranoid: true,
     indexes: [{ fields: ["email"] }, { fields: ["google_id"] }],
   }
 );

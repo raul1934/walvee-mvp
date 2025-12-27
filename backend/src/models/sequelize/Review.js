@@ -56,6 +56,7 @@ const Review = sequelize.define(
   },
   {
     tableName: "reviews",
+    paranoid: true,
     indexes: [
       { fields: ["trip_id"] },
       { fields: ["place_id"] },

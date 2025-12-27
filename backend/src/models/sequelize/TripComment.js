@@ -10,12 +10,20 @@ const TripComment = sequelize.define(
       primaryKey: true,
     },
     trip_id: {
-      type: DataTypes.CHAR(36),
+      type: DataTypes.UUID,
       allowNull: false,
+      references: {
+        model: "trips",
+        key: "id",
+      },
     },
     user_id: {
-      type: DataTypes.CHAR(36),
+      type: DataTypes.UUID,
       allowNull: false,
+      references: {
+        model: "users",
+        key: "id",
+      },
     },
     comment: {
       type: DataTypes.TEXT,
@@ -24,6 +32,7 @@ const TripComment = sequelize.define(
   },
   {
     tableName: "trip_comments",
+    paranoid: true,
     timestamps: true,
     createdAt: "created_at",
     updatedAt: "updated_at",

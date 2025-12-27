@@ -10,7 +10,7 @@ module.exports = {
   database: {
     host: process.env.DB_HOST || "localhost",
     port: parseInt(process.env.DB_PORT) || 3306,
-    database: process.env.DB_NAME || "walvee",
+    database: process.env.DB_NAME || "walvee-2",
     user: process.env.DB_USER || "root",
     password: process.env.DB_PASSWORD || "",
     waitForConnections: true,

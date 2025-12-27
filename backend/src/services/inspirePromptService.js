@@ -430,67 +430,6 @@ Keep durations realistic based on Google Maps data. Respond in ${
         );
       }
 
-      // STEP 1B: Not found by Place ID - Try database text search by name + city
-      if (
-        !rec.google_place_id ||
-        rec.google_place_id === "MANUAL_ENTRY_REQUIRED"
-      ) {
-        // Skip DB text search if Place ID is already invalid
-      } else {
-        try {
-          console.log(
-            `[PlaceID] Place ID not in DB, trying text search: "${rec.name}" in "${rec.city}"`
-          );
-
-          const { Op } = require("sequelize");
-          const dbSearchResult = await Place.findOne({
-            where: {
-              name: {
-                [Op.iLike]: `%${rec.name}%`, // Case-insensitive LIKE search
-              },
-            },
-          });
-
-          if (dbSearchResult) {
-            validationResults.existingInDb++;
-            console.log(
-              `[PlaceID] Found in DB via text search: ${rec.name} → ${dbSearchResult.name} (${dbSearchResult.google_place_id})`
-            );
-
-            // Update recommendation with database Place ID
-            rec.google_place_id = dbSearchResult.google_place_id;
-
-            // Enrich recommendation with database data
-            rec.enriched = {
-              id: dbSearchResult.id,
-              name: dbSearchResult.name,
-              address: dbSearchResult.address,
-              rating: dbSearchResult.rating,
-              price_level: dbSearchResult.price_level,
-              latitude: dbSearchResult.latitude,
-              longitude: dbSearchResult.longitude,
-              types: dbSearchResult.types,
-              photos: dbSearchResult.photos,
-            };
-
-            // Add database UUID as place_id
-            rec.place_id = dbSearchResult.id;
-
-            return rec; // Skip Google Maps API entirely
-          } else {
-            console.log(
-              `[PlaceID] Not found in DB via text search: ${rec.name}`
-            );
-          }
-        } catch (dbTextSearchError) {
-          console.error(
-            `[PlaceID] DB text search failed for: ${rec.name}`,
-            dbTextSearchError.message
-          );
-          // Continue to Google Maps API validation
-        }
-      }
-
       // STEP 2: Not in database - validate with Google Maps API
       try {
         const placeDetails = await googleMapsService.getPlaceDetailsWithPhotos(
@@ -539,94 +478,18 @@ Keep durations realistic based on Google Maps data. Respond in ${
           photos: newPlace.photos,
         };
       } catch (error) {
-        // STEP 2B: Place ID validation failed - Try text search fallback
-        console.warn(
-          `[PlaceID] Place ID validation failed for: ${rec.name} (${rec.google_place_id})`,
-          error.message
-        );
-        console.log(
-          `[PlaceID] Attempting text search fallback: "${rec.name}" in "${rec.city}"`
-        );
-
-        try {
-          // Fallback: Search by name and city
-          const searchResult = await googleMapsService.searchPlace(
-            rec.name,
-            rec.city
-          );
-
-          if (!searchResult || !searchResult.place_id) {
-            // Text search also failed
-            console.warn(
-              `[PlaceID] Text search failed: ${rec.name} in ${rec.city} - No results found`
-            );
-            rec.google_place_id = "MANUAL_ENTRY_REQUIRED";
-            validationResults.invalid++;
-            return rec;
+        // With Maps Grounding, invalid Place IDs should be rare
+        // Removed STEP 2B: Text search fallback (no longer needed)
+        console.error(
+          `[PlaceID] Validation failed for: ${rec.name} (${rec.google_place_id})`,
+          {
+            errorMessage: error.message,
+            errorStack: error.stack,
+            errorResponse: error.response?.data || error.response,
           }
-
-          // Text search succeeded - get full details with validated Place ID
-          console.log(
-            `[PlaceID] Text search found: ${searchResult.name} (${searchResult.place_id})`
-          );
-
-          const placeDetails =
-            await googleMapsService.getPlaceDetailsWithPhotos(
-              searchResult.place_id
-            );
-
-          if (!placeDetails || !placeDetails.place_id) {
-            console.warn(
-              `[PlaceID] Text search result validation failed: ${rec.name}`
-            );
-            rec.google_place_id = "MANUAL_ENTRY_REQUIRED";
-            validationResults.invalid++;
-            return rec;
-          }
-
-          // STEP 3: Valid Place ID from text search - Add to database
-          const newPlace = await Place.create({
-            google_place_id: placeDetails.place_id,
-            name: placeDetails.name,
-            address:
-              placeDetails.formatted_address || placeDetails.vicinity || null,
-            latitude: placeDetails.geometry?.location?.lat || null,
-            longitude: placeDetails.geometry?.location?.lng || null,
-            rating: placeDetails.rating || null,
-            price_level: placeDetails.price_level || null,
-            types: placeDetails.types || [],
-            photos: placeDetails.photos || [],
-          });
-
-          validationResults.newFromGoogleMaps++;
-          console.log(
-            `[PlaceID] Added to DB via text search: ${rec.name} → ${placeDetails.name} (${placeDetails.place_id})`
-          );
-
-          // Update recommendation with validated Place ID
-          rec.google_place_id = placeDetails.place_id;
-
-          // Enrich recommendation with new place data
-          rec.enriched = {
-            id: newPlace.id,
-            name: newPlace.name,
-            address: newPlace.address,
-            rating: newPlace.rating,
-            price_level: newPlace.price_level,
-            latitude: newPlace.latitude,
-            longitude: newPlace.longitude,
-            types: newPlace.types,
-            photos: newPlace.photos,
-          };
-        } catch (textSearchError) {
-          // Text search also failed
-          console.error(
-            `[PlaceID] Text search fallback failed: ${rec.name}`,
-            textSearchError.message
-          );
-          rec.google_place_id = "MANUAL_ENTRY_REQUIRED";
-          validationResults.invalid++;
-        }
+        );
+        rec.google_place_id = "MANUAL_ENTRY_REQUIRED";
+        validationResults.invalid++;
       }
 
       // Add database UUID as place_id in main response

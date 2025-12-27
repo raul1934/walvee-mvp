@@ -2,7 +2,7 @@
     "development": {
         "username": "root",
         "password": "123456",
-        "database": "walvee",
+        "database": "walvee-2",
         "host": "localhost",
         "port": 3306,
         "dialect": "mysql"
@@ -10,7 +10,7 @@
     "production": {
         "username": "root",
         "password": "123456",
-        "database": "walvee",
+        "database": "walvee-2",
         "host": "localhost",
         "port": 3306,
         "dialect": "mysql"

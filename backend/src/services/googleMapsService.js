@@ -241,10 +241,12 @@ const getTimezone = async (latitude, longitude) => {
 };
 
 /**
- * Search for places using Google Places Text Search API
- * @param {string} query - Search query (place name)
- * @param {string} destination - Optional destination/location bias
- * @returns {Promise<Object|null>} First matching place or null
+ * Search for a place using Google Maps Text Search API
+ * @deprecated For place validation - use Maps Grounding instead
+ * Still used by: trip modification, general place search, and non-inspire endpoints
+ * @param {string} query - Place name or search query
+ * @param {string|null} destination - Optional city/location context
+ * @returns {Promise<Object|null>} - First matching place or null
  */
 const searchPlace = async (query, destination = null) => {
   if (!GOOGLE_MAPS_API_KEY) {
@@ -346,9 +348,25 @@ const getPlaceDetailsWithPhotos = async (placeId) => {
   }
 
   try {
+    // Remove 'places/' prefix if present (new Place ID format from grounding)
+    // The old Places API expects just the Place ID without prefix
+    const cleanPlaceId = placeId.startsWith('places/')
+      ? placeId.substring(7)
+      : placeId;
+
+    // DEBUG: Log API request details to diagnose NOT_FOUND errors
+    console.log('[Google Maps API] Request Details:', {
+      originalPlaceId: placeId,
+      cleanPlaceId: cleanPlaceId,
+      hadPrefix: placeId.startsWith('places/'),
+      apiUrl: `${PLACES_API_BASE_URL}/details/json`,
+      hasApiKey: !!GOOGLE_MAPS_API_KEY,
+      apiKeyPrefix: GOOGLE_MAPS_API_KEY ? `${GOOGLE_MAPS_API_KEY.substring(0, 10)}...` : 'MISSING',
+    });
+
     const response = await axios.get(`${PLACES_API_BASE_URL}/details/json`, {
       params: {
-        place_id: placeId,
+        place_id: cleanPlaceId,
         fields: [
           "place_id",
           "name",
@@ -360,12 +378,44 @@ const getPlaceDetailsWithPhotos = async (placeId) => {
           "price_level",
           "types",
           "formatted_phone_number",
+          "international_phone_number",
           "website",
+          "url",
           "opening_hours",
+          "current_opening_hours",
+          "business_status",
           "photos",
+          "reviews",
+          "utc_offset",
+          "vicinity",
+          "icon",
+          "icon_background_color",
+          "icon_mask_base_uri",
+          "plus_code",
+          "editorial_summary",
+          "wheelchair_accessible_entrance",
+          "delivery",
+          "dine_in",
+          "takeout",
+          "reservable",
+          "serves_breakfast",
+          "serves_lunch",
+          "serves_dinner",
+          "serves_beer",
+          "serves_wine",
+          "serves_brunch",
+          "serves_vegetarian_food",
+          "curbside_pickup",
         ].join(","),
         key: GOOGLE_MAPS_API_KEY,
       },
+    });
+
+    // DEBUG: Log API response status
+    console.log('[Google Maps API] Response Status:', {
+      status: response.data.status,
+      hasResult: !!response.data.result,
+      errorMessage: response.data.error_message || 'none',
     });
 
     if (response.data.status !== "OK") {
@@ -388,15 +438,14 @@ const getPlaceDetailsWithPhotos = async (placeId) => {
     // Build photo objects with just the reference and metadata
     const photos = (place.photos || []).map((photo) => ({
       photo_reference: photo.photo_reference,
-      width: photo.width,
-      height: photo.height,
-      html_attributions: photo.html_attributions,
+                  html_attributions: photo.html_attributions,
     }));
 
     return {
       place_id: place.place_id,
       name: place.name,
       formatted_address: place.formatted_address,
+      vicinity: place.vicinity,
       city_name: cityName,
       latitude: place.geometry?.location?.lat,
       longitude: place.geometry?.location?.lng,
@@ -405,8 +454,32 @@ const getPlaceDetailsWithPhotos = async (placeId) => {
       price_level: place.price_level,
       types: place.types || [],
       phone_number: place.formatted_phone_number,
+      international_phone_number: place.international_phone_number,
       website: place.website,
+      url: place.url,
+      business_status: place.business_status,
+      utc_offset: place.utc_offset,
       opening_hours: place.opening_hours?.weekday_text || null,
+      current_opening_hours: place.current_opening_hours,
+      icon: place.icon,
+      icon_background_color: place.icon_background_color,
+      icon_mask_base_uri: place.icon_mask_base_uri,
+      plus_code: place.plus_code,
+      editorial_summary: place.editorial_summary?.overview || null,
+      wheelchair_accessible_entrance: place.wheelchair_accessible_entrance,
+      delivery: place.delivery,
+      dine_in: place.dine_in,
+      takeout: place.takeout,
+      reservable: place.reservable,
+      serves_breakfast: place.serves_breakfast,
+      serves_lunch: place.serves_lunch,
+      serves_dinner: place.serves_dinner,
+      serves_beer: place.serves_beer,
+      serves_wine: place.serves_wine,
+      serves_brunch: place.serves_brunch,
+      serves_vegetarian_food: place.serves_vegetarian_food,
+      curbside_pickup: place.curbside_pickup,
+      reviews: place.reviews || [],
       photos,
     };
   } catch (error) {
@@ -492,9 +565,7 @@ const getCityDetailsWithPhotos = async (placeId) => {
     // Build photo objects with just the reference and metadata
     const photos = (place.photos || []).map((photo) => ({
       photo_reference: photo.photo_reference,
-      width: photo.width,
-      height: photo.height,
-      html_attributions: photo.html_attributions,
+                  html_attributions: photo.html_attributions,
     }));
 
     return {

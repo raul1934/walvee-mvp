@@ -72,6 +72,7 @@ const Trip = sequelize.define(
   },
   {
     tableName: "trips",
+    paranoid: true,
     indexes: [
       { fields: ["author_id"] },
       // destination indexes removed

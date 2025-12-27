@@ -39,6 +39,7 @@ const TripItineraryDay = sequelize.define(
   },
   {
     tableName: "trip_itinerary_days",
+    paranoid: true,
     timestamps: true,
     updatedAt: false,
     indexes: [
